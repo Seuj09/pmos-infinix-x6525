@@ -1,36 +1,24 @@
-# DRAFT, untested. Fill _commit after you push the `pmos` branch.
+# DRAFT, untested. Packages a kernel built by ../build-kernel.sh (that tree needs its own clang toolchain).
+# Put the tarball it produces somewhere pmbootstrap can fetch it (a GitHub release) and set _url/_tarball.
 _flavor="infinix-x6525"
 pkgname=linux-$_flavor
 pkgver=5.4.302
 pkgrel=0
-pkgdesc="Infinix X6525 (Unisoc UMS9230 / T606) kernel"
+pkgdesc="Infinix X6525 (Unisoc UMS9230 / T606) kernel (prebuilt Helix Image)"
 arch="aarch64"
-_carch="arm64"
 url="https://github.com/Seuj09/android_kernel_ums9230"
 license="GPL-2.0-only"
-options="!strip !check !tracedeps pmb:cross-native pmb:kconfigcheck-community"
-makedepends="bash bc bison findutils flex openssl-dev perl installkernel
-	clang lld llvm"
-_commit="CHANGEME"
-source="$pkgname-$_commit.tar.gz::$url/archive/$_commit.tar.gz
-	config-$_flavor.$arch"
-builddir="$srcdir/android_kernel_ums9230-$_commit"
-
-prepare() {
-	default_prepare
-	cp "$srcdir/config-$_flavor.$arch" .config
-	make ARCH=$_carch LLVM=1 olddefconfig
-}
-
-build() {
-	make ARCH=$_carch LLVM=1 CROSS_COMPILE=aarch64-alpine-linux-musl- \
-		KBUILD_BUILD_VERSION="$((pkgrel + 1))-postmarketOS"
-}
+options="!strip !check !tracedeps"
+_tarball="linux-infinix-x6525-$pkgver-Helix+.tar.gz"
+source="$_tarball::https://github.com/Seuj09/pmos-infinix-x6525/releases/download/v$pkgver/$_tarball"
+builddir="$srcdir"
 
 package() {
-	mkdir -p "$pkgdir"/boot "$pkgdir"/lib/modules
-	make modules_install ARCH=$_carch INSTALL_MOD_PATH="$pkgdir" INSTALL_MOD_STRIP=1
-	install -Dm644 arch/$_carch/boot/Image "$pkgdir/boot/vmlinuz"
-	install -D include/config/kernel.release "$pkgdir/usr/share/kernel/$_flavor/kernel.release"
+	install -Dm644 arch/arm64/boot/Image "$pkgdir/boot/vmlinuz"
+	install -Dm644 .config "$pkgdir/usr/share/kernel/$_flavor/config"
+	mkdir -p "$pkgdir/lib"
+	cp -a lib/modules "$pkgdir/lib/"
 }
-sha512sums="SKIP"
+sha512sums="
+CHANGEME  linux-infinix-x6525-5.4.302-Helix+.tar.gz
+"

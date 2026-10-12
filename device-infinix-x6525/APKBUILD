@@ -1,0 +1,24 @@
+# DRAFT, untested.
+pkgname=device-infinix-x6525
+pkgdesc="Infinix X6525 (Smart 8)"
+pkgver=0.1
+pkgrel=0
+url="https://postmarketos.org"
+license="MIT"
+arch="aarch64"
+options="!check !archcheck"
+depends="postmarketos-base linux-infinix-x6525"
+makedepends="devicepkg-dev"
+source="deviceinfo"
+
+build() {
+	devicepkg_build $startdir $pkgname
+}
+
+package() {
+	devicepkg_package $startdir $pkgname
+}
+
+sha512sums="
+CHANGEME  deviceinfo
+"
