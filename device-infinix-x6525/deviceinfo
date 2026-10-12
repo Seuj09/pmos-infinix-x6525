@@ -19,7 +19,6 @@ deviceinfo_kernel_cmdline="console=ttyS1,115200n8 androidboot.selinux=permissive
 
 # Boot image: header v4 + separate vendor_boot (verified)
 deviceinfo_header_version="4"
-deviceinfo_bootimg_pagesize="4096"
 deviceinfo_flash_pagesize="4096"
 deviceinfo_flash_offset_base="0x0"
 deviceinfo_flash_offset_kernel="0x8000"
@@ -31,7 +30,7 @@ deviceinfo_generate_bootimg="true"
 deviceinfo_flash_method="fastboot"
 deviceinfo_flash_sparse="true"   # Unisoc fastboot usually wants sparse images (unverified)
 # Kernel 5.4 has RD_GZIP and RD_LZ4 but no zstd initramfs support.
-deviceinfo_ramdisk_compression="gzip"
+deviceinfo_initfs_compression="gzip"
 deviceinfo_usb_network_function="rndis.usb0"   # Unisoc vendor RNDIS gadget (sprd_f_rndis), built in via pmos.config
 # Display, eMMC and USB drivers are modules in the stock config; pmos.config builds them in.
 # NOTE: pmbootstrap with header_version=4 would write its own vendor_boot (dropping the stock DTB).
