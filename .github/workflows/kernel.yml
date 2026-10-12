@@ -1,0 +1,84 @@
+name: kernel
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: config runs the olddefconfig gate. image also builds Image and modules.
+        type: choice
+        options:
+          - config
+          - image
+        default: config
+      kernel_ref:
+        description: Branch or commit of Seuj09/android_kernel_ums9230
+        required: true
+        default: bpf-a17-selinux-test
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kernel-${{ github.ref }}-${{ inputs.mode }}
+  cancel-in-progress: true
+
+jobs:
+  kernel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ inputs.mode == 'image' && 240 || 45 }}
+    steps:
+      - name: Checkout the port
+        uses: actions/checkout@v4
+
+      - name: Checkout the kernel
+        uses: actions/checkout@v4
+        with:
+          repository: Seuj09/android_kernel_ums9230
+          ref: ${{ inputs.kernel_ref }}
+          path: kernel
+          fetch-depth: 1
+
+      - name: Host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential flex bison bc libssl-dev libelf-dev \
+            gcc-aarch64-linux-gnu
+
+      - name: Clang 14
+        if: inputs.mode == 'image'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost || true
+          curl -fL --retry 3 -o "$RUNNER_TEMP/llvm.tar.xz" \
+            https://mirrors.edge.kernel.org/pub/tools/llvm/files/llvm-14.0.6-x86_64.tar.xz
+          mkdir -p "$RUNNER_TEMP/llvm-src"
+          tar -xJf "$RUNNER_TEMP/llvm.tar.xz" -C "$RUNNER_TEMP/llvm-src"
+          clang=$(find "$RUNNER_TEMP/llvm-src" -type f -path '*/bin/clang' | head -1)
+          test -n "$clang"
+          dirname "$(dirname "$clang")" > "$RUNNER_TEMP/clang-dir"
+          "$(cat "$RUNNER_TEMP/clang-dir")/bin/clang" --version
+
+      - name: olddefconfig gate
+        if: inputs.mode == 'config'
+        run: PMOS_KERNEL_MODE=config ./build-kernel.sh "$GITHUB_WORKSPACE/kernel"
+
+      - name: Build Image and modules
+        if: inputs.mode == 'image'
+        run: ./build-kernel.sh "$GITHUB_WORKSPACE/kernel" "$(cat "$RUNNER_TEMP/clang-dir")"
+
+      - name: Upload resolved config
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resolved-config
+          path: out/.config
+          if-no-files-found: ignore
+
+      - name: Upload kernel tarball
+        if: inputs.mode == 'image' && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-tarball
+          path: linux-infinix-x6525-*.tar.gz
+          if-no-files-found: error

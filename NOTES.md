@@ -10,7 +10,8 @@
 - Panel and touch are chosen by the bootloader from the cmdline (lcd_name=lcd_td4160_hx_mipi_hdp_x6525, tp_vendor_id=0x130)
 
 # First boot (SSH over USB)
-1. `./build-kernel.sh <kernel tree on the pmos branch> <clang dir>` (full stock Helix config + pmos.config)
+1. On GitHub: Actions → kernel → Run workflow. Mode `config` is the olddefconfig gate and does not need clang. Mode `image` also builds Image and modules with kernel.org LLVM 14 and `gcc-aarch64-linux-gnu`. The kernel ref defaults to `bpf-a17-selinux-test`.
+   Locally: `PMOS_KERNEL_MODE=config ./build-kernel.sh <kernel tree>`, or `./build-kernel.sh <kernel tree> <clang dir>` for the full build. No `pmos` branch is required.
 2. Build a **gzip** postmarketOS initramfs (kernel 5.4 cannot unpack zstd)
 3. Back up boot_a, check `fastboot getvar current-slot`, then `./repack.sh Image initramfs.gz` and `fastboot flash boot_a boot-pmos.img`
 4. Flash the rootfs to userdata (sparse). This erases Android data. The initramfs looks for the `pmOS_root` label
@@ -18,6 +19,6 @@
 If the phone reboots into Android first-stage init, the bootloader ignored the boot ramdisk and the vendor ramdisk must be replaced while keeping the stock DTB.
 
 # Build notes
-- No `pmos` branch is needed: build-kernel.sh merges pmos.config onto the stock Helix config in an out directory.
+- No `pmos` branch is needed: build-kernel.sh merges pmos.config onto the stock Helix config in an out directory. The workflow and the local script share that gate: every `=y` and every turned-off symbol in `pmos.config` must survive `olddefconfig`.
 - MODULE_SIG and MODULE_SIG_ALL stay on (only MODULE_SIG_FORCE is turned off), so modules are still signed; built-in drivers need no key to boot.
 - The release string is normally `5.4.302-Helix+` (the `+` disappears on an annotated-tag checkout), which is what the kernel APKBUILD expects.
