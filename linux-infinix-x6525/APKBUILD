@@ -1,0 +1,36 @@
+# DRAFT, untested. Fill _commit after you push the `pmos` branch.
+_flavor="infinix-x6525"
+pkgname=linux-$_flavor
+pkgver=5.4.302
+pkgrel=0
+pkgdesc="Infinix X6525 (Unisoc UMS9230 / T606) kernel"
+arch="aarch64"
+_carch="arm64"
+url="https://github.com/Seuj09/android_kernel_ums9230"
+license="GPL-2.0-only"
+options="!strip !check !tracedeps pmb:cross-native pmb:kconfigcheck-community"
+makedepends="bash bc bison findutils flex openssl-dev perl installkernel
+	clang lld llvm"
+_commit="CHANGEME"
+source="$pkgname-$_commit.tar.gz::$url/archive/$_commit.tar.gz
+	config-$_flavor.$arch"
+builddir="$srcdir/android_kernel_ums9230-$_commit"
+
+prepare() {
+	default_prepare
+	cp "$srcdir/config-$_flavor.$arch" .config
+	make ARCH=$_carch LLVM=1 olddefconfig
+}
+
+build() {
+	make ARCH=$_carch LLVM=1 CROSS_COMPILE=aarch64-alpine-linux-musl- \
+		KBUILD_BUILD_VERSION="$((pkgrel + 1))-postmarketOS"
+}
+
+package() {
+	mkdir -p "$pkgdir"/boot "$pkgdir"/lib/modules
+	make modules_install ARCH=$_carch INSTALL_MOD_PATH="$pkgdir" INSTALL_MOD_STRIP=1
+	install -Dm644 arch/$_carch/boot/Image "$pkgdir/boot/vmlinuz"
+	install -D include/config/kernel.release "$pkgdir/usr/share/kernel/$_flavor/kernel.release"
+}
+sha512sums="SKIP"

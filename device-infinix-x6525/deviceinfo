@@ -1,0 +1,34 @@
+# DRAFT, untested. Values marked (verified) come from your boot.img / vendor_boot.img.
+deviceinfo_format_version="0"
+deviceinfo_name="Infinix X6525"
+deviceinfo_manufacturer="Infinix"
+deviceinfo_codename="infinix-x6525"
+deviceinfo_year="2023"
+deviceinfo_arch="aarch64"
+deviceinfo_chassis="handset"
+
+deviceinfo_screen_width="720"
+deviceinfo_screen_height="1612"          # from lcd_size=1612x720 on the stock cmdline (verified)
+
+deviceinfo_external_storage="true"
+deviceinfo_rootfs_image_sector_size="4096"
+
+# The bootloader appends lcd_*, androidboot.* etc. itself, so only keep what the kernel needs.
+deviceinfo_kernel_cmdline="console=ttyS1,115200n8 androidboot.selinux=permissive enforcing=0 cgroup_disable=pressure,net_prio cgroup_no_v1=cpu,cpuset,blkio,io,memory"
+
+# Boot image: header v4 + separate vendor_boot (verified)
+deviceinfo_header_version="4"
+deviceinfo_bootimg_pagesize="4096"
+deviceinfo_flash_pagesize="4096"
+deviceinfo_flash_offset_base="0x0"
+deviceinfo_flash_offset_kernel="0x8000"
+deviceinfo_flash_offset_ramdisk="0x5400000"
+deviceinfo_flash_offset_tags="0x100"
+deviceinfo_flash_offset_dtb="0x1f00000"
+deviceinfo_generate_bootimg="true"
+
+deviceinfo_flash_method="fastboot"
+deviceinfo_usb_network_function="ncm.usb0"
+# Display, eMMC and USB drivers are modules in the stock config. See pmos.config.
+# If you keep any as =m, list them here in load order:
+deviceinfo_modules_initfs=""
