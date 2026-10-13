@@ -17,8 +17,19 @@
   does not identify the part - the bound driver does.
 - The SC27xx PMIC is on `spi4.0`; a Goodix fingerprint device registers `gf-keys`.
 - Internal storage (UFS vs eMMC) is still undetermined - check the board DTB.
-- The cmdline carries more `lcd_*` parameters than `lcd_name` (the panel timings the driver needs);
-  dump the whole line, not just the grep.
+- The `lcd_*` group on the cmdline is `lcd_id` / `lcd_name` / `tp_vendor_id` / `lcd_base` / `lcd_size` /
+  `logo_bpix` - it carries **no timing values** (the paste was truncated at the very end, so a stray
+  parameter cannot be fully ruled out, but the group itself looks complete).
+- **Internal storage is eMMC** (`sprdboot.flash=emmc`), on **sdio3**
+  (`androidboot.boot_devices=soc/soc:ap-apb/201d0000.sdio`). `sdio0` is the microSD slot. The reeder is
+  UFS internally, so its storage nodes must not be copied. `CLK`/`SDHCI_SPRD` promotion in `pmos.config`
+  was therefore the right call and UFS is irrelevant for this device.
+- Other confirmed board values: `lcd_base=9e000000` (framebuffer region), `lcd_id=ID416002`,
+  `logo_bpix=24`, `androidboot.pmic.chipid=2730` (SC2730 - so `sc2730.dtsi` is correct),
+  `androidboot.slot_suffix=_a`, `androidboot.flash.locked=0`, `verifiedbootstate=orange` (unlocked).
+- No `lcd_*` timing parameters are on the cmdline (base kernel params come first, then the `lcd_*` ones
+  appear only as name/id/base/size/bpp) - so the panel timings must come from the board DT, i.e. the
+  `&panel` fragment for the selected variant in dtbo entry 18.
 
 # First boot (SSH over USB)
 1. On GitHub: Actions → kernel → Run workflow. Mode `config` is the olddefconfig gate and does not need clang. Mode `image` also builds Image and modules with kernel.org LLVM 14 and `gcc-aarch64-linux-gnu`. The kernel ref defaults to `bpf-a17-selinux-test`.

@@ -76,13 +76,12 @@
 	reserved-memory {
 		framebuffer_region: framebuffer-region@9e000000 {
 			compatible = "framebuffer";
+			/* base confirmed: the bootloader passes lcd_base=9e000000 */
 			reg = <0 0x9e000000 0 (720 * 1612 * 4)>;
 			iommu-addresses = <&dpu 0x9e000000 (720 * 1612 * 4)>;
 			no-map;
-			/*
-			 * TODO: address and size copied from the reeder DTS.
-			 * Verify against the base DTB the bootloader passes.
-			 */
+			/* size derived from lcd_size=1612x720 at logo_bpix=24
+			 * (4 bytes/px) - still worth checking against the DTB */
 		};
 
 		ramoops@fff80000 {
@@ -144,11 +143,11 @@
 };
 
 /* ---- storage ------------------------------------------------------------
- * Exactly one of &ufs / &sdio1 is the internal storage; the other interface,
- * if wired, is the microSD slot. Downstream 1h10-go only adds a card-detect to
- * &sdio0, which matches the reeder's SD slot being sdio0. The stock config has
- * both SCSI_UFS_SPRD_QOGIRL6=m and MMC_SDHCI_SPRD=m, so it cannot tell us which
- * one this board uses. TODO: confirm from the board DTB.
+ * Confirmed from the device's cmdline: internal storage is eMMC
+ * (sprdboot.flash=emmc) on sdio3 (androidboot.boot_devices=.../201d0000.sdio),
+ * while sdio0 is the microSD slot (downstream 1h10-go adds a card-detect to it).
+ * The reeder is the opposite way round: UFS internally, sdio0 for the card, so
+ * its storage nodes cannot be copied.
  */
 &sdio0 {
 	/* microSD slot */
@@ -162,10 +161,12 @@
 	status = "okay";
 };
 
-&ufs {
-	/* TODO: if this board has eMMC instead of UFS, delete this node and
-	 * enable &sdio1 with bus-width = <8>; non-removable; instead. */
-	vcc-supply = <&vddemmccore>;
+&sdio3 {
+	/* eMMC - the boot device */
+	bus-width = <8>;		/* TODO: verify the width from the board DTB */
+	non-removable;
+	vmmc-supply = <&vddemmccore>;
+	vqmmc-supply = <&vddsdio>;
 	status = "okay";
 };
 
