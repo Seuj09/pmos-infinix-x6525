@@ -14,7 +14,7 @@
    Locally: `PMOS_KERNEL_MODE=config ./build-kernel.sh <kernel tree>`, or `./build-kernel.sh <kernel tree> <clang dir>` for the full build. No `pmos` branch is required.
 2. Build a **gzip** postmarketOS initramfs (kernel 5.4 cannot unpack zstd)
 3. Back up boot_a, check `fastboot getvar current-slot`, then `./repack.sh Image initramfs.gz` and `fastboot flash boot_a boot-pmos.img`
-4. Flash the rootfs to userdata (sparse). This erases Android data. The initramfs looks for the `pmOS_root` label
+4. Flash the rootfs to **`super`**, not `userdata` (sparse) — that is the partition the UMS9230 port uses (`deviceinfo_flash_fastboot_partition_rootfs="super"`). This erases Android data. The initramfs looks for the `pmOS_root` label
 5. On the host a `rndis` USB network interface should appear. Add `pmos.debug-shell` to the cmdline if it does not
 If the phone reboots into Android first-stage init, the bootloader ignored the boot ramdisk and the vendor ramdisk must be replaced.
 

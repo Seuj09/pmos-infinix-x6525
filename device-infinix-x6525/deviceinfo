@@ -11,7 +11,8 @@ deviceinfo_screen_width="720"
 deviceinfo_screen_height="1612"          # from lcd_size=1612x720 on the stock cmdline (verified)
 
 deviceinfo_external_storage="true"
-# userdata logical sector size: check with `blockdev --getss /dev/block/by-name/userdata`.
+# The rootfs goes on `super` on this device (see NOTES.md), so check that partition's
+# logical sector size: `blockdev --getss /dev/block/by-name/super`.
 # pmbootstrap defaults to 512. Only add deviceinfo_rootfs_image_sector_size="4096" if that prints 4096.
 
 # The bootloader appends lcd_*, androidboot.* etc. itself, so only keep what the kernel needs.
