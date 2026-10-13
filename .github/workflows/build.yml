@@ -56,28 +56,34 @@ jobs:
           make -C kernel ARCH=arm64 -j"$(nproc)" dtbs
           ls -l kernel/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dtb
 
-      - name: Enable the panel driver, and check it survives olddefconfig
+      - name: Enable the drivers, and check they survive olddefconfig
         run: |
           cd kernel
           ./scripts/config --module DRM_SPRD            # selects DRM_MIPI_DSI
           ./scripts/config --enable BACKLIGHT_CLASS_DEVICE
           ./scripts/config --module DRM_PANEL_TD4160_HX
+          ./scripts/config --module TOUCHSCREEN_OVT_TCM_SPI
           make ARCH=arm64 olddefconfig
           for sym in CONFIG_DRM_SPRD CONFIG_DRM_MIPI_DSI \
-                     CONFIG_BACKLIGHT_CLASS_DEVICE CONFIG_DRM_PANEL_TD4160_HX; do
+                     CONFIG_BACKLIGHT_CLASS_DEVICE CONFIG_DRM_PANEL_TD4160_HX \
+                     CONFIG_TOUCHSCREEN_OVT_TCM_SPI; do
             grep -qE "^${sym}=(y|m)$" .config || {
               echo "$sym did not survive olddefconfig"
               exit 1
             }
           done
 
-      - name: Prepare and build the panel driver
+      - name: Prepare and build the drivers
         run: |
           make -C kernel ARCH=arm64 LLVM=1 -j"$(nproc)" modules_prepare
           make -C kernel ARCH=arm64 LLVM=1 -j"$(nproc)" \
             drivers/gpu/drm/panel/panel-td4160-hx.o ||
           make -C kernel ARCH=arm64 LLVM=1 -j"$(nproc)" M=drivers/gpu/drm/panel modules
-          ls -l kernel/drivers/gpu/drm/panel/panel-td4160-hx.o
+          make -C kernel ARCH=arm64 LLVM=1 -j"$(nproc)" \
+            drivers/input/touchscreen/ovt-tcm-spi.o ||
+          make -C kernel ARCH=arm64 LLVM=1 -j"$(nproc)" M=drivers/input/touchscreen modules
+          ls -l kernel/drivers/gpu/drm/panel/panel-td4160-hx.o \
+                kernel/drivers/input/touchscreen/ovt-tcm-spi.o
 
       - name: Upload what was built
         if: always()
@@ -87,6 +93,7 @@ jobs:
           path: |
             kernel/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dtb
             kernel/drivers/gpu/drm/panel/panel-td4160-hx.o
+            kernel/drivers/input/touchscreen/ovt-tcm-spi.o
             kernel/.config
           if-no-files-found: warn
 

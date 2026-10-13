@@ -46,8 +46,13 @@ echo "copied device tree, panel driver and binding"
 # 'git apply' rather than patch(1): its --check semantics are unambiguous in
 # both directions, whereas patch's reverse detection happily reports success
 # after silently ignoring -R.
-for p in "$HERE"/patches/*.patch; do
+for p in "$HERE"/patches/*.patch "$HERE"/patches/*/*.patch; do
 	[ -e "$p" ] || continue
+	# patches/upstream* holds the submission copies of what is already in the
+	# tree; applying them here would double-apply the build glue.
+	case "$p" in
+	*"/upstream/"*|*"/upstream-uboot/"*) continue ;;
+	esac
 	if git -C "$TREE" apply -R --check "$p" 2>/dev/null; then
 		echo "$(basename "$p") is already applied"
 	elif git -C "$TREE" apply --check "$p" 2>/dev/null; then
