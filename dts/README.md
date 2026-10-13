@@ -16,18 +16,20 @@ mainline tree at `arch/arm64/boot/dts/sprd/` (the `ums9230` branch of
 | storage | — | **TODO: UFS vs eMMC** |
 | USB (`hsphy`, `usb`) | reeder (MUSB is the same controller) | structure traced, role-switch provider TODO |
 | chargers | downstream 1h10-go + stock config (`BQ2560X`, `BQ2597X` on i2c5) | traced |
-| panel | — | **TODO: no mainline driver exists** |
-| touchscreen | downstream `tp/ums9230-spi3-gpio144-145-tp.dtsi` (SPI3, gpio144/146) | GPIOs traced, **vendor TODO** |
+| panel | device cmdline: `lcd_td4160_hx_mipi_hdp_x6525` | confirmed TD4160 HX, 720x1612; no mainline driver |
+| touchscreen | device: bound driver `omnivision_tcm_spi` on `spi3.0` | confirmed Omnivision TCM; no mainline driver |
 | `cpufreq`, `gpu`, `modem`, codec, uart | reeder (same SoC) | traced |
 
 ## Filling in the TODOs
 
-1. **Panel and touch** — read them off the running stock device; the kernel config cannot tell you,
-   because the stock config enables all four touch vendors and all panel variants:
+1. **Panel and touch** — *done*. Read off the running stock device (the kernel config cannot tell you:
+   it enables all four touch vendors as modules, and the vendor loads four of them at once). The
+   decisive checks were the bound driver, not the loaded modules:
 
    ```sh
-   adb shell cat /proc/cmdline                       # lcd_name=, tp_vendor_id=
-   adb shell cat /proc/modules | grep -iE 'focal|tcm|himax|chipone|fts'
+   cat /proc/cmdline | tr ' ' '\n' | grep -E 'lcd_name|tp_vendor_id'
+   cat /proc/bus/input/devices | grep -E 'Name=|Handlers='
+   for d in /sys/bus/spi/devices/*; do echo "$(basename $d) -> $(basename $(readlink -f $d/driver))"; done
    ```
 
 2. **Storage, GPIOs, regulators** — decompile what the bootloader actually hands over. The base DTB
@@ -44,11 +46,13 @@ mainline tree at `arch/arm64/boot/dts/sprd/` (the `ums9230` branch of
 
 ## Still missing before it can boot a mainline kernel
 
-1. **Panel driver.** None of `td4160`/`ft8057s` exists in mainline. Template:
-   `panel-chipone-icnl9916-720x1600.c` (from the same tree). The init sequence is in the decompiled
-   dtbo from step 2.
-2. **Touch driver.** Mainline has no omnivision TCM driver; `edt-ft5x06` covers some FocalTech parts
-   only. The downstream driver for whichever part is fitted is the port source.
+1. **Panel driver.** Drafted in this repo: `drivers/panel-td4160-hx.c`. It still needs the device's own
+   DCS sequence (dtbo entry 18 — regenerate with `tools/lcd-dtsi-to-c.py`) and the real mode timings,
+   which the bootloader supplies as `lcd_*` cmdline parameters.
+2. **Touch driver.** Confirmed Omnivision TCM over SPI. No mainline driver exists, and `edt-ft5x06` is
+   I2C-only so it cannot be reused. Port source: `drivers/input/touchscreen/omnivision_tcm/` in the
+   stock 5.4 tree — ~390 KB of C across 20+ files plus four ~150 KB firmware images. The largest
+   remaining item, and the one whose approach (full vendor port vs. minimal driver) needs deciding.
 3. **U-Boot board.** The U-Boot fork only has `reeder-s19mps`. A new defconfig + DT is needed;
    the SoC-level drivers (clk, serial, SDHCI, ADI, UFS) are already there.
 

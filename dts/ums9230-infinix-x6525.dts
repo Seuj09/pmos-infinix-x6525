@@ -251,10 +251,12 @@
 };
 
 /* ---- display ------------------------------------------------------------
- * No mainline driver exists for this panel yet. The device's dtbo offers
- * lcd_td4160_hx / lcd_td4160_txd / lcd_ft8057s_dpt, all 720x1612; the reeder's
- * panel-chipone-icnl9916-720x1600.c is the driver template and the init
- * sequence is inside dtbo entry 18 (decompile it, step 2 above).
+ * Confirmed on the device's own cmdline: lcd_name=lcd_td4160_hx_mipi_hdp_x6525,
+ * i.e. the TD4160 HX variant at 720x1612. No mainline driver exists for it yet;
+ * one is drafted in this repo at drivers/panel-td4160-hx.c, modelled on the
+ * reeder's panel-chipone-icnl9916-720x1600.c. Its DCS sequence and mode timings
+ * still have to come from this device - dtbo entry 18 and the lcd_* cmdline
+ * parameters respectively.
  */
 &disp {
 	status = "okay";
@@ -272,7 +274,8 @@
 	#size-cells = <0>;
 
 	panel@0 {
-		compatible = "TODO,td4160";	/* placeholder - not submittable */
+		compatible = "infinix,td4160-hx-panel";	/* vendor prefix TODO, see
+							 * drivers/panel-td4160-hx.c */
 		reg = <0>;
 		reset-gpios = <&ap_gpio 50 GPIO_ACTIVE_LOW>;	/* TODO: from board DTB */
 		backlight = <&backlight>;
@@ -290,11 +293,13 @@
 };
 
 /* ---- touchscreen --------------------------------------------------------
- * The downstream generic node (tp/ums9230-spi3-gpio144-145-tp.dtsi) puts touch
- * on SPI3, IRQ on ap_gpio 144, reset on ap_gpio 146, with four possible
- * compatibles: omnivision,tcm-spi, focaltech,fts-modules, himax,hxcommon,
- * chipone-tddi. All four drivers are =m in the stock config, so the config
- * does not identify the part. TODO: check which module loads on the device.
+ * Confirmed on the device: the bound driver is omnivision_tcm_spi (spi3.0) and
+ * the registered input device is "omnivision_tcm_touch". The vendor also loads
+ * focaltech_ft8722, focaltech_ft8756_spi_ts and nvt_nt36xxx_spi_ts as
+ * candidates, but himax and chipone are absent. The GPIOs below come from the
+ * downstream generic node - verify them against the board DTB. No mainline
+ * driver exists for this part (and mainline's edt-ft5x06 is I2C-only), so
+ * omnivision_tcm/ from the stock tree has to be ported.
  */
 &spi3 {
 	status = "okay";
@@ -303,7 +308,7 @@
 	#size-cells = <0>;
 
 	touchscreen@0 {
-		compatible = "TODO";		/* focaltech,fts | omnivision,tcm-spi | ... */
+		compatible = "omnivision,tcm-spi";	/* driver not ported yet */
 		reg = <0>;
 		spi-max-frequency = <3000000>;	/* [T: downstream ubl-max-freq] */
 		interrupts-extended = <&ap_gpio 144 IRQ_TYPE_EDGE_FALLING>;	/* [T] */

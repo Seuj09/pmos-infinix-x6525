@@ -9,6 +9,17 @@
   with panel variants lcd_td4160_hx / lcd_td4160_txd / lcd_ft8057s_dpt and touch (focaltech/omnivision)
 - Panel and touch are chosen by the bootloader from the cmdline (lcd_name=lcd_td4160_hx_mipi_hdp_x6525, tp_vendor_id=0x130)
 
+# Confirmed on the running device (root shell)
+- `lcd_name=lcd_td4160_hx_mipi_hdp_x6525` -> the panel is the TD4160 **HX** variant, 720x1612
+- Touch is **Omnivision TCM over SPI**: bound driver `omnivision_tcm_spi` on `spi3.0`, input device
+  `omnivision_tcm_touch`. The vendor also loads `focaltech_ft8722`, `focaltech_ft8756_spi_ts` and
+  `nvt_nt36xxx_spi_ts` as candidates; himax and chipone are absent, so the loaded-module list alone
+  does not identify the part - the bound driver does.
+- The SC27xx PMIC is on `spi4.0`; a Goodix fingerprint device registers `gf-keys`.
+- Internal storage (UFS vs eMMC) is still undetermined - check the board DTB.
+- The cmdline carries more `lcd_*` parameters than `lcd_name` (the panel timings the driver needs);
+  dump the whole line, not just the grep.
+
 # First boot (SSH over USB)
 1. On GitHub: Actions → kernel → Run workflow. Mode `config` is the olddefconfig gate and does not need clang. Mode `image` also builds Image and modules with kernel.org LLVM 14 and `gcc-aarch64-linux-gnu`. The kernel ref defaults to `bpf-a17-selinux-test`.
    Locally: `PMOS_KERNEL_MODE=config ./build-kernel.sh <kernel tree>`, or `./build-kernel.sh <kernel tree> <clang dir>` for the full build. No `pmos` branch is required.
