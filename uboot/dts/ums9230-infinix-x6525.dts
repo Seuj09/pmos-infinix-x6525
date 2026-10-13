@@ -1,0 +1,85 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Infinix X6525 ("Smart 8") - Unisoc UMS9230
+ *
+ * Draft: modelled on ums9230-reeder-s19mps.dts, with the values taken from this
+ * device's stock bootloader parameters (lcd_base, lcd_size, logo_bpix,
+ * sprdboot.flash, androidboot.boot_devices).
+ */
+
+/dts-v1/;
+
+#include "ums9230.dtsi"
+#include "sc2730.dtsi"
+
+/ {
+	model = "Infinix X6525";
+
+	compatible = "infinix,x6525", "sprd,ums9230";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		/* eMMC is the boot device (androidboot.boot_devices=
+		 * .../201d0000.sdio, sprdboot.flash=emmc) */
+		mmc0 = &sdio3;
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x1 0xfffff000>;
+	};
+
+	chosen {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		stdout-path = "serial1:115200n8";
+
+		/* The stock bootloader passes lcd_base=9e000000,
+		 * lcd_size=1612x720 and logo_bpix=24, and leaves the panel
+		 * running, so U-Boot can just draw into that framebuffer. */
+		framebuffer@9e000000 {
+			compatible = "simple-framebuffer";
+			reg = <0x0 0x9e000000 0x0 (720 * 1612 * 4)>;
+			width = <720>;
+			height = <1612>;
+			stride = <(720 * 4)>;
+			format = "a8r8g8b8";
+		};
+	};
+
+	bat: battery {
+		compatible = "simple-battery";
+		charge-full-design-microamp-hours = <4950000>;
+		charge-term-current-microamp = <200000>;
+		constant-charge-voltage-max-microvolt = <4400000>;
+		voltage-min-design-microvolt = <3450000>;
+		factory-internal-resistance-micro-ohms = <140000>;
+	};
+};
+
+/* SD card slot, kept as a rescue boot path */
+&sdio0 {
+	status = "okay";
+};
+
+/* eMMC - the boot device */
+&sdio3 {
+	bus-width = <8>;
+	non-removable;
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&usb {
+	status = "okay";
+};

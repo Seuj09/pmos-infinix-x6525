@@ -8,6 +8,7 @@ on:
       - "drivers/**"
       - "bindings/**"
       - "patches/**"
+      - "uboot/**"
       - "tools/**"
       - ".github/workflows/build.yml"
 
@@ -87,4 +88,43 @@ jobs:
             kernel/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dtb
             kernel/drivers/gpu/drm/panel/panel-td4160-hx.o
             kernel/.config
+          if-no-files-found: warn
+
+  uboot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      UBOOT_REPO: https://codeberg.org/ums9230-mainline/u-boot
+
+    steps:
+      - name: Checkout the port
+        uses: actions/checkout@v4
+
+      - name: Checkout the U-Boot fork
+        run: git clone --depth 1 --branch ums9230 "$UBOOT_REPO" uboot
+
+      - name: Host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential flex gcc-aarch64-linux-gnu libssl-dev
+
+      - name: Apply the board
+        run: ./tools/apply-uboot-overlay.sh uboot
+
+      # U-Boot is built with ARCH=arm even for 64-bit: the mach-sprd Kconfig
+      # selects ARM64 for TARGET_UMS9230.
+      - name: Build
+        run: |
+          make -C uboot ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- \
+            infinix-x6525_defconfig
+          make -C uboot ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)"
+          ls -l uboot/u-boot.bin uboot/u-boot
+
+      - name: Upload u-boot.bin
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x6525-uboot
+          path: uboot/u-boot.bin
           if-no-files-found: warn
