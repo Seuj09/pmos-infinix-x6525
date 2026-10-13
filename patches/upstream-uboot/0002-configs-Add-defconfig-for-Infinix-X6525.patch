@@ -1,0 +1,84 @@
+From 4630973114609c2ad4c865880b3b029fe5162c03 Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Tue, 13 Oct 2026 13:15:17 +0000
+Subject: [PATCH 2/2] configs: Add defconfig for Infinix X6525
+
+Same as reeder-s19mps_defconfig apart from the device tree, minus the UFS and
+SCSI options, since this board has no UFS device.
+
+Signed-off-by: Seuj09 <jeus110310@gmail.com>
+---
+ configs/infinix-x6525_defconfig | 61 +++++++++++++++++++++++++++++++++
+ 1 file changed, 61 insertions(+)
+ create mode 100644 configs/infinix-x6525_defconfig
+
+diff --git a/configs/infinix-x6525_defconfig b/configs/infinix-x6525_defconfig
+new file mode 100644
+index 0000000..a46a8cd
+--- /dev/null
++++ b/configs/infinix-x6525_defconfig
+@@ -0,0 +1,61 @@
++# Draft, modelled on reeder-s19mps_defconfig with the differences the X6525
++# needs: its own device tree, and no UFS (this board has an eMMC on sdio3 and
++# no UFS device), so CMD_UFS/SCSI/UFS/UFS_SPRD_UMS9230 are dropped.
++CONFIG_ARM=y
++CONFIG_POSITION_INDEPENDENT=y
++CONFIG_ARCH_SPRD=y
++CONFIG_TEXT_BASE=0x0
++CONFIG_DEFAULT_DEVICE_TREE="ums9230-infinix-x6525"
++CONFIG_SYS_BOOTM_LEN=0x800000
++# CONFIG_EFI_LOADER is not set
++# CONFIG_ANDROID_BOOT_IMAGE is not set
++CONFIG_BOOTSTD_FULL=y
++CONFIG_SD_BOOT=y
++CONFIG_OF_BOARD_SETUP=y
++# CONFIG_USE_BOOTCOMMAND is not set
++CONFIG_USE_PREBOOT=y
++CONFIG_DEFAULT_FDT_FILE="sprd/ums9230-infinix-x6525.dtb"
++CONFIG_LOGLEVEL=8
++CONFIG_CONSOLE_FLUSH_ON_NEWLINE=y
++# CONFIG_DISPLAY_CPUINFO is not set
++# CONFIG_CYCLIC is not set
++CONFIG_LAST_STAGE_INIT=y
++CONFIG_CMD_UFETCH=y
++# CONFIG_CMD_BOOTDEV is not set
++# CONFIG_CMD_BOOTMETH is not set
++# CONFIG_CMD_LZMADEC is not set
++# CONFIG_CMD_UNLZ4 is not set
++# CONFIG_CMD_UNZIP is not set
++# CONFIG_CMD_BIND is not set
++CONFIG_CMD_DM=y
++CONFIG_CMD_LSBLK=y
++CONFIG_CMD_MMC=y
++CONFIG_CMD_SPI=y
++CONFIG_CMD_USB_MASS_STORAGE=y
++# CONFIG_CMD_MII is not set
++# CONFIG_CMD_CLS is not set
++# CONFIG_ISO_PARTITION is not set
++CONFIG_SYS_RELOC_GD_ENV_ADDR=y
++CONFIG_CLK=y
++CONFIG_USB_FUNCTION_FASTBOOT=y
++CONFIG_FASTBOOT_BUF_ADDR=0xb0000000
++CONFIG_FASTBOOT_BUF_SIZE=0x10000000
++CONFIG_MMC_BROKEN_CD=y
++CONFIG_SYS_MMC_MAX_BLK_COUNT=1024
++CONFIG_MMC_SDHCI=y
++CONFIG_MMC_SDHCI_ADMA=y
++CONFIG_MMC_SDHCI_ADMA_64BIT_V4=y
++CONFIG_MMC_SDHCI_SPRD=y
++CONFIG_SPECIFY_CONSOLE_INDEX=y
++CONFIG_SPRD_SERIAL=y
++CONFIG_SYSRESET=y
++CONFIG_USB=y
++CONFIG_DM_USB_GADGET=y
++CONFIG_USB_MUSB_GADGET=y
++CONFIG_USB_MUSB_PIO_ONLY=y
++CONFIG_USB_GADGET=y
++CONFIG_VIDEO=y
++CONFIG_VIDEO_FONT_16X32=y
++CONFIG_VIDEO_ANSI=y
++CONFIG_SYS_WHITE_ON_BLACK=y
++CONFIG_VIDEO_SIMPLE=y
+-- 
+2.47.3
+

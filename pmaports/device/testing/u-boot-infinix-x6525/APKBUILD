@@ -1,0 +1,38 @@
+# Reference: <https://postmarketos.org/devicepkg>
+maintainer="Seuj09 <jeus110310@gmail.com>"
+pkgname=u-boot-infinix-x6525
+# TODO: fill in once the board is in a commit in the fork (see ../README.md):
+# pkgver looks like <u-boot version>_git<commit date>, e.g. jolla-c2's
+# 2025.01_rc1_git20250423 with _commit 88db704f.
+pkgver=2025.07_git00000000
+pkgrel=0
+pkgdesc="U-Boot bootloader for the Infinix X6525"
+url="https://codeberg.org/ums9230-mainline/u-boot"
+arch="aarch64"
+license="GPL-2.0-or-later OFL-1.1 BSD-2-Clause BSD-3-Clause eCos-2.0 IBM-pibs
+	ISC LGPL-2.0-only LGPL-2.1-only X11"
+makedepends="
+	bc
+	bison
+	dtc
+	flex
+	openssl-dev
+"
+_commit="CHANGEME"
+source="$url/archive/$_commit.tar.gz"
+options="!check !tracedeps pmb:cross-native"
+builddir="$srcdir"/u-boot
+
+build() {
+	make ARCH=arm infinix-x6525_defconfig
+	make ARCH=arm
+}
+
+package() {
+	install -Dm644 "$builddir"/u-boot.bin \
+		-t "$pkgdir"/usr/share/u-boot/infinix-x6525
+}
+
+sha512sums="
+CHANGEME  CHANGEME.tar.gz
+"

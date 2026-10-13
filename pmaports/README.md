@@ -24,10 +24,11 @@ marks `fate = "obsolete"`.
    Its dependencies (`DRM_MIPI_DSI`, `BACKLIGHT_CLASS_DEVICE`, `DRM_SPRD`) are already `=y` there.
 
 3. **A `u-boot-infinix-x6525` package.** The deviceinfo chainloads U-Boot from `boot_a`, so without it
-   nothing boots. That needs a board in the [U-Boot fork](https://codeberg.org/ums9230-mainline/u-boot),
-   which does not exist yet — the same shape as `u-boot-jolla-c2` (`configs/reeder-s19mps_defconfig`,
-   plus a device tree). The X6525 needs the SDHCI/eMMC path, which that fork already has (the reeder
-   exercises UFS).
+   nothing boots. The board itself is drafted in `../uboot/` and `../patches/upstream-uboot/`; the
+   package draft here mirrors `u-boot-jolla-c2` and has three things to fill in once the board is
+   upstreamed to the fork: `_commit`, `pkgver` and the tarball's `sha512sum`. The X6525 boots from
+   eMMC on `sdio3`, which U-Boot's SDHCI path covers (the reeder exercises UFS instead), and CI already
+   builds `u-boot.bin` from these files.
 
 Then, before opening the MR:
 

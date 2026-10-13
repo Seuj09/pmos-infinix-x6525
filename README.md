@@ -50,6 +50,8 @@ uploaded as `x6525-build`.
 | `bindings/` | new DT bindings (the board/vendor entries are in `patches/`) |
 | `patches/` | build glue against the pinned kernel tag |
 | `patches/upstream/` | the four `git am`-able patches for submission, plus notes on where each goes |
+| `uboot/` | the X6525 U-Boot board: a defconfig and a device tree, no board directory |
+| `patches/upstream-uboot/` | the two U-Boot board patches for submission |
 | `pmaports/` | the `device-infinix-x6525` package, mirroring the pmaports path |
 | `tools/` | dtbo/dtb extraction and the vendor-sequence converter |
 | `linux-infinix-x6525/`, `device-infinix-x6525/`, `repack.sh` | the earlier downstream 5.4 approach |
