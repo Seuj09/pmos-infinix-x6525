@@ -100,8 +100,10 @@ jobs:
       - name: Checkout the port
         uses: actions/checkout@v4
 
+      # Cloned to uboot-src, not uboot: this repository already has a directory
+      # called uboot/ (the board files that get copied in).
       - name: Checkout the U-Boot fork
-        run: git clone --depth 1 --branch ums9230 "$UBOOT_REPO" uboot
+        run: git clone --depth 1 --branch ums9230 "$UBOOT_REPO" uboot-src
 
       - name: Host packages
         run: |
@@ -110,21 +112,21 @@ jobs:
             bc bison build-essential flex gcc-aarch64-linux-gnu libssl-dev
 
       - name: Apply the board
-        run: ./tools/apply-uboot-overlay.sh uboot
+        run: ./tools/apply-uboot-overlay.sh uboot-src
 
       # U-Boot is built with ARCH=arm even for 64-bit: the mach-sprd Kconfig
       # selects ARM64 for TARGET_UMS9230.
       - name: Build
         run: |
-          make -C uboot ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- \
+          make -C uboot-src ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- \
             infinix-x6525_defconfig
-          make -C uboot ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)"
-          ls -l uboot/u-boot.bin uboot/u-boot
+          make -C uboot-src ARCH=arm CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)"
+          ls -l uboot-src/u-boot.bin uboot-src/u-boot
 
       - name: Upload u-boot.bin
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: x6525-uboot
-          path: uboot/u-boot.bin
+          path: uboot-src/u-boot.bin
           if-no-files-found: warn
