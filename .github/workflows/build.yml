@@ -37,6 +37,38 @@ jobs:
       - name: Checkout the kernel at ${{ env.KERNEL_TAG }}
         run: git clone --depth 1 --branch "$KERNEL_TAG" "$KERNEL_REPO" kernel
 
+      # The submission series in patches/upstream/ is not otherwise tested: the
+      # build below uses the sources plus patches/*.patch, so a patch that no
+      # longer applies - or that replaces a whole file instead of adding a hunk
+      # - goes unnoticed until it is sent upstream. Apply it to the clean clone,
+      # check the result against the sources, then put the tree back.
+      - name: Verify the submission patches
+        run: |
+          base=$(git -C kernel rev-parse HEAD)
+          git -C kernel -c user.name=ci -c user.email=ci@example.com \
+            am --keep-non-patch "$PWD"/patches/upstream/0*.patch
+          fail=0
+          check() { diff -q "$1" "$2" >/dev/null || { echo "MISMATCH: $1 vs $2"; fail=1; }; }
+          check kernel/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts dts/ums9230-infinix-x6525.dts
+          check kernel/drivers/gpu/drm/panel/panel-td4160-hx.c drivers/panel-td4160-hx.c
+          check kernel/drivers/input/touchscreen/ovt-tcm-spi.c drivers/ovt-tcm-spi.c
+          check "kernel/Documentation/devicetree/bindings/display/panel/infinix,td4160-hx-panel.yaml" \
+                "bindings/infinix,td4160-hx-panel.yaml"
+          check "kernel/Documentation/devicetree/bindings/input/touchscreen/omnivision,tcm-spi.yaml" \
+                "bindings/omnivision,tcm-spi.yaml"
+          for e in "drivers/gpu/drm/panel/Kconfig DRM_PANEL_TD4160_HX" \
+                   "drivers/input/touchscreen/Kconfig TOUCHSCREEN_OVT_TCM_SPI" \
+                   "drivers/input/touchscreen/Makefile TOUCHSCREEN_OVT_TCM_SPI" \
+                   "Documentation/devicetree/bindings/arm/sprd/sprd.yaml infinix,x6525" \
+                   "Documentation/devicetree/bindings/vendor-prefixes.yaml infinix"; do
+            set -- $e
+            grep -q "$2" "kernel/$1" || { echo "MISSING: $2 in $1"; fail=1; }
+          done
+          git -C kernel reset --hard -q "$base"
+          git -C kernel clean -qfd
+          [ "$fail" = 0 ] || exit 1
+          echo "the submission series applies and matches the sources"
+
       - name: Host packages
         run: |
           sudo apt-get update

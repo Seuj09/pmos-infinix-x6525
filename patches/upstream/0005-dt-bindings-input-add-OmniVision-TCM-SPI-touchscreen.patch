@@ -1,6 +1,6 @@
-From bd51bbc2bbb6479817d6a3124f5642838123fc1c Mon Sep 17 00:00:00 2001
+From 89018dbc7b7944a0b8d1de178d4738440b2e9721 Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Tue, 13 Oct 2026 21:46:16 +0000
+Date: Tue, 13 Oct 2026 21:51:12 +0000
 Subject: [PATCH 1/2] dt-bindings: input: add OmniVision TCM SPI touchscreen
 
 Add the binding for OmniVision TCM touch controllers connected over SPI with
