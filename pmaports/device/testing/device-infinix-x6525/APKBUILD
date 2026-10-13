@@ -1,0 +1,40 @@
+# Reference: <https://postmarketos.org/devicepkg>
+maintainer="Seuj09 <jeus110310@gmail.com>"
+pkgname=device-infinix-x6525
+pkgdesc="Infinix X6525"
+pkgver=1
+pkgrel=0
+url="https://postmarketos.org"
+license="MIT"
+arch="aarch64"
+options="!check !archcheck"
+depends="
+	linux-postmarketos-unisoc-ums9230
+	postmarketos-base
+	soc-unisoc-ums9230
+"
+# TODO: u-boot-infinix-x6525, once that board exists in the U-Boot fork. It is
+# not optional: U-Boot is chainloaded from boot_a, so without it there is no way
+# to boot the device at all.
+makedepends="devicepkg-dev"
+source="
+	deviceinfo
+"
+
+build() {
+	devicepkg_build $startdir $pkgname
+
+	# Generate a dummy initramfs for the chainloadable U-Boot image
+	fallocate -l 4k dummy-initramfs
+}
+
+package() {
+	devicepkg_package $startdir $pkgname
+
+	install -Dm644 dummy-initramfs \
+		"$pkgdir"/usr/share/u-boot/infinix-x6525/dummy-initramfs
+}
+
+sha512sums="
+23c92ca8a71870ed48602320b2a13f5989a5e441120d1e8f096cb57ee0e644448a48d3d007317a956442eec6c31ed6d0e3124dbbc2b8ec5dfc94fb200b39ae77  deviceinfo
+"

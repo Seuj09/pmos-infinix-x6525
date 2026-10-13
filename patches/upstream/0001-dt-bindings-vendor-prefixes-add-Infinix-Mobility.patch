@@ -1,0 +1,29 @@
+From 13e6be41f0b155894a04778386d974ca49760472 Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Tue, 13 Oct 2026 12:49:54 +0000
+Subject: [PATCH 1/4] dt-bindings: vendor-prefixes: add Infinix Mobility
+
+Infinix Mobility Limited is a Transsion subsidiary; its phones are based on
+Unisoc SoCs, such as the X6525 on the UMS9230.
+
+Signed-off-by: Seuj09 <jeus110310@gmail.com>
+---
+ Documentation/devicetree/bindings/vendor-prefixes.yaml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/vendor-prefixes.yaml b/Documentation/devicetree/bindings/vendor-prefixes.yaml
+index b9a2f4d..5b23616 100644
+--- a/Documentation/devicetree/bindings/vendor-prefixes.yaml
++++ b/Documentation/devicetree/bindings/vendor-prefixes.yaml
+@@ -805,6 +805,8 @@ patternProperties:
+     description: Shenzhen iNet Mobile Internet Technology Co., Ltd
+   "^infineon,.*":
+     description: Infineon Technologies
++  "^infinix,.*":
++    description: Infinix Mobility Limited
+   "^inforce,.*":
+     description: Inforce Computing
+   "^ingenic,.*":
+-- 
+2.47.3
+

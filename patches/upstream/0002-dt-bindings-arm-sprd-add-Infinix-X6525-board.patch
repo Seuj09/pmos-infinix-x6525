@@ -1,0 +1,28 @@
+From c7378c76b05e3f1aca6c3239849aaf7965803a8a Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Tue, 13 Oct 2026 12:49:54 +0000
+Subject: [PATCH 2/4] dt-bindings: arm: sprd: add Infinix X6525 board
+
+The Infinix X6525 ("Smart 8") is a Unisoc UMS9230 phone. Add its compatible
+to the ums9230 enum, next to the existing Reeder S19 Max Pro S entry.
+
+Signed-off-by: Seuj09 <jeus110310@gmail.com>
+---
+ Documentation/devicetree/bindings/arm/sprd/sprd.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/arm/sprd/sprd.yaml b/Documentation/devicetree/bindings/arm/sprd/sprd.yaml
+index 6674ee3..20df86b 100644
+--- a/Documentation/devicetree/bindings/arm/sprd/sprd.yaml
++++ b/Documentation/devicetree/bindings/arm/sprd/sprd.yaml
+@@ -37,6 +37,7 @@ properties:
+ 
+       - items:
+           - enum:
++              - infinix,x6525
+               - reeder,s19mps
+           - const: sprd,ums9230
+ 
+-- 
+2.47.3
+

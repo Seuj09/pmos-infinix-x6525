@@ -1,0 +1,431 @@
+From 821109dae3c3d1bc5a6df24f76720b615861acc1 Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Tue, 13 Oct 2026 12:49:54 +0000
+Subject: [PATCH 3/4] WIP: arm64: dts: sprd: add device tree for Infinix X6525
+
+The Infinix X6525 is a Unisoc UMS9230 (Tiger T606) phone, sold as the
+"Smart 8". It is a UMS9230-1H10-GO reference board variant: the bootloader
+reports androidboot.dtbo_idx=18 and lcd_name=lcd_td4160_hx_mipi_hdp_x6525.
+
+Everything here comes from the device's own firmware (the vendor dtbo, entry
+18) rather than from a sibling board:
+
+- panel: display-timings/timing0 is the native mode, 153.6 MHz, 959x2668,
+  which is 60.03 Hz
+- storage: eMMC on sdio3 (sprdboot.flash=emmc,
+  androidboot.boot_devices=.../201d0000.sdio), sdio0 is the microSD slot
+- touch: Omnivision TCM on SPI3, irq gpio 16, reset gpio 145 (the board DT's
+  supplier table pairs it with the TD4160 panel)
+- keys, battery scalars and the charger layout from the same source
+
+Not yet handled, so this is marked WIP: the charger is a Transsion
+"tran_charger" around an Awinic AW32257 with no mainline driver, the panel
+timings' blanking looks unusual (vfront 1020) and the panel reset polarity
+(active-high in the vendor DT) needs confirming on hardware.
+
+Signed-off-by: Seuj09 <jeus110310@gmail.com>
+---
+ arch/arm64/boot/dts/sprd/Makefile             |   1 +
+ .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 380 ++++++++++++++++++
+ 2 files changed, 381 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+
+diff --git a/arch/arm64/boot/dts/sprd/Makefile b/arch/arm64/boot/dts/sprd/Makefile
+index 0af83bf..2bb8086 100644
+--- a/arch/arm64/boot/dts/sprd/Makefile
++++ b/arch/arm64/boot/dts/sprd/Makefile
+@@ -4,4 +4,5 @@ dtb-$(CONFIG_ARCH_SPRD) += sc9836-openphone.dtb 	\
+ 			sp9863a-1h10.dtb		\
+ 			ums512-1h10.dtb			\
+ 			ums9230-reeder-s19mps.dtb	\
++			ums9230-infinix-x6525.dtb	\
+ 			ums9620-2h10.dtb
+diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+new file mode 100644
+index 0000000..48bb220
+--- /dev/null
++++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+@@ -0,0 +1,380 @@
++// SPDX-License-Identifier: (GPL-2.0 OR MIT)
++/*
++ * Infinix X6525 ("Infinix Smart 8") - Unisoc UMS9230 (Tiger T606)
++ *
++ * DRAFT SKELETON. Nothing here has been tested on the device.
++ *
++ * Every value is either:
++ *   [T]  traced to a named source, or
++ *   TODO must be read off the device before it can be trusted.
++ *
++ * Sources:
++ *   - Structure: ums9230-reeder-s19mps.dts (Jolla C2, same SoC, mainline).
++ *   - Board data: the stock 5.4 tree, arch/arm64/boot/dts/sprd/
++ *     (ums9230-1h10_go-overlay.dts, ums9230-mach.dtsi, ums9230.dts, qogirl6.dtsi).
++ *   - Hardware present: config-helix-stock.aarch64 (this repo).
++ *
++ * The device reports (from the stock images in this repo):
++ *   model "Spreadtrum UMS9230-1H10-GO Board", compatible "sprd,ums9230-1h10-go",
++ *   panel 720x1612, boot console ttyS1.
++ *
++ * HOW TO FILL IN THE TODOs
++ *   1. Ground truth for panel/touch - read the live cmdline on the stock device:
++ *        adb shell cat /proc/cmdline      # lcd_name=..., tp_vendor_id=...
++ *        adb shell cat /proc/modules | grep -iE 'focal|tcm|himax|chipone|fts'
++ *   2. Ground truth for storage/GPIOs - decompile what the bootloader hands over:
++ *        dtc -I dtb -O dts <vendor_boot dtb>     # base: ums9230.dts + 1h10
++ *        dtc -I dtb -O dts <dtbo entry 18>       # board: UMS9230-1H10-GO
++ *   3. Storage: exactly one of &ufs / &sdio1 is internal. Pick from (2).
++ *
++ * Upstreaming checklist - see dts/README.md for the full list.
++ */
++
++/dts-v1/;
++
++#include <dt-bindings/input/input.h>
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/interrupt-controller/arm-gic.h>
++#include <dt-bindings/usb/pd.h>
++
++#include "ums9230.dtsi"
++#include "sc2730.dtsi"
++
++/ {
++	model = "Infinix X6525";
++	compatible = "infinix,x6525", "sprd,ums9230";
++
++	aliases {
++		serial0 = &uart0;
++		serial1 = &uart1;		/* ttyS1 [T: console=ttyS1,115200n8] */
++		/* mmc0 = &sdio1;		TODO: internal storage, see below */
++		i2c0 = &i2c0;
++		i2c1 = &i2c1;
++		i2c2 = &i2c2;
++		i2c3 = &i2c3;
++		i2c4 = &i2c4;
++		i2c5 = &i2c5;			/* chargers are here [T] */
++		i2c6 = &i2c6;
++		i2c7 = &aon_i2c0;
++	};
++
++	chosen {
++		stdout-path = "serial1:115200n8";	/* [T] */
++
++		framebuffer {
++			compatible = "simple-framebuffer";
++			memory-region = <&framebuffer_region>;
++			width = <720>;
++			height = <1612>;	/* [T: lcd_size=1612x720] */
++			stride = <(720 * 4)>;
++			format = "a8r8g8b8";
++
++			status = "disabled";	/* the display driver takes over */
++		};
++	};
++
++	reserved-memory {
++		framebuffer_region: framebuffer-region@9e000000 {
++			compatible = "framebuffer";
++			/* base confirmed: the bootloader passes lcd_base=9e000000 */
++			reg = <0 0x9e000000 0 (720 * 1612 * 4)>;
++			iommu-addresses = <&dpu 0x9e000000 (720 * 1612 * 4)>;
++			no-map;
++			/* size derived from lcd_size=1612x720 at logo_bpix=24
++			 * (4 bytes/px) - still worth checking against the DTB */
++		};
++
++		ramoops@fff80000 {
++			compatible = "ramoops";
++			reg = <0x0 0xfff80000 0x0 0x40000>;
++			console-size = <0x8000>;
++			record-size = <0x8000>;
++			pmsg-size = <0x8000>;
++			/* TODO: verify; same values as the downstream mach.dtsi. */
++		};
++
++		linux,cma {
++			compatible = "shared-dma-pool";
++			size = <0x0 0x8000000>;
++			reusable;
++			linux,cma-default;
++		};
++	};
++
++	/*
++	 * No backlight node: this board has no PWM backlight. Brightness is
++	 * written into the panel over DCS (sprd,backlight-param-write = 1, 12-bit
++	 * with sprd,max-level = 0xfff), so the panel driver registers the
++	 * backlight itself. The vendor's brightness-levels table in the board DT
++	 * is not reproduced yet.
++	 */
++
++	gpio-keys {
++		compatible = "gpio-keys";
++
++		key-volumedown {
++			wakeup-source;
++			debounce-interval = <2>;
++			gpios = <&ap_gpio 124 GPIO_ACTIVE_LOW>;	/* board DT: gpio 0x7c, flag 1 */
++			linux,code = <KEY_VOLUMEDOWN>;
++		};
++
++		key-volumeup {
++			wakeup-source;
++			debounce-interval = <2>;
++			gpios = <&ap_gpio 4 GPIO_ACTIVE_HIGH>;	/* board DT: gpio 0x4, flag 0 */
++			linux,code = <KEY_VOLUMEUP>;
++		};
++
++		key-power {
++			wakeup-source;
++			debounce-interval = <2>;
++			gpios = <&pmic_eic 1 GPIO_ACTIVE_LOW>;	/* board DT: gpio 1, flag 1;
++								 * phandle unresolved in the
++								 * overlay dump - same as the reeder */
++			linux,code = <KEY_POWER>;
++		};
++	};
++
++	bat: battery {
++		compatible = "simple-battery";
++		/* scalars from the board DT; the OCV and JEITA tables there are
++		 * not transcribed yet */
++		charge-full-design-microamp-hours = <4950000>;
++		charge-term-current-microamp = <200000>;
++		constant-charge-voltage-max-microvolt = <4400000>;
++		voltage-min-design-microvolt = <3450000>;
++		factory-internal-resistance-micro-ohms = <140000>;
++		/* charge-sdp/dcp/cdp-current-microamp from the board DT */
++		charge-sdp-current-microamp = <500000>;
++		charge-dcp-current-microamp = <2000000>;
++		charge-cdp-current-microamp = <1500000>;
++	};
++};
++
++/* ---- storage ------------------------------------------------------------
++ * Confirmed from the device's cmdline: internal storage is eMMC
++ * (sprdboot.flash=emmc) on sdio3 (androidboot.boot_devices=.../201d0000.sdio),
++ * while sdio0 is the microSD slot (downstream 1h10-go adds a card-detect to it).
++ * The reeder is the opposite way round: UFS internally, sdio0 for the card, so
++ * its storage nodes cannot be copied.
++ */
++&sdio0 {
++	/* microSD slot */
++	cd-gpios = <&eic_sync 35 GPIO_ACTIVE_HIGH>;	/* downstream says eic_sync, */
++							/* the reeder uses eic_async - verify */
++	vmmc-supply = <&vddsdcore>;
++	vqmmc-supply = <&vddsdio>;
++	bus-width = <4>;
++	no-sdio;
++	no-mmc;
++	status = "okay";
++};
++
++&sdio3 {
++	/* eMMC - the boot device */
++	bus-width = <8>;		/* TODO: verify the width from the board DTB */
++	non-removable;
++	vmmc-supply = <&vddemmccore>;
++	vqmmc-supply = <&vddsdio>;
++	status = "okay";
++};
++
++/* ---- USB ----------------------------------------------------------------
++ * The SoC USB controller is MUSB (sprd,ums9230-musb) - same as the reeder, and
++ * the reason USB_MUSB_HDRC/SPRD must be built in for pmOS USB networking.
++ *
++ * The stock device uses linux,extcon-usb-gpio (mach.dtsi) plus pmic_typec and
++ * pmic_pd extcons; the reeder uses the PMIC Type-C controller as the role
++ * switch. TODO: decide which provider this board actually has. The structure
++ * below is the reeder's.
++ */
++&hsphy {
++	phy-supply = <&vddusb33>;
++	status = "okay";
++};
++
++&usb {
++	dr_mode = "otg";
++	usb-role-switch;
++	role-switch-default-mode = "peripheral";
++	status = "okay";
++
++	port {
++		usb_hs_ep: endpoint {
++			remote-endpoint = <&tcpc_hs_ep>;
++		};
++	};
++};
++
++/* ---- PMIC / charging ----------------------------------------------------
++ * The bq2560x/bq2597x parts in the stock config (and the downstream generic
++ * 1h10-go overlay) are for *other* 1h10 variants. This board instead uses a
++ * Transsion "tran_charger" wrapping an Awinic AW32257:
++ *
++ *   tran_charger { compatible = "tran_charger"; chargers = "aw32257"; ... }
++ *
++ * Mainline has no AW32257 driver, and the vendor node carries no I2C address,
++ * so there is nothing to bind yet. Charging is a separate porting job; leaving
++ * it out does not stop the device booting or running on USB power. PMIC is
++ * still SC2730 (androidboot.pmic.chipid=2730), so sc2730.dtsi is correct.
++ */
++&i2c5 {
++	status = "okay";
++	#address-cells = <1>;
++	#size-cells = <0>;
++
++	/* TODO: Awinic AW32257 charger - address and mainline driver unknown. */
++};
++
++&pmic_typec_pd {
++	/* TODO: the vendor feeds this from the charger's OTG VBUS regulator;
++	 * with no charger driver there is nothing to point at yet. */
++	status = "okay";
++
++	connector {
++		compatible = "usb-c-connector";
++		label = "USB-C";
++		data-role = "dual";
++		power-role = "dual";
++		try-power-role = "sink";
++		source-pdos = <PDO_FIXED(5000, 1200, PDO_FIXED_USB_COMM)>;
++		sink-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_USB_COMM)>;
++		op-sink-microwatt = <10000000>;
++
++		port {
++			tcpc_hs_ep: endpoint {
++				remote-endpoint = <&usb_hs_ep>;
++			};
++		};
++	};
++};
++
++&sc2730_fgu {
++	monitored-battery = <&bat>;
++	sprd,calib-resistance-micro-ohms = <4850>;	/* TODO: verify */
++	/* TODO: power-supplies = the AW32257 charger once it has a driver */
++	status = "okay";
++};
++
++/* ---- display ------------------------------------------------------------
++ * Confirmed on the device's own cmdline: lcd_name=lcd_td4160_hx_mipi_hdp_x6525,
++ * i.e. the TD4160 HX variant at 720x1612. No mainline driver exists for it yet;
++ * one is drafted in this repo at drivers/panel-td4160-hx.c, modelled on the
++ * reeder's panel-chipone-icnl9916-720x1600.c. Its DCS sequence and mode timings
++ * still have to come from this device - dtbo entry 18 and the lcd_* cmdline
++ * parameters respectively.
++ */
++&disp {
++	status = "okay";
++};
++
++&dpu {
++	memory-region = <&framebuffer_region>;
++	status = "okay";
++};
++
++&dsi {
++	status = "okay";
++
++	#address-cells = <1>;
++	#size-cells = <0>;
++
++	panel@0 {
++		compatible = "infinix,td4160-hx-panel";	/* vendor prefix TODO, see
++							 * drivers/panel-td4160-hx.c */
++		reg = <0>;
++		/* board DT: ap_gpio 0x32 with flag 0 = active-high.
++		 * Flip this first if the panel stays dark. */
++		reset-gpios = <&ap_gpio 50 GPIO_ACTIVE_HIGH>;
++
++		port {
++			panel_in: endpoint {
++				remote-endpoint = <&dsi_out>;
++			};
++		};
++	};
++};
++
++&dsi_out {
++	remote-endpoint = <&panel_in>;
++};
++
++/* ---- touchscreen --------------------------------------------------------
++ * Confirmed twice over: the device's bound driver is omnivision_tcm_spi
++ * (spi3.0) with input device "omnivision_tcm_touch", and the board DT's
++ * supplier table pairs this panel with omnivision:
++ *   supplier-1 = "lcd_td4160_hx_mipi_hdp_x6525, omnivision, td4160";
++ * The vendor loads focaltech_ft8722, focaltech_ft8756_spi_ts and
++ * nvt_nt36xxx_spi_ts as candidates too, but himax and chipone are absent.
++ * No mainline driver exists for this part (and mainline's edt-ft5x06 is
++ * I2C-only), so omnivision_tcm/ from the stock tree has to be ported.
++ * The GPIOs below are from the board DT, not the generic downstream node.
++ */
++&spi3 {
++	status = "okay";
++
++	#address-cells = <1>;
++	#size-cells = <0>;
++
++	touchscreen@0 {
++		compatible = "omnivision,tcm-spi";	/* driver not ported yet */
++		reg = <0>;
++		spi-max-frequency = <8000000>;	/* board DT: ubl-max-freq 0x7a1200 */
++		/* board DT: irq-gpio 0x10, reset-gpio 0x91, both flag 0;
++		 * the vendor also sets spi-mode 3 */
++		interrupts-extended = <&ap_gpio 16 IRQ_TYPE_EDGE_FALLING>;
++		reset-gpios = <&ap_gpio 145 GPIO_ACTIVE_HIGH>;
++	};
++};
++
++/* ---- SoC blocks that are already plain mainline ------------------------ */
++
++&cpufreq {
++	sprd,soc-version = /bits/ 64 <0x36303654>;	/* "T606" - same SoC [T] */
++	status = "okay";
++};
++
++&gpu {
++	mali-supply = <&vddgpu>;
++	status = "okay";
++};
++
++&modem {
++	status = "okay";
++};
++
++&modem_dai {
++	status = "okay";
++};
++
++&sc2730_codec {
++	status = "okay";
++};
++
++&uart0 {
++	status = "okay";
++};
++
++&uart1 {
++	status = "okay";
++};
++
++&wcn {
++	/*
++	 * TODO: enable/reset GPIOs and supplies differ per board.
++	 * The reeder uses ap_gpio 118 (enable) and ap_gpio 117 (reset) -
++	 * take the real ones from the board DTB.
++	 */
++	status = "okay";
++};
++
++&sound {
++	model = "infinix-x6525";
++	/*
++	 * TODO: widgets, routing and aux-devs. The reeder drives a
++	 * simple-audio-amplifier from ap_gpio 136; this board's speaker amp
++	 * GPIO is unknown.
++	 */
++	status = "okay";
++};
+-- 
+2.47.3
+
