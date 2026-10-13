@@ -1,0 +1,55 @@
+From 04aae0f9981c03aaae6633cecaa7e48485c0218d Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Tue, 13 Oct 2026 21:46:38 +0000
+Subject: [PATCH] touch: add the TOUCHSCREEN_OVT_TCM_SPI Kconfig and Makefile
+ entries
+
+Build glue only, so that tools/apply-overlay.sh can put the touch driver in the
+tree and CI can compile it. The submission copy of these hunks is
+patches/upstream/0006-Input-add-OmniVision-TCM-SPI-touchscreen-driver-host.patch,
+which pairs them with the driver itself.
+---
+ drivers/input/touchscreen/Kconfig  | 14 ++++++++++++++
+ drivers/input/touchscreen/Makefile |  1 +
+ 2 files changed, 15 insertions(+)
+
+diff --git a/drivers/input/touchscreen/Kconfig b/drivers/input/touchscreen/Kconfig
+index 8585188..51a74fe 100644
+--- a/drivers/input/touchscreen/Kconfig
++++ b/drivers/input/touchscreen/Kconfig
+@@ -657,6 +657,20 @@ config TOUCHSCREEN_MAX11801
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called max11801_ts.
+ 
++config TOUCHSCREEN_OVT_TCM_SPI
++	tristate "OmniVision TCM touchscreen controller (SPI)"
++	depends on SPI && OF
++	select FW_LOADER
++	select CRC32
++	help
++	  Say Y here to enable support for OmniVision TCM touch controllers
++	  with host firmware download (e.g. TD4160 in the Infinix X6525)
++	  connected over SPI. The controller needs an HDL firmware image
++	  from userspace.
++
++	  To compile this driver as a module, choose M here: the module
++	  will be called ovt-tcm-spi.
++
+ config TOUCHSCREEN_MMS114
+ 	tristate "MELFAS MMS114 touchscreen"
+ 	depends on I2C
+diff --git a/drivers/input/touchscreen/Makefile b/drivers/input/touchscreen/Makefile
+index b46b874..563237f 100644
+--- a/drivers/input/touchscreen/Makefile
++++ b/drivers/input/touchscreen/Makefile
+@@ -66,6 +66,7 @@ obj-$(CONFIG_TOUCHSCREEN_MX25)		+= fsl-imx25-tcq.o
+ obj-$(CONFIG_TOUCHSCREEN_MC13783)	+= mc13783_ts.o
+ obj-$(CONFIG_TOUCHSCREEN_MELFAS_MIP4)	+= melfas_mip4.o
+ obj-$(CONFIG_TOUCHSCREEN_MIGOR)		+= migor_ts.o
++obj-$(CONFIG_TOUCHSCREEN_OVT_TCM_SPI)	+= ovt-tcm-spi.o
+ obj-$(CONFIG_TOUCHSCREEN_MMS114)	+= mms114.o
+ obj-$(CONFIG_TOUCHSCREEN_MSG2638)	+= msg2638.o
+ obj-$(CONFIG_TOUCHSCREEN_MTOUCH)	+= mtouch.o
+-- 
+2.47.3
+

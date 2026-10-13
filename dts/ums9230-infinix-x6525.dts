@@ -323,15 +323,26 @@
 		spi-max-frequency = <8000000>;	/* board DT: ubl-max-freq 0x7a1200 */
 		spi-cpha;			/* SPI mode 3, as the vendor sets it */
 		spi-cpol;
-		/* board DT: irq-gpio 0x10, reset-gpio 0x91, both flag 0.
-		 * The chip holds the line low until the report has been read,
-		 * so level-low is safer than an edge (no missed first report). */
+		/* board DT: irq-gpio 0x10. The chip holds the line low until
+		 * the report has been read, so level-low is safer than an edge
+		 * (no missed first report). */
 		interrupts-extended = <&ap_gpio 16 IRQ_TYPE_LEVEL_LOW>;
-		reset-gpios = <&ap_gpio 145 GPIO_ACTIVE_HIGH>;
+		/* board DT: reset-gpio 0x91. The vendor's reset_on_state = 0, so
+		 * reset is asserted low (they drive it low for 20 ms and release
+		 * it), which makes the line active-low. */
+		reset-gpios = <&ap_gpio 145 GPIO_ACTIVE_LOW>;
 		/*
-		 * TODO: pick the image for this panel. The stock driver chooses
-		 * from lcd_name and "lcd_td4160_hx_*" matches none of its names.
-		 * On the stock system:  dmesg | grep "success to request"
+		 * TODO: pick the image for this panel. The vendor driver does not
+		 * really choose by panel name: its strstr() table only knows the
+		 * "cw" variants (lcd_td4160_cw[_new|_old]_mipi_hd and
+		 * lcd_td4160b_cw_boe_mipi_hd) and it bails out when none of them
+		 * match, which is the case for lcd_td4160_hx_*. The module running
+		 * on the device is Infinix's own build, so ask it instead:
+		 *   strings /vendor_dlkm/lib/modules/omnivision_td4160.ko |
+		 *       grep -E 'lcd_td4160|hdl_firmware'
+		 *   ls /vendor/firmware | grep -i hdl
+		 * The file the second one names is also the one to package as
+		 * firmware.
 		 */
 		firmware-name = "hdl_firmware_1.img";
 	};

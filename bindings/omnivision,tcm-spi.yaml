@@ -29,6 +29,10 @@ properties:
 
   reset-gpios:
     maxItems: 1
+    description:
+      Reset line. The controller is held in reset while it is asserted: the
+      vendor device tree drives it low for 20 ms and then releases it, so the
+      line is active-low.
 
   firmware-name:
     description: HDL image requested through request_firmware().
@@ -56,7 +60,7 @@ examples:
             spi-cpha;
             spi-cpol;
             interrupts-extended = <&gpio 16 IRQ_TYPE_LEVEL_LOW>;
-            reset-gpios = <&gpio 145 GPIO_ACTIVE_HIGH>;
+            reset-gpios = <&gpio 145 GPIO_ACTIVE_LOW>;
             firmware-name = "hdl_firmware_1.img";
         };
     };

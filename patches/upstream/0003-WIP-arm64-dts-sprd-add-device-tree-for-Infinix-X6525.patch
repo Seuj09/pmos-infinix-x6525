@@ -1,6 +1,6 @@
-From 821109dae3c3d1bc5a6df24f76720b615861acc1 Mon Sep 17 00:00:00 2001
+From f7296abfa94cce524c94f5a7ce946ad85730cd80 Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Tue, 13 Oct 2026 12:49:54 +0000
+Date: Tue, 13 Oct 2026 21:46:00 +0000
 Subject: [PATCH 3/4] WIP: arm64: dts: sprd: add device tree for Infinix X6525
 
 The Infinix X6525 is a Unisoc UMS9230 (Tiger T606) phone, sold as the
@@ -15,7 +15,8 @@ Everything here comes from the device's own firmware (the vendor dtbo, entry
 - storage: eMMC on sdio3 (sprdboot.flash=emmc,
   androidboot.boot_devices=.../201d0000.sdio), sdio0 is the microSD slot
 - touch: Omnivision TCM on SPI3, irq gpio 16, reset gpio 145 (the board DT's
-  supplier table pairs it with the TD4160 panel)
+  supplier table pairs it with the TD4160 panel). Its binding and driver
+  follow later in this series.
 - keys, battery scalars and the charger layout from the same source
 
 Not yet handled, so this is marked WIP: the charger is a Transsion
@@ -26,8 +27,8 @@ timings' blanking looks unusual (vfront 1020) and the panel reset polarity
 Signed-off-by: Seuj09 <jeus110310@gmail.com>
 ---
  arch/arm64/boot/dts/sprd/Makefile             |   1 +
- .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 380 ++++++++++++++++++
- 2 files changed, 381 insertions(+)
+ .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 400 ++++++++++++++++++
+ 2 files changed, 401 insertions(+)
  create mode 100644 arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 
 diff --git a/arch/arm64/boot/dts/sprd/Makefile b/arch/arm64/boot/dts/sprd/Makefile
@@ -42,10 +43,10 @@ index 0af83bf..2bb8086 100644
  			ums9620-2h10.dtb
 diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 new file mode 100644
-index 0000000..48bb220
+index 0000000..e5180eb
 --- /dev/null
 +++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
-@@ -0,0 +1,380 @@
+@@ -0,0 +1,400 @@
 +// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 +/*
 + * Infinix X6525 ("Infinix Smart 8") - Unisoc UMS9230 (Tiger T606)
@@ -366,13 +367,33 @@ index 0000000..48bb220
 +	#size-cells = <0>;
 +
 +	touchscreen@0 {
-+		compatible = "omnivision,tcm-spi";	/* driver not ported yet */
++		compatible = "omnivision,tcm-spi";
 +		reg = <0>;
 +		spi-max-frequency = <8000000>;	/* board DT: ubl-max-freq 0x7a1200 */
-+		/* board DT: irq-gpio 0x10, reset-gpio 0x91, both flag 0;
-+		 * the vendor also sets spi-mode 3 */
-+		interrupts-extended = <&ap_gpio 16 IRQ_TYPE_EDGE_FALLING>;
-+		reset-gpios = <&ap_gpio 145 GPIO_ACTIVE_HIGH>;
++		spi-cpha;			/* SPI mode 3, as the vendor sets it */
++		spi-cpol;
++		/* board DT: irq-gpio 0x10. The chip holds the line low until
++		 * the report has been read, so level-low is safer than an edge
++		 * (no missed first report). */
++		interrupts-extended = <&ap_gpio 16 IRQ_TYPE_LEVEL_LOW>;
++		/* board DT: reset-gpio 0x91. The vendor's reset_on_state = 0, so
++		 * reset is asserted low (they drive it low for 20 ms and release
++		 * it), which makes the line active-low. */
++		reset-gpios = <&ap_gpio 145 GPIO_ACTIVE_LOW>;
++		/*
++		 * TODO: pick the image for this panel. The vendor driver does not
++		 * really choose by panel name: its strstr() table only knows the
++		 * "cw" variants (lcd_td4160_cw[_new|_old]_mipi_hd and
++		 * lcd_td4160b_cw_boe_mipi_hd) and it bails out when none of them
++		 * match, which is the case for lcd_td4160_hx_*. The module running
++		 * on the device is Infinix's own build, so ask it instead:
++		 *   strings /vendor_dlkm/lib/modules/omnivision_td4160.ko |
++		 *       grep -E 'lcd_td4160|hdl_firmware'
++		 *   ls /vendor/firmware | grep -i hdl
++		 * The file the second one names is also the one to package as
++		 * firmware.
++		 */
++		firmware-name = "hdl_firmware_1.img";
 +	};
 +};
 +

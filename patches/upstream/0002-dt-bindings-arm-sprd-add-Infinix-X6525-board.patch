@@ -1,6 +1,6 @@
-From c7378c76b05e3f1aca6c3239849aaf7965803a8a Mon Sep 17 00:00:00 2001
+From d1dc724bad64d520ef8c23751be45de48328b26d Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Tue, 13 Oct 2026 12:49:54 +0000
+Date: Tue, 13 Oct 2026 21:46:00 +0000
 Subject: [PATCH 2/4] dt-bindings: arm: sprd: add Infinix X6525 board
 
 The Infinix X6525 ("Smart 8") is a Unisoc UMS9230 phone. Add its compatible

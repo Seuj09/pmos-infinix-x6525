@@ -1,0 +1,2778 @@
+From baf2d311203920ec79663737fb727fe7f3bcf6e4 Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Tue, 13 Oct 2026 21:46:17 +0000
+Subject: [PATCH 2/2] Input: add OmniVision TCM SPI touchscreen driver (host
+ download)
+
+Add a driver for OmniVision TCM touch controllers that have no flash and come
+up in a ROM bootloader after every reset. The host downloads an HDL firmware
+image with request_firmware(), runs it, answers the APP_CONFIG, DISPLAY and
+OPENSHORT requests, then reads the application info and registers a
+multitouch input device. A panel reset also resets the controller; the driver
+notices the new ROM-boot identify report and downloads again.
+
+It is written from how the stock omnivision_tcm driver behaves on the wire
+rather than copied from it. Not implemented: the older F35/RMI download path,
+flash update, diagnostics and gestures.
+
+Signed-off-by: Seuj09 <jeus110310@gmail.com>
+---
+ drivers/input/touchscreen/Kconfig       | 1444 +++++++++++++++++++++++
+ drivers/input/touchscreen/Makefile      |  123 ++
+ drivers/input/touchscreen/ovt-tcm-spi.c | 1163 ++++++++++++++++++
+ 3 files changed, 2730 insertions(+)
+ create mode 100644 drivers/input/touchscreen/Kconfig
+ create mode 100644 drivers/input/touchscreen/Makefile
+ create mode 100644 drivers/input/touchscreen/ovt-tcm-spi.c
+
+diff --git a/drivers/input/touchscreen/Kconfig b/drivers/input/touchscreen/Kconfig
+new file mode 100644
+index 0000000..51a74fe
+--- /dev/null
++++ b/drivers/input/touchscreen/Kconfig
+@@ -0,0 +1,1444 @@
++# SPDX-License-Identifier: GPL-2.0-only
++#
++# Touchscreen driver configuration
++#
++menuconfig INPUT_TOUCHSCREEN
++	bool "Touchscreens"
++	help
++	  Say Y here, and a list of supported touchscreens will be displayed.
++	  This option doesn't affect the kernel.
++
++	  If unsure, say Y.
++
++if INPUT_TOUCHSCREEN
++
++config TOUCHSCREEN_88PM860X
++	tristate "Marvell 88PM860x touchscreen"
++	depends on MFD_88PM860X
++	help
++	  Say Y here if you have a 88PM860x PMIC and want to enable
++	  support for the built-in touchscreen.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called 88pm860x-ts.
++
++config TOUCHSCREEN_ADS7846
++	tristate "ADS7846/TSC2046/AD7873 and AD(S)7843 based touchscreens"
++	depends on SPI_MASTER
++	depends on HWMON = n || HWMON
++	help
++	  Say Y here if you have a touchscreen interface using the
++	  ADS7846/TSC2046/AD7873 or ADS7843/AD7843 controller,
++	  and your board-specific setup code includes that in its
++	  table of SPI devices.
++
++	  If HWMON is selected, and the driver is told the reference voltage
++	  on your board, you will also get hwmon interfaces for the voltage
++	  (and on ads7846/tsc2046/ad7873, temperature) sensors of this chip.
++
++	  If unsure, say N (but it's safe to say "Y").
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called ads7846.
++
++config TOUCHSCREEN_AD7877
++	tristate "AD7877 based touchscreens"
++	depends on SPI_MASTER
++	help
++	  Say Y here if you have a touchscreen interface using the
++	  AD7877 controller, and your board-specific initialization
++	  code includes that in its table of SPI devices.
++
++	  If unsure, say N (but it's safe to say "Y").
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called ad7877.
++
++config TOUCHSCREEN_AD7879
++	tristate "Analog Devices AD7879-1/AD7889-1 touchscreen interface"
++	help
++	  Say Y here if you want to support a touchscreen interface using
++	  the AD7879-1/AD7889-1 controller.
++
++	  You should select a bus connection too.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called ad7879.
++
++config TOUCHSCREEN_AD7879_I2C
++	tristate "support I2C bus connection"
++	depends on TOUCHSCREEN_AD7879 && I2C
++	select REGMAP_I2C
++	help
++	  Say Y here if you have AD7879-1/AD7889-1 hooked to an I2C bus.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called ad7879-i2c.
++
++config TOUCHSCREEN_AD7879_SPI
++	tristate "support SPI bus connection"
++	depends on TOUCHSCREEN_AD7879 && SPI_MASTER
++	select REGMAP_SPI
++	help
++	  Say Y here if you have AD7879-1/AD7889-1 hooked to a SPI bus.
++
++	  If unsure, say N (but it's safe to say "Y").
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called ad7879-spi.
++
++config TOUCHSCREEN_ADC
++	tristate "Generic ADC based resistive touchscreen"
++	depends on IIO
++	select IIO_BUFFER
++	select IIO_BUFFER_CB
++	help
++	  Say Y here if you want to use the generic ADC
++	  resistive touchscreen driver.
++
++	  If unsure, say N (but it's safe to say "Y").
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called resistive-adc-touch.ko.
++
++config TOUCHSCREEN_APPLE_Z2
++	tristate "Apple Z2 touchscreens"
++	depends on SPI && (ARCH_APPLE || COMPILE_TEST)
++	help
++	  Say Y here if you have an ARM Apple device with
++	  a touchscreen or a touchbar.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called apple_z2.
++
++config TOUCHSCREEN_AR1021_I2C
++	tristate "Microchip AR1020/1021 i2c touchscreen"
++	depends on I2C && OF
++	help
++	  Say Y here if you have the Microchip AR1020 or AR1021 touchscreen
++	  controller chip in your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called ar1021_i2c.
++
++config TOUCHSCREEN_ATMEL_MXT
++	tristate "Atmel mXT I2C Touchscreen"
++	depends on I2C
++	select FW_LOADER
++	help
++	  Say Y here if you have Atmel mXT series I2C touchscreen,
++	  such as AT42QT602240/ATMXT224, connected to your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called atmel_mxt_ts.
++
++config TOUCHSCREEN_ATMEL_MXT_T37
++	bool "Support T37 Diagnostic Data"
++	depends on TOUCHSCREEN_ATMEL_MXT
++	depends on VIDEO_DEV=y || (TOUCHSCREEN_ATMEL_MXT=m && VIDEO_DEV=m)
++	select VIDEOBUF2_VMALLOC
++	help
++	  Say Y here if you want support to output data from the T37
++	  Diagnostic Data object using a V4L device.
++
++config TOUCHSCREEN_AUO_PIXCIR
++	tristate "AUO in-cell touchscreen using Pixcir ICs"
++	depends on I2C
++	depends on GPIOLIB || COMPILE_TEST
++	help
++	  Say Y here if you have a AUO display with in-cell touchscreen
++	  using Pixcir ICs.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called auo-pixcir-ts.
++
++config TOUCHSCREEN_BU21013
++	tristate "BU21013 based touch panel controllers"
++	depends on I2C
++	help
++	  Say Y here if you have a bu21013 touchscreen connected to
++	  your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called bu21013_ts.
++
++config TOUCHSCREEN_BU21029
++	tristate "Rohm BU21029 based touch panel controllers"
++	depends on I2C
++	help
++	  Say Y here if you have a Rohm BU21029 touchscreen controller
++	  connected to your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called bu21029_ts.
++
++config TOUCHSCREEN_CHIPONE_ICN8318
++	tristate "chipone icn8318 touchscreen controller"
++	depends on GPIOLIB || COMPILE_TEST
++	depends on I2C
++	depends on OF
++	help
++	  Say Y here if you have a ChipOne icn8318 based I2C touchscreen.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called chipone_icn8318.
++
++config TOUCHSCREEN_CHIPONE_ICN8505
++	tristate "chipone icn8505 touchscreen controller"
++	depends on I2C && ACPI
++	help
++	  Say Y here if you have a ChipOne icn8505 based I2C touchscreen.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called chipone_icn8505.
++
++config TOUCHSCREEN_CHIPONE_ICNL9916
++	tristate "chipone icnl9916 touchscreen controller"
++	depends on GPIOLIB || COMPILE_TEST
++	depends on I2C
++	depends on OF
++	help
++	  Say Y here if you have a ChipOne icnl9916 based I2C touchscreen.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called chipone_icnl9916.
++
++config TOUCHSCREEN_CY8CTMA140
++	tristate "cy8ctma140 touchscreen"
++	depends on I2C
++	help
++	  Say Y here if you have a Cypress CY8CTMA140 capacitive
++	  touchscreen also just known as "TMA140"
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called cy8ctma140.
++
++config TOUCHSCREEN_CY8CTMG110
++	tristate "cy8ctmg110 touchscreen"
++	depends on I2C
++	depends on GPIOLIB || COMPILE_TEST
++	help
++	  Say Y here if you have a cy8ctmg110 capacitive touchscreen on
++	  an AAVA device.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called cy8ctmg110_ts.
++
++config TOUCHSCREEN_CYTTSP_CORE
++	tristate "Cypress TTSP touchscreen"
++	help
++	  Say Y here if you have a touchscreen using controller from
++	  the Cypress TrueTouch(tm) Standard Product family connected
++	  to your system. You will also need to select appropriate
++	  bus connection below.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called cyttsp_core.
++
++config TOUCHSCREEN_CYTTSP_I2C
++	tristate "support I2C bus connection"
++	depends on TOUCHSCREEN_CYTTSP_CORE && I2C
++	help
++	  Say Y here if the touchscreen is connected via I2C bus.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called cyttsp_i2c.
++
++config TOUCHSCREEN_CYTTSP_SPI
++	tristate "support SPI bus connection"
++	depends on TOUCHSCREEN_CYTTSP_CORE && SPI_MASTER
++	help
++	  Say Y here if the touchscreen is connected via SPI bus.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called cyttsp_spi.
++
++config TOUCHSCREEN_CYTTSP5
++	tristate "Cypress TrueTouch Gen5 Touchscreen Driver"
++	depends on I2C
++	select REGMAP_I2C
++	select CRC_ITU_T
++	help
++	  Driver for Parade TrueTouch Standard Product Generation 5
++	  touchscreen controllers. I2C bus interface support only.
++
++	  Say Y here if you have a Cypress Gen5 touchscreen.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called cyttsp5.
++
++config TOUCHSCREEN_DA9034
++	tristate "Touchscreen support for Dialog Semiconductor DA9034"
++	depends on PMIC_DA903X
++	default y
++	help
++	  Say Y here to enable the support for the touchscreen found
++	  on Dialog Semiconductor DA9034 PMIC.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called da9034-ts.
++
++config TOUCHSCREEN_DA9052
++	tristate "Dialog DA9052/DA9053 TSI"
++	depends on PMIC_DA9052
++	help
++	  Say Y here to support the touchscreen found on Dialog Semiconductor
++	  DA9052-BC and DA9053-AA/Bx PMICs.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called da9052_tsi.
++
++config TOUCHSCREEN_DYNAPRO
++	tristate "Dynapro serial touchscreen"
++	select SERIO
++	help
++	  Say Y here if you have a Dynapro serial touchscreen connected to
++	  your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called dynapro.
++
++config TOUCHSCREEN_HAMPSHIRE
++	tristate "Hampshire serial touchscreen"
++	select SERIO
++	help
++	  Say Y here if you have a Hampshire serial touchscreen connected to
++	  your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called hampshire.
++
++config TOUCHSCREEN_EETI
++	tristate "EETI touchscreen panel support"
++	depends on I2C
++	help
++	  Say Y here to enable support for I2C connected EETI touch panels.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called eeti_ts.
++
++config TOUCHSCREEN_EGALAX
++	tristate "EETI eGalax multi-touch panel support"
++	depends on I2C && OF
++	help
++	  Say Y here to enable support for I2C connected EETI
++	  eGalax multi-touch panels.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called egalax_ts.
++
++config TOUCHSCREEN_EGALAX_SERIAL
++	tristate "EETI eGalax serial touchscreen"
++	select SERIO
++	help
++	  Say Y here to enable support for serial connected EETI
++	  eGalax touch panels.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called egalax_ts_serial.
++
++config TOUCHSCREEN_EXC3000
++	tristate "EETI EXC3000 multi-touch panel support"
++	depends on I2C
++	help
++	  Say Y here to enable support for I2C connected EETI
++	  EXC3000 multi-touch panels.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called exc3000.
++
++config TOUCHSCREEN_FUJITSU
++	tristate "Fujitsu serial touchscreen"
++	select SERIO
++	help
++	  Say Y here if you have the Fujitsu touchscreen (such as one
++	  installed in Lifebook P series laptop) connected to your
++	  system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called fujitsu-ts.
++
++config TOUCHSCREEN_GOODIX
++	tristate "Goodix I2C touchscreen"
++	depends on I2C
++	depends on GPIOLIB || COMPILE_TEST
++	help
++	  Say Y here if you have the Goodix touchscreen (such as one
++	  installed in Onda v975w tablets) connected to your
++	  system. It also supports 5-finger chip models, which can be
++	  found on ARM tablets, like Wexler TAB7200 and MSI Primo73.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called goodix.
++
++config TOUCHSCREEN_GOODIX_BERLIN_CORE
++	tristate
++
++config TOUCHSCREEN_GOODIX_BERLIN_I2C
++	tristate "Goodix Berlin I2C touchscreen"
++	depends on I2C
++	select REGMAP_I2C
++	select TOUCHSCREEN_GOODIX_BERLIN_CORE
++	help
++	  Say Y here if you have a Goodix Berlin IC connected to
++	  your system via I2C.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called goodix_berlin_i2c.
++
++config TOUCHSCREEN_GOODIX_BERLIN_SPI
++	tristate "Goodix Berlin SPI touchscreen"
++	depends on SPI_MASTER
++	select REGMAP
++	select TOUCHSCREEN_GOODIX_BERLIN_CORE
++	help
++	  Say Y here if you have a Goodix Berlin IC connected to
++	  your system via SPI.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called goodix_berlin_spi.
++
++config TOUCHSCREEN_HIDEEP
++	tristate "HiDeep Touch IC"
++	depends on I2C
++	select REGMAP_I2C
++	help
++	  Say Y here if you have a touchscreen using HiDeep.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here : the
++	  module will be called hideep_ts.
++
++config TOUCHSCREEN_HIMAX_HX852X
++	tristate "Himax HX852x(ES) touchscreen"
++	depends on I2C
++	help
++	  Say Y here if you have a Himax HX852x(ES) touchscreen.
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the module
++	  will be called himax_hx852x.
++
++config TOUCHSCREEN_HYCON_HY46XX
++	tristate "Hycon hy46xx touchscreen support"
++	depends on I2C
++	select REGMAP_I2C
++	help
++	  Say Y here if you have a touchscreen using Hycon hy46xx
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called hycon-hy46xx.
++
++config TOUCHSCREEN_HYNITRON_CSTXXX
++	tristate "Hynitron touchscreen support"
++	depends on I2C
++	help
++	  Say Y here if you have a touchscreen using a Hynitron
++	  touchscreen controller.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called hynitron-cstxxx.
++
++config TOUCHSCREEN_HYNITRON_CST816X
++	tristate "Hynitron CST816x touchscreen"
++	depends on I2C
++	help
++	  Say Y here if you have a touchscreen using a Hynitron
++	  CST816x series touchscreen controller.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called hynitron-cst816x.
++
++config TOUCHSCREEN_ILI210X
++	tristate "Ilitek ILI210X based touchscreen"
++	depends on I2C
++	select CRC_CCITT
++	help
++	  Say Y here if you have a ILI210X based touchscreen
++	  controller. This driver supports models ILI2102,
++	  ILI2102s, ILI2103, ILI2103s and ILI2105.
++	  Such kind of chipsets can be found in Amazon Kindle Fire
++	  touchscreens.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called ili210x.
++
++config TOUCHSCREEN_ILITEK
++	tristate "Ilitek I2C 213X/23XX/25XX/Lego Series Touch ICs"
++	depends on I2C
++	help
++	  Say Y here if you have touchscreen with ILITEK touch IC,
++	  it supports 213X/23XX/25XX and other Lego series.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called ilitek_ts_i2c.
++
++config TOUCHSCREEN_IPROC
++	tristate "IPROC touch panel driver support"
++	depends on ARCH_BCM_IPROC || COMPILE_TEST
++	help
++	  Say Y here if you want to add support for the IPROC touch
++	  controller to your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called bcm_iproc_tsc.
++
++config TOUCHSCREEN_S6SY761
++	tristate "Samsung S6SY761 Touchscreen driver"
++	depends on I2C
++	help
++	  Say Y if you have the Samsung S6SY761 driver
++
++	  If unsure, say N
++
++	  To compile this driver as module, choose M here: the
++	  module will be called s6sy761.
++
++config TOUCHSCREEN_GUNZE
++	tristate "Gunze AHL-51S touchscreen"
++	select SERIO
++	help
++	  Say Y here if you have the Gunze AHL-51 touchscreen connected to
++	  your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called gunze.
++
++config TOUCHSCREEN_EKTF2127
++	tristate "Elan eKTF2127 I2C touchscreen"
++	depends on I2C
++	help
++	  Say Y here if you have an Elan eKTF2127 touchscreen
++	  connected to your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called ektf2127.
++
++config TOUCHSCREEN_ELAN
++	tristate "Elan eKTH I2C touchscreen"
++	depends on I2C
++	help
++	  Say Y here if you have an Elan eKTH I2C touchscreen
++	  connected to your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called elants_i2c.
++
++config TOUCHSCREEN_ELO
++	tristate "Elo serial touchscreens"
++	select SERIO
++	help
++	  Say Y here if you have an Elo serial touchscreen connected to
++	  your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called elo.
++
++config TOUCHSCREEN_WACOM_W8001
++	tristate "Wacom W8001 penabled serial touchscreen"
++	select SERIO
++	help
++	  Say Y here if you have an Wacom W8001 penabled serial touchscreen
++	  connected to your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called wacom_w8001.
++
++config TOUCHSCREEN_WACOM_I2C
++	tristate "Wacom Tablet support (I2C)"
++	depends on I2C
++	help
++	  Say Y here if you want to use the I2C version of the Wacom
++	  Pen Tablet.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the module
++	  will be called wacom_i2c.
++
++config TOUCHSCREEN_WACOM_W9000
++	tristate "Wacom W9000-series penabled touchscreen (I2C)"
++	depends on I2C
++	help
++	  Say Y here if you have a Wacom W9000-series penabled I2C touchscreen.
++	  This driver supports models W9002 and W9007A.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the module
++	  will be called wacom_w9000.
++
++config TOUCHSCREEN_LPC32XX
++	tristate "LPC32XX touchscreen controller"
++	depends on ARCH_LPC32XX
++	help
++	  Say Y here if you have a LPC32XX device and want
++	  to support the built-in touchscreen.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called lpc32xx_ts.
++
++config TOUCHSCREEN_MAX11801
++	tristate "MAX11801 based touchscreens"
++	depends on I2C
++	help
++	  Say Y here if you have a MAX11801 based touchscreen
++	  controller.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called max11801_ts.
++
++config TOUCHSCREEN_OVT_TCM_SPI
++	tristate "OmniVision TCM touchscreen controller (SPI)"
++	depends on SPI && OF
++	select FW_LOADER
++	select CRC32
++	help
++	  Say Y here to enable support for OmniVision TCM touch controllers
++	  with host firmware download (e.g. TD4160 in the Infinix X6525)
++	  connected over SPI. The controller needs an HDL firmware image
++	  from userspace.
++
++	  To compile this driver as a module, choose M here: the module
++	  will be called ovt-tcm-spi.
++
++config TOUCHSCREEN_MMS114
++	tristate "MELFAS MMS114 touchscreen"
++	depends on I2C
++	help
++	  Say Y here if you have the MELFAS MMS114 touchscreen controller
++	  chip in your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called mms114.
++
++config TOUCHSCREEN_MELFAS_MIP4
++	tristate "MELFAS MIP4 Touchscreen"
++	depends on I2C
++	help
++	  Say Y here if you have a MELFAS MIP4 Touchscreen device.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here:
++	  the module will be called melfas_mip4.
++
++config TOUCHSCREEN_MSG2638
++	tristate "MStar msg2638 touchscreen support"
++	depends on I2C
++	depends on GPIOLIB || COMPILE_TEST
++	help
++	  Say Y here if you have an I2C touchscreen using MStar msg2638.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called msg2638.
++
++config TOUCHSCREEN_MTOUCH
++	tristate "MicroTouch serial touchscreens"
++	select SERIO
++	help
++	  Say Y here if you have a MicroTouch (3M) serial touchscreen connected to
++	  your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called mtouch.
++
++config TOUCHSCREEN_NOVATEK_NVT_TS
++	tristate "Novatek NT11205 touchscreen support"
++	depends on I2C
++	help
++	  Say Y here if you have a Novatek NT11205 touchscreen.
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called novatek-nvt-ts.
++
++config TOUCHSCREEN_IMAGIS
++	tristate "Imagis touchscreen support"
++	depends on I2C
++	help
++	  Say Y here if you have an Imagis IST30xxC touchscreen.
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called imagis.
++
++config TOUCHSCREEN_IMX6UL_TSC
++	tristate "Freescale i.MX6UL touchscreen controller"
++	depends on ((OF && GPIOLIB) || COMPILE_TEST) && HAS_IOMEM
++	help
++	  Say Y here if you have a Freescale i.MX6UL, and want to
++	  use the internal touchscreen controller.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called imx6ul_tsc.
++
++config TOUCHSCREEN_INEXIO
++	tristate "iNexio serial touchscreens"
++	select SERIO
++	help
++	  Say Y here if you have an iNexio serial touchscreen connected to
++	  your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called inexio.
++
++config TOUCHSCREEN_HP600
++	tristate "HP Jornada 6xx touchscreen"
++	depends on SH_HP6XX && SH_ADC
++	help
++	  Say Y here if you have a HP Jornada 620/660/680/690 and want to
++	  support the built-in touchscreen.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called hp680_ts_input.
++
++config TOUCHSCREEN_HP7XX
++	tristate "HP Jornada 7xx touchscreen"
++	depends on SA1100_JORNADA720_SSP
++	help
++	  Say Y here if you have a HP Jornada 710/720/728 and want
++	  to support the built-in touchscreen.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called jornada720_ts.
++
++config TOUCHSCREEN_IPAQ_MICRO
++	tristate "HP iPAQ Atmel Micro ASIC touchscreen"
++	depends on MFD_IPAQ_MICRO
++	help
++	  Say Y here to enable support for the touchscreen attached to
++	  the Atmel Micro peripheral controller on iPAQ h3100/h3600/h3700
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called ipaq-micro-ts.
++
++config TOUCHSCREEN_HTCPEN
++	tristate "HTC Shift X9500 touchscreen"
++	depends on ISA
++	help
++	  Say Y here if you have an HTC Shift UMPC also known as HTC X9500
++	  Clio / Shangrila and want to support the built-in touchscreen.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called htcpen.
++
++config TOUCHSCREEN_PENMOUNT
++	tristate "Penmount serial touchscreen"
++	select SERIO
++	help
++	  Say Y here if you have a Penmount serial touchscreen connected to
++	  your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called penmount.
++
++config TOUCHSCREEN_EDT_FT5X06
++	tristate "EDT FocalTech FT5x06 I2C Touchscreen support"
++	depends on I2C
++	select REGMAP_I2C
++	help
++	  Say Y here if you have an EDT "Polytouch" touchscreen based
++	  on the FocalTech FT5x06 family of controllers connected to
++	  your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called edt-ft5x06.
++
++config TOUCHSCREEN_RASPBERRYPI_FW
++	tristate "Raspberry Pi's firmware base touch screen support"
++	depends on RASPBERRYPI_FIRMWARE || (RASPBERRYPI_FIRMWARE=n && COMPILE_TEST)
++	help
++	  Say Y here if you have the official Raspberry Pi 7 inch screen on
++	  your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called raspberrypi-ts.
++
++config TOUCHSCREEN_MIGOR
++	tristate "Renesas MIGO-R touchscreen"
++	depends on (SH_MIGOR || COMPILE_TEST) && I2C
++	help
++	  Say Y here to enable MIGO-R touchscreen support.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called migor_ts.
++
++config TOUCHSCREEN_TOUCHRIGHT
++	tristate "Touchright serial touchscreen"
++	select SERIO
++	help
++	  Say Y here if you have a Touchright serial touchscreen connected to
++	  your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called touchright.
++
++config TOUCHSCREEN_TOUCHWIN
++	tristate "Touchwin serial touchscreen"
++	select SERIO
++	help
++	  Say Y here if you have a Touchwin serial touchscreen connected to
++	  your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called touchwin.
++
++config TOUCHSCREEN_TI_AM335X_TSC
++	tristate "TI Touchscreen Interface"
++	depends on MFD_TI_AM335X_TSCADC
++	help
++	  Say Y here if you have 4/5/8 wire touchscreen controller
++	  to be connected to the ADC controller on your TI AM335x SoC.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called ti_am335x_tsc.
++
++config TOUCHSCREEN_PIXCIR
++	tristate "PIXCIR I2C touchscreens"
++	depends on I2C
++	help
++	  Say Y here if you have a pixcir i2c touchscreen
++	  controller.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called pixcir_i2c_ts.
++
++config TOUCHSCREEN_WDT87XX_I2C
++	tristate "Weida HiTech I2C touchscreen"
++	depends on I2C
++	help
++	  Say Y here if you have a Weida WDT87XX I2C touchscreen
++	  connected to your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called wdt87xx_i2c.
++
++config TOUCHSCREEN_WM831X
++	tristate "Support for WM831x touchscreen controllers"
++	depends on MFD_WM831X
++	help
++	  This enables support for the touchscreen controller on the WM831x
++	  series of PMICs.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called wm831x-ts.
++
++config TOUCHSCREEN_WM97XX
++	tristate "Support for WM97xx AC97 touchscreen controllers"
++	depends on AC97_BUS || AC97_BUS_NEW
++	help
++	  Say Y here if you have a Wolfson Microelectronics WM97xx
++	  touchscreen connected to your system. Note that this option
++	  only enables core driver, you will also need to select
++	  support for appropriate chip below.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called wm97xx-ts.
++
++config TOUCHSCREEN_WM9705
++	bool "WM9705 Touchscreen interface support"
++	depends on TOUCHSCREEN_WM97XX
++	default y
++	help
++	  Say Y here to enable support for the Wolfson Microelectronics
++	  WM9705 touchscreen controller.
++
++config TOUCHSCREEN_WM9712
++	bool "WM9712 Touchscreen interface support"
++	depends on TOUCHSCREEN_WM97XX
++	default y
++	help
++	  Say Y here to enable support for the Wolfson Microelectronics
++	  WM9712 touchscreen controller.
++
++config TOUCHSCREEN_WM9713
++	bool "WM9713 Touchscreen interface support"
++	depends on TOUCHSCREEN_WM97XX
++	default y
++	help
++	  Say Y here to enable support for the Wolfson Microelectronics
++	  WM9713 touchscreen controller.
++
++config TOUCHSCREEN_WM97XX_MAINSTONE
++	tristate "WM97xx Mainstone/Palm accelerated touch"
++	depends on TOUCHSCREEN_WM97XX && ARCH_PXA
++	depends on SND_PXA2XX_LIB_AC97
++	help
++	  Say Y here for support for streaming mode with WM97xx touchscreens
++	  on Mainstone, Palm Tungsten T5, TX and LifeDrive systems.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called mainstone-wm97xx.
++
++config TOUCHSCREEN_USB_COMPOSITE
++	tristate "USB Touchscreen Driver"
++	depends on USB_ARCH_HAS_HCD
++	select USB
++	help
++	  USB Touchscreen driver for:
++	  - eGalax Touchkit USB (also includes eTurboTouch CT-410/510/700)
++	  - PanJit TouchSet USB
++	  - 3M MicroTouch USB (EX II series)
++	  - ITM
++	  - some other eTurboTouch
++	  - Gunze AHL61
++	  - DMC TSC-10/25
++	  - IRTOUCHSYSTEMS/UNITOP
++	  - IdealTEK URTC1000
++	  - GoTop Super_Q2/GogoPen/PenPower tablets
++	  - JASTEC USB Touch Controller/DigiTech DTR-02U
++	  - Zytronic controllers
++	  - Elo TouchSystems 2700 IntelliTouch
++	  - EasyTouch USB Touch Controller from Data Module
++	  - e2i (Mimo monitors)
++
++	  Have a look at <http://linux.chapter7.ch/touchkit/> for
++	  a usage description and the required user-space stuff.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called usbtouchscreen.
++
++config TOUCHSCREEN_MXS_LRADC
++	tristate "Freescale i.MX23/i.MX28 LRADC touchscreen"
++	depends on MFD_MXS_LRADC
++	help
++	  Say Y here if you have a touchscreen connected to the low-resolution
++	  analog-to-digital converter (LRADC) on an i.MX23 or i.MX28 processor.
++
++	  To compile this driver as a module, choose M here: the module will be
++	  called mxs-lradc-ts.
++
++config TOUCHSCREEN_MX25
++	tristate "Freescale i.MX25 touchscreen input driver"
++	depends on MFD_MX25_TSADC
++	help
++	  Enable support for touchscreen connected to your i.MX25.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called fsl-imx25-tcq.
++
++config TOUCHSCREEN_MC13783
++	tristate "Freescale MC13783 touchscreen input driver"
++	depends on MFD_MC13XXX
++	help
++	  Say Y here if you have an Freescale MC13783 PMIC on your
++	  board and want to use its touchscreen
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called mc13783_ts.
++
++config TOUCHSCREEN_USB_EGALAX
++	default y
++	bool "eGalax, eTurboTouch CT-410/510/700 device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_PANJIT
++	default y
++	bool "PanJit device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_3M
++	default y
++	bool "3M/Microtouch EX II series device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_ITM
++	default y
++	bool "ITM device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_ETURBO
++	default y
++	bool "eTurboTouch (non-eGalax compatible) device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_GUNZE
++	default y
++	bool "Gunze AHL61 device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_DMC_TSC10
++	default y
++	bool "DMC TSC-10/25 device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_IRTOUCH
++	default y
++	bool "IRTOUCHSYSTEMS/UNITOP device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_IDEALTEK
++	default y
++	bool "IdealTEK URTC1000 device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_GENERAL_TOUCH
++	default y
++	bool "GeneralTouch Touchscreen device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_GOTOP
++	default y
++	bool "GoTop Super_Q2/GogoPen/PenPower tablet device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_JASTEC
++	default y
++	bool "JASTEC/DigiTech DTR-02U USB touch controller device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_ELO
++	default y
++	bool "Elo TouchSystems 2700 IntelliTouch controller device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_E2I
++	default y
++	bool "e2i Touchscreen controller (e.g. from Mimo 740)" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_ZYTRONIC
++	default y
++	bool "Zytronic controller" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_ETT_TC45USB
++	default y
++	bool "ET&T USB series TC4UM/TC5UH touchscreen controller support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_NEXIO
++	default y
++	bool "NEXIO/iNexio device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++
++config TOUCHSCREEN_USB_EASYTOUCH
++	default y
++	bool "EasyTouch USB Touch controller device support" if EXPERT
++	depends on TOUCHSCREEN_USB_COMPOSITE
++	help
++	  Say Y here if you have an EasyTouch USB Touch controller.
++	  If unsure, say N.
++
++config TOUCHSCREEN_TOUCHIT213
++	tristate "Sahara TouchIT-213 touchscreen"
++	select SERIO
++	help
++	  Say Y here if you have a Sahara TouchIT-213 Tablet PC.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called touchit213.
++
++config TOUCHSCREEN_TS4800
++	tristate "TS-4800 touchscreen"
++	depends on HAS_IOMEM && OF
++	depends on SOC_IMX51 || COMPILE_TEST
++	select MFD_SYSCON
++	help
++	  Say Y here if you have a touchscreen on a TS-4800 board.
++
++	  On TS-4800, the touchscreen is not handled directly by Linux but by
++	  a companion FPGA.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called ts4800_ts.
++
++config TOUCHSCREEN_TSC_SERIO
++	tristate "TSC-10/25/40 serial touchscreen support"
++	select SERIO
++	help
++	  Say Y here if you have a TSC-10, 25 or 40 serial touchscreen connected
++	  to your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called tsc40.
++
++config TOUCHSCREEN_TSC200X_CORE
++	tristate
++
++config TOUCHSCREEN_TSC2004
++	tristate "TSC2004 based touchscreens"
++	depends on I2C
++	select REGMAP_I2C
++	select TOUCHSCREEN_TSC200X_CORE
++	help
++	  Say Y here if you have a TSC2004 based touchscreen.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called tsc2004.
++
++config TOUCHSCREEN_TSC2005
++	tristate "TSC2005 based touchscreens"
++	depends on SPI_MASTER
++	select REGMAP_SPI
++	select TOUCHSCREEN_TSC200X_CORE
++	help
++	  Say Y here if you have a TSC2005 based touchscreen.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called tsc2005.
++
++config TOUCHSCREEN_TSC2007
++	tristate "TSC2007 based touchscreens"
++	depends on I2C
++	help
++	  Say Y here if you have a TSC2007 based touchscreen.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called tsc2007.
++
++config TOUCHSCREEN_TSC2007_IIO
++	bool "IIO interface for external ADC input and temperature"
++	depends on TOUCHSCREEN_TSC2007
++	depends on IIO=y || IIO=TOUCHSCREEN_TSC2007
++	help
++	  Saying Y here adds an iio interface to the tsc2007 which
++	  provides values for the AUX input (used for e.g. battery
++	  or ambient light monitoring), temperature and raw input
++	  values.
++
++config TOUCHSCREEN_RM_TS
++	tristate "Raydium I2C Touchscreen"
++	depends on I2C
++	depends on GPIOLIB || COMPILE_TEST
++	help
++	  Say Y here if you have Raydium series I2C touchscreen,
++	  such as RM32380, connected to your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called raydium_i2c_ts.
++
++config TOUCHSCREEN_SILEAD
++	tristate "Silead I2C touchscreen"
++	depends on I2C
++	help
++	  Say Y here if you have the Silead touchscreen connected to
++	  your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called silead.
++
++config TOUCHSCREEN_SIS_I2C
++	tristate "SiS 9200 family I2C touchscreen"
++	depends on I2C
++	select CRC_ITU_T
++	depends on GPIOLIB || COMPILE_TEST
++	help
++	  This enables support for SiS 9200 family over I2C based touchscreens.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called sis_i2c.
++
++config TOUCHSCREEN_ST1232
++	tristate "Sitronix ST1232 or ST1633 touchscreen controllers"
++	depends on I2C
++	help
++	  Say Y here if you want to support the Sitronix ST1232
++	  or ST1633 touchscreen controller.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called st1232_ts.
++
++config TOUCHSCREEN_STMFTS
++	tristate "STMicroelectronics STMFTS touchscreen"
++	depends on I2C
++	depends on LEDS_CLASS
++	help
++	  Say Y here if you want support for STMicroelectronics
++	  STMFTS touchscreen.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called stmfts.
++
++config TOUCHSCREEN_STMPE
++	tristate "STMicroelectronics STMPE touchscreens"
++	depends on MFD_STMPE
++	depends on OF
++	help
++	  Say Y here if you want support for STMicroelectronics
++	  STMPE touchscreen controllers.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called stmpe-ts.
++
++config TOUCHSCREEN_SUN4I
++	tristate "Allwinner sun4i resistive touchscreen controller support"
++	depends on ARCH_SUNXI || COMPILE_TEST
++	depends on HWMON
++	depends on THERMAL || !THERMAL_OF
++	help
++	  This selects support for the resistive touchscreen controller
++	  found on Allwinner sunxi SoCs.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called sun4i-ts.
++
++config TOUCHSCREEN_SUR40
++	tristate "Samsung SUR40 (Surface 2.0/PixelSense) touchscreen"
++	depends on USB && MEDIA_USB_SUPPORT && HAS_DMA
++	depends on VIDEO_DEV
++	select VIDEOBUF2_DMA_SG
++	help
++	  Say Y here if you want support for the Samsung SUR40 touchscreen
++	  (also known as Microsoft Surface 2.0 or Microsoft PixelSense).
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called sur40.
++
++config TOUCHSCREEN_SURFACE3_SPI
++	tristate "Ntrig/Microsoft Surface 3 SPI touchscreen"
++	depends on SPI
++	depends on GPIOLIB || COMPILE_TEST
++	help
++	  Say Y here if you have the Ntrig/Microsoft SPI touchscreen
++	  controller chip as found on the Surface 3 in your system.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called surface3_spi.
++
++config TOUCHSCREEN_SX8654
++	tristate "Semtech SX8654 touchscreen"
++	depends on I2C
++	help
++	  Say Y here if you have a Semtech SX8654 touchscreen controller.
++
++	  If unsure, say N
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called sx8654.
++
++config TOUCHSCREEN_TPS6507X
++	tristate "TPS6507x based touchscreens"
++	depends on I2C
++	help
++	  Say Y here if you have a TPS6507x based touchscreen
++	  controller.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called tps6507x_ts.
++
++config TOUCHSCREEN_ZET6223
++	tristate "Zeitec ZET6223 touchscreen driver"
++	depends on I2C
++	help
++	  Say Y here if you have a touchscreen using Zeitec ZET6223
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called zet6223.
++
++config TOUCHSCREEN_ZFORCE
++	tristate "Neonode zForce infrared touchscreens"
++	depends on I2C
++	depends on GPIOLIB || COMPILE_TEST
++	help
++	  Say Y here if you have a touchscreen using the zforce
++	  infraread technology from Neonode.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called zforce_ts.
++
++config TOUCHSCREEN_COLIBRI_VF50
++	tristate "Toradex Colibri on board touchscreen driver"
++	depends on IIO
++	depends on GPIOLIB || COMPILE_TEST
++	help
++	  Say Y here if you have a Colibri VF50 and plan to use
++	  the on-board provided 4-wire touchscreen driver.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called colibri_vf50_ts.
++
++config TOUCHSCREEN_ROHM_BU21023
++	tristate "ROHM BU21023/24 Dual touch support resistive touchscreens"
++	depends on I2C
++	help
++	  Say Y here if you have a touchscreen using ROHM BU21023/24.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called bu21023_ts.
++
++config TOUCHSCREEN_IQS5XX
++	tristate "Azoteq IQS550/572/525 trackpad/touchscreen controller"
++	depends on I2C
++	help
++	  Say Y to enable support for the Azoteq IQS550/572/525
++	  family of trackpad/touchscreen controllers.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called iqs5xx.
++
++config TOUCHSCREEN_IQS7211
++	tristate "Azoteq IQS7210A/7211A/E trackpad/touchscreen controller"
++	depends on I2C
++	help
++	  Say Y to enable support for the Azoteq IQS7210A/7211A/E
++	  family of trackpad/touchscreen controllers.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called iqs7211.
++
++config TOUCHSCREEN_ZINITIX
++	tristate "Zinitix touchscreen support"
++	depends on I2C
++	help
++	  Say Y here if you have a touchscreen using Zinitix bt541,
++	  or something similar enough.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called zinitix.
++
++config TOUCHSCREEN_HIMAX_HX83112B
++	tristate "Himax hx83112b touchscreen driver"
++	depends on I2C
++	select REGMAP_I2C
++	help
++	  Say Y here to enable support for Himax hx83112b touchscreens.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called himax_hx83112b.
++
++endif
+diff --git a/drivers/input/touchscreen/Makefile b/drivers/input/touchscreen/Makefile
+new file mode 100644
+index 0000000..563237f
+--- /dev/null
++++ b/drivers/input/touchscreen/Makefile
+@@ -0,0 +1,123 @@
++# SPDX-License-Identifier: GPL-2.0
++#
++# Makefile for the touchscreen drivers.
++#
++
++# Each configuration option enables a list of files.
++
++wm97xx-ts-y := wm97xx-core.o
++goodix_ts-y := goodix.o goodix_fwupload.o
++
++obj-$(CONFIG_TOUCHSCREEN_88PM860X)	+= 88pm860x-ts.o
++obj-$(CONFIG_TOUCHSCREEN_AD7877)	+= ad7877.o
++obj-$(CONFIG_TOUCHSCREEN_AD7879)	+= ad7879.o
++obj-$(CONFIG_TOUCHSCREEN_AD7879_I2C)	+= ad7879-i2c.o
++obj-$(CONFIG_TOUCHSCREEN_AD7879_SPI)	+= ad7879-spi.o
++obj-$(CONFIG_TOUCHSCREEN_ADC)		+= resistive-adc-touch.o
++obj-$(CONFIG_TOUCHSCREEN_ADS7846)	+= ads7846.o
++obj-$(CONFIG_TOUCHSCREEN_APPLE_Z2)	+= apple_z2.o
++obj-$(CONFIG_TOUCHSCREEN_AR1021_I2C)	+= ar1021_i2c.o
++obj-$(CONFIG_TOUCHSCREEN_ATMEL_MXT)	+= atmel_mxt_ts.o
++obj-$(CONFIG_TOUCHSCREEN_AUO_PIXCIR)	+= auo-pixcir-ts.o
++obj-$(CONFIG_TOUCHSCREEN_BU21013)	+= bu21013_ts.o
++obj-$(CONFIG_TOUCHSCREEN_BU21029)	+= bu21029_ts.o
++obj-$(CONFIG_TOUCHSCREEN_CHIPONE_ICN8318)	+= chipone_icn8318.o
++obj-$(CONFIG_TOUCHSCREEN_CHIPONE_ICN8505)	+= chipone_icn8505.o
++obj-$(CONFIG_TOUCHSCREEN_CHIPONE_ICNL9916)	+= chipone_icnl9916.o
++obj-$(CONFIG_TOUCHSCREEN_CY8CTMA140)	+= cy8ctma140.o
++obj-$(CONFIG_TOUCHSCREEN_CY8CTMG110)	+= cy8ctmg110_ts.o
++obj-$(CONFIG_TOUCHSCREEN_CYTTSP_CORE)	+= cyttsp_core.o
++obj-$(CONFIG_TOUCHSCREEN_CYTTSP_I2C)	+= cyttsp_i2c.o
++obj-$(CONFIG_TOUCHSCREEN_CYTTSP_SPI)	+= cyttsp_spi.o
++obj-$(CONFIG_TOUCHSCREEN_CYTTSP5)	+= cyttsp5.o
++obj-$(CONFIG_TOUCHSCREEN_DA9034)	+= da9034-ts.o
++obj-$(CONFIG_TOUCHSCREEN_DA9052)	+= da9052_tsi.o
++obj-$(CONFIG_TOUCHSCREEN_DYNAPRO)	+= dynapro.o
++obj-$(CONFIG_TOUCHSCREEN_EDT_FT5X06)	+= edt-ft5x06.o
++obj-$(CONFIG_TOUCHSCREEN_HAMPSHIRE)	+= hampshire.o
++obj-$(CONFIG_TOUCHSCREEN_HYCON_HY46XX)	+= hycon-hy46xx.o
++obj-$(CONFIG_TOUCHSCREEN_GUNZE)		+= gunze.o
++obj-$(CONFIG_TOUCHSCREEN_EETI)		+= eeti_ts.o
++obj-$(CONFIG_TOUCHSCREEN_EKTF2127)	+= ektf2127.o
++obj-$(CONFIG_TOUCHSCREEN_ELAN)		+= elants_i2c.o
++obj-$(CONFIG_TOUCHSCREEN_ELO)		+= elo.o
++obj-$(CONFIG_TOUCHSCREEN_EGALAX)	+= egalax_ts.o
++obj-$(CONFIG_TOUCHSCREEN_EGALAX_SERIAL)	+= egalax_ts_serial.o
++obj-$(CONFIG_TOUCHSCREEN_EXC3000)	+= exc3000.o
++obj-$(CONFIG_TOUCHSCREEN_FUJITSU)	+= fujitsu_ts.o
++obj-$(CONFIG_TOUCHSCREEN_GOODIX)	+= goodix_ts.o
++obj-$(CONFIG_TOUCHSCREEN_GOODIX_BERLIN_CORE)	+= goodix_berlin_core.o
++obj-$(CONFIG_TOUCHSCREEN_GOODIX_BERLIN_I2C)	+= goodix_berlin_i2c.o
++obj-$(CONFIG_TOUCHSCREEN_GOODIX_BERLIN_SPI)	+= goodix_berlin_spi.o
++obj-$(CONFIG_TOUCHSCREEN_HIDEEP)	+= hideep.o
++obj-$(CONFIG_TOUCHSCREEN_HIMAX_HX852X)	+= himax_hx852x.o
++obj-$(CONFIG_TOUCHSCREEN_HYNITRON_CSTXXX)	+= hynitron_cstxxx.o
++obj-$(CONFIG_TOUCHSCREEN_HYNITRON_CST816X)	+= hynitron-cst816x.o
++obj-$(CONFIG_TOUCHSCREEN_ILI210X)	+= ili210x.o
++obj-$(CONFIG_TOUCHSCREEN_ILITEK)	+= ilitek_ts_i2c.o
++obj-$(CONFIG_TOUCHSCREEN_IMAGIS)	+= imagis.o
++obj-$(CONFIG_TOUCHSCREEN_IMX6UL_TSC)	+= imx6ul_tsc.o
++obj-$(CONFIG_TOUCHSCREEN_INEXIO)	+= inexio.o
++obj-$(CONFIG_TOUCHSCREEN_IPROC)		+= bcm_iproc_tsc.o
++obj-$(CONFIG_TOUCHSCREEN_LPC32XX)	+= lpc32xx_ts.o
++obj-$(CONFIG_TOUCHSCREEN_MAX11801)	+= max11801_ts.o
++obj-$(CONFIG_TOUCHSCREEN_MXS_LRADC)     += mxs-lradc-ts.o
++obj-$(CONFIG_TOUCHSCREEN_MX25)		+= fsl-imx25-tcq.o
++obj-$(CONFIG_TOUCHSCREEN_MC13783)	+= mc13783_ts.o
++obj-$(CONFIG_TOUCHSCREEN_MELFAS_MIP4)	+= melfas_mip4.o
++obj-$(CONFIG_TOUCHSCREEN_MIGOR)		+= migor_ts.o
++obj-$(CONFIG_TOUCHSCREEN_OVT_TCM_SPI)	+= ovt-tcm-spi.o
++obj-$(CONFIG_TOUCHSCREEN_MMS114)	+= mms114.o
++obj-$(CONFIG_TOUCHSCREEN_MSG2638)	+= msg2638.o
++obj-$(CONFIG_TOUCHSCREEN_MTOUCH)	+= mtouch.o
++obj-$(CONFIG_TOUCHSCREEN_NOVATEK_NVT_TS)	+= novatek-nvt-ts.o
++obj-$(CONFIG_TOUCHSCREEN_HP600)		+= hp680_ts_input.o
++obj-$(CONFIG_TOUCHSCREEN_HP7XX)		+= jornada720_ts.o
++obj-$(CONFIG_TOUCHSCREEN_IPAQ_MICRO)	+= ipaq-micro-ts.o
++obj-$(CONFIG_TOUCHSCREEN_HTCPEN)	+= htcpen.o
++obj-$(CONFIG_TOUCHSCREEN_USB_COMPOSITE)	+= usbtouchscreen.o
++obj-$(CONFIG_TOUCHSCREEN_PENMOUNT)	+= penmount.o
++obj-$(CONFIG_TOUCHSCREEN_PIXCIR)	+= pixcir_i2c_ts.o
++obj-$(CONFIG_TOUCHSCREEN_RM_TS)		+= raydium_i2c_ts.o
++obj-$(CONFIG_TOUCHSCREEN_S6SY761)	+= s6sy761.o
++obj-$(CONFIG_TOUCHSCREEN_SILEAD)	+= silead.o
++obj-$(CONFIG_TOUCHSCREEN_SIS_I2C)	+= sis_i2c.o
++obj-$(CONFIG_TOUCHSCREEN_ST1232)	+= st1232.o
++obj-$(CONFIG_TOUCHSCREEN_STMFTS)	+= stmfts.o
++obj-$(CONFIG_TOUCHSCREEN_STMPE)		+= stmpe-ts.o
++obj-$(CONFIG_TOUCHSCREEN_SUN4I)		+= sun4i-ts.o
++obj-$(CONFIG_TOUCHSCREEN_SUR40)		+= sur40.o
++obj-$(CONFIG_TOUCHSCREEN_SURFACE3_SPI)	+= surface3_spi.o
++obj-$(CONFIG_TOUCHSCREEN_TI_AM335X_TSC)	+= ti_am335x_tsc.o
++obj-$(CONFIG_TOUCHSCREEN_TOUCHIT213)	+= touchit213.o
++obj-$(CONFIG_TOUCHSCREEN_TOUCHRIGHT)	+= touchright.o
++obj-$(CONFIG_TOUCHSCREEN_TOUCHWIN)	+= touchwin.o
++obj-$(CONFIG_TOUCHSCREEN_TS4800)	+= ts4800-ts.o
++obj-$(CONFIG_TOUCHSCREEN_TSC_SERIO)	+= tsc40.o
++obj-$(CONFIG_TOUCHSCREEN_TSC200X_CORE)	+= tsc200x-core.o
++obj-$(CONFIG_TOUCHSCREEN_TSC2004)	+= tsc2004.o
++obj-$(CONFIG_TOUCHSCREEN_TSC2005)	+= tsc2005.o
++tsc2007-y := tsc2007_core.o
++tsc2007-$(CONFIG_TOUCHSCREEN_TSC2007_IIO)	+= tsc2007_iio.o
++obj-$(CONFIG_TOUCHSCREEN_TSC2007)	+= tsc2007.o
++obj-$(CONFIG_TOUCHSCREEN_WACOM_W8001)	+= wacom_w8001.o
++obj-$(CONFIG_TOUCHSCREEN_WACOM_I2C)	+= wacom_i2c.o
++obj-$(CONFIG_TOUCHSCREEN_WACOM_W9000)	+= wacom_w9000.o
++obj-$(CONFIG_TOUCHSCREEN_WDT87XX_I2C)	+= wdt87xx_i2c.o
++obj-$(CONFIG_TOUCHSCREEN_WM831X)	+= wm831x-ts.o
++obj-$(CONFIG_TOUCHSCREEN_WM97XX)	+= wm97xx-ts.o
++wm97xx-ts-$(CONFIG_TOUCHSCREEN_WM9705)	+= wm9705.o
++wm97xx-ts-$(CONFIG_TOUCHSCREEN_WM9712)	+= wm9712.o
++wm97xx-ts-$(CONFIG_TOUCHSCREEN_WM9713)	+= wm9713.o
++obj-$(CONFIG_TOUCHSCREEN_WM97XX_MAINSTONE)	+= mainstone-wm97xx.o
++obj-$(CONFIG_TOUCHSCREEN_SX8654)	+= sx8654.o
++obj-$(CONFIG_TOUCHSCREEN_TPS6507X)	+= tps6507x-ts.o
++obj-$(CONFIG_TOUCHSCREEN_ZET6223)	+= zet6223.o
++obj-$(CONFIG_TOUCHSCREEN_ZFORCE)	+= zforce_ts.o
++obj-$(CONFIG_TOUCHSCREEN_COLIBRI_VF50)	+= colibri-vf50-ts.o
++obj-$(CONFIG_TOUCHSCREEN_ROHM_BU21023)	+= rohm_bu21023.o
++obj-$(CONFIG_TOUCHSCREEN_RASPBERRYPI_FW)	+= raspberrypi-ts.o
++obj-$(CONFIG_TOUCHSCREEN_IQS5XX)	+= iqs5xx.o
++obj-$(CONFIG_TOUCHSCREEN_IQS7211)	+= iqs7211.o
++obj-$(CONFIG_TOUCHSCREEN_ZINITIX)	+= zinitix.o
++obj-$(CONFIG_TOUCHSCREEN_HIMAX_HX83112B)	+= himax_hx83112b.o
+diff --git a/drivers/input/touchscreen/ovt-tcm-spi.c b/drivers/input/touchscreen/ovt-tcm-spi.c
+new file mode 100644
+index 0000000..f4d5d97
+--- /dev/null
++++ b/drivers/input/touchscreen/ovt-tcm-spi.c
+@@ -0,0 +1,1163 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * OmniVision TCM touchscreen driver (SPI, ROM-boot "host download" parts)
++ *
++ * DRAFT, UNTESTED ON HARDWARE.
++ *
++ * Written from the behaviour of the stock 5.4 driver
++ * (drivers/input/touchscreen/omnivision_tcm/ in the Helix kernel) for the
++ * TD4160 touch/display controller of the Infinix X6525, not copied from it.
++ *
++ * The chip has no flash. After every reset it comes up in its ROM bootloader
++ * and the host must download the application firmware and its configuration
++ * from an image file (the stock tree's hdl_firmware_*.img):
++ *
++ *   reset -> IDENTIFY report (mode ROMBOOTLOADER)
++ *         -> CMD_ROMBOOT_DOWNLOAD (the ROMBOOT_APP_CODE area, 14 byte header)
++ *         -> CMD_ROMBOOT_RUN_BOOTLOADER_FIRMWARE -> IDENTIFY report
++ *         -> STATUS report: firmware asks for APP_CONFIG / DISPLAY / OPENSHORT
++ *         -> CMD_DOWNLOAD_CONFIG for each of them
++ *         -> application firmware is running: read app info, set the touch
++ *            report layout, then parse TOUCH reports.
++ *
++ * Message framing (identical to Synaptics TCM):
++ *   device->host  A5 code len_lo len_hi payload... 5A
++ *   host->device  cmd len_lo len_hi payload...   (long writes: 01 + more)
++ *
++ * Not implemented: the F35 / RMI download path (older parts), flash update,
++ * diagnostics, gestures, the stock tree's sysfs and watchdog.
++ *
++ * Open points, see drivers/README.md:
++ *   - which hdl_firmware_*.img belongs to this panel is not known; the stock
++ *     driver picks one from lcd_name, and "lcd_td4160_hx_*" matches none of
++ *     its four names. It is a DT property here (firmware-name).
++ *   - a panel reset resets the touch IC as well; the driver notices the new
++ *     ROM-boot IDENTIFY report and downloads again by itself.
++ */
++
++#include <linux/crc32.h>
++#include <linux/delay.h>
++#include <linux/firmware.h>
++#include <linux/gpio/consumer.h>
++#include <linux/input.h>
++#include <linux/input/mt.h>
++#include <linux/interrupt.h>
++#include <linux/mod_devicetable.h>
++#include <linux/module.h>
++#include <linux/mutex.h>
++#include <linux/property.h>
++#include <linux/slab.h>
++#include <linux/spi/spi.h>
++#include <linux/unaligned.h>
++#include <linux/workqueue.h>
++
++#define MSG_HEADER_SIZE		4
++#define MSG_MARKER		0xa5
++#define MSG_PADDING		0x5a
++#define MIN_READ_LEN		9
++#define RD_CHUNK_SIZE		256
++#define WR_CHUNK_SIZE		256
++#define RESPONSE_TIMEOUT_MS	3000
++
++/* commands */
++#define CMD_CONTINUE_WRITE		0x01
++#define CMD_IDENTIFY			0x02
++#define CMD_ENTER_DEEP_SLEEP		0x2c
++#define CMD_EXIT_DEEP_SLEEP		0x2d
++#define CMD_GET_APPLICATION_INFO	0x20
++#define CMD_GET_TOUCH_REPORT_CONFIG	0x25
++#define CMD_SET_TOUCH_REPORT_CONFIG	0x26
++#define CMD_DOWNLOAD_CONFIG		0x30
++#define CMD_ROMBOOT_RUN_BOOTLOADER_FW	0x42
++#define CMD_ROMBOOT_DOWNLOAD		0x45
++
++/* status codes (device->host, code <= 0x0f) */
++#define STATUS_IDLE			0x00
++#define STATUS_OK			0x01
++#define STATUS_BUSY			0x02
++#define STATUS_CONTINUED_READ		0x03
++#define STATUS_ERROR			0x0f
++#define STATUS_INVALID			0xff
++
++/* report types (code >= 0x10) */
++#define REPORT_IDENTIFY			0x10
++#define REPORT_TOUCH			0x11
++#define REPORT_STATUS			0x1b
++
++#define MODE_APPLICATION_FIRMWARE	0x01
++#define MODE_HOSTDOWNLOAD_FIRMWARE	0x02
++#define MODE_ROMBOOTLOADER		0x04
++
++#define APP_STATUS_OK			0x00
++
++/* touch report layout codes */
++#define TOUCH_END			0
++#define TOUCH_FOREACH_ACTIVE_OBJECT	1
++#define TOUCH_FOREACH_OBJECT		2
++#define TOUCH_FOREACH_END		3
++#define TOUCH_PAD_TO_NEXT_BYTE		4
++#define TOUCH_TIMESTAMP			5
++#define TOUCH_OBJECT_N_INDEX		6
++#define TOUCH_OBJECT_N_CLASSIFICATION	7
++#define TOUCH_OBJECT_N_X_POSITION	8
++#define TOUCH_OBJECT_N_Y_POSITION	9
++#define TOUCH_OBJECT_N_Z		10
++#define TOUCH_OBJECT_N_X_WIDTH		11
++#define TOUCH_OBJECT_N_Y_WIDTH		12
++
++#define TOUCH_REPORT_CONFIG_MIN		128
++#define MAX_Z_VALUE			1000
++#define MAX_MAJOR_VALUE			255
++
++/* image file */
++#define IMAGE_FILE_MAGIC		0x4818472b
++#define FLASH_AREA_MAGIC		0x7c05e516
++#define ROMBOOT_HDR_BYTES		14
++
++/* HDL_* config types of CMD_DOWNLOAD_CONFIG */
++#define HDL_TOUCH_CONFIG		1
++#define HDL_DISPLAY_CONFIG		2
++#define HDL_OPEN_SHORT_CONFIG		3
++
++struct area_descriptor {
++	u8 magic[4];
++	u8 id[16];
++	u8 flags[4];
++	u8 flash_addr_words[4];
++	u8 length[4];
++	u8 checksum[4];
++} __packed;
++
++struct fw_area {
++	const u8 *data;
++	u32 size;
++};
++
++struct identify {
++	u8 version;
++	u8 mode;
++	u8 part_number[16];
++	u8 build_id[4];
++	u8 max_write_size[2];
++} __packed;
++
++struct app_info {
++	u8 version[2];
++	u8 status[2];
++	u8 static_config_size[2];
++	u8 dynamic_config_size[2];
++	u8 app_config_start_write_block[2];
++	u8 app_config_size[2];
++	u8 max_touch_report_config_size[2];
++	u8 max_touch_report_payload_size[2];
++	u8 customer_config_id[16];
++	u8 max_x[2];
++	u8 max_y[2];
++	u8 max_objects[2];
++	u8 num_of_buttons[2];
++	u8 num_of_image_rows[2];
++	u8 num_of_image_cols[2];
++	u8 has_hybrid_data[2];
++	u8 num_of_force_elecs[2];
++} __packed;
++
++/* what the firmware asks for in REPORT_STATUS / DOWNLOAD_CONFIG responses */
++struct fw_status {
++	u16 invalid_static_config:1;
++	u16 need_disp_config:1;
++	u16 need_app_config:1;
++	u16 hdl_version:4;
++	u16 need_open_short_config:1;
++	u16 reserved:8;
++} __packed;
++
++struct object_data {
++	u8 status;
++	u32 x, y, z, x_width, y_width;
++};
++
++struct ovt_tcm {
++	struct spi_device *spi;
++	struct gpio_desc *reset;
++	struct input_dev *input;
++	struct workqueue_struct *wq;
++	struct work_struct hdl_work;	/* ROM-boot firmware download */
++	struct work_struct cfg_work;	/* config download + touch bring-up */
++	struct work_struct init_work;	/* first reset */
++	const char *fw_name;
++
++	struct mutex spi_lock;		/* one SPI transaction at a time */
++	struct mutex cmd_lock;		/* one command in flight */
++	struct completion resp_done;
++
++	/* command in flight, filled in by the IRQ thread */
++	u8 pending_cmd;
++	u8 resp_code;
++	bool resp_err;
++	u8 *resp_buf;
++	unsigned int resp_len;
++
++	struct identify id;
++	bool got_identify;
++	unsigned int wr_chunk;
++	bool hdl_busy;			/* download sequence in progress */
++
++	const struct firmware *fw;
++	struct fw_area app_code, app_cfg, disp_cfg, os_cfg;
++	struct fw_status fw_status;
++
++	struct app_info app;
++	unsigned int max_x, max_y, max_objects;
++	u8 *report_cfg;
++	unsigned int report_cfg_len;
++	struct object_data *objs;
++	u8 *prev_status;
++	bool touch_ready;
++	bool suspended;
++};
++
++/* ---------------------------------------------------------------- SPI --- */
++
++static int tcm_spi_read(struct ovt_tcm *t, u8 *rx, unsigned int len)
++{
++	u8 *tx;
++	struct spi_transfer xfer = { .len = len, .rx_buf = rx };
++	int ret;
++
++	tx = kmalloc(len, GFP_KERNEL);
++	if (!tx)
++		return -ENOMEM;
++	memset(tx, 0xff, len);
++	xfer.tx_buf = tx;
++
++	mutex_lock(&t->spi_lock);
++	ret = spi_sync_transfer(t->spi, &xfer, 1);
++	mutex_unlock(&t->spi_lock);
++	kfree(tx);
++	return ret;
++}
++
++static int tcm_spi_write(struct ovt_tcm *t, const u8 *tx, unsigned int len)
++{
++	struct spi_transfer xfer = { .len = len, .tx_buf = tx };
++	int ret;
++
++	mutex_lock(&t->spi_lock);
++	ret = spi_sync_transfer(t->spi, &xfer, 1);
++	mutex_unlock(&t->spi_lock);
++	return ret;
++}
++
++/*
++ * Read one message. Returns the payload in *payload (kmalloc'd, caller
++ * frees) and the code in *code. A message that is shorter than
++ * MIN_READ_LEN is complete after the first transfer, a longer one is
++ * fetched by "continued reads" that each start with A5 03.
++ */
++static int tcm_read_message(struct ovt_tcm *t, u8 *code, u8 **payload,
++			    unsigned int *plen)
++{
++	u8 first[MIN_READ_LEN], *msg = NULL, *tmp = NULL;
++	unsigned int len, total, off, chunk_space, remaining, xfer;
++	bool retry = true;
++	int ret;
++
++	*payload = NULL;
++	*plen = 0;
++retry:
++	ret = tcm_spi_read(t, first, MIN_READ_LEN);
++	if (!ret && first[0] != MSG_MARKER)
++		ret = -ENXIO;
++	if (ret) {
++		if (retry) {
++			retry = false;
++			usleep_range(5000, 10000);
++			goto retry;
++		}
++		return ret;
++	}
++
++	*code = first[1];
++	len = get_unaligned_le16(&first[2]);
++
++	if (*code == STATUS_IDLE || *code == STATUS_BUSY ||
++	    *code == STATUS_CONTINUED_READ)
++		return 0;
++	if (*code == STATUS_INVALID && retry) {
++		retry = false;
++		usleep_range(5000, 10000);
++		goto retry;
++	}
++
++	total = MSG_HEADER_SIZE + len + 1;
++	msg = kmalloc(total + 2, GFP_KERNEL);
++	if (!msg)
++		return -ENOMEM;
++	memcpy(msg, first, min_t(unsigned int, total, MIN_READ_LEN));
++
++	if (total > MIN_READ_LEN) {
++		/* the padding byte alone is not worth another transfer */
++		if (total - 1 == MIN_READ_LEN) {
++			msg[total - 1] = MSG_PADDING;
++		} else {
++			remaining = total - MIN_READ_LEN;
++			if (t->id.mode == MODE_ROMBOOTLOADER)
++				chunk_space = remaining;
++			else
++				chunk_space = RD_CHUNK_SIZE - 2;
++			off = MIN_READ_LEN;
++
++			tmp = kmalloc(chunk_space + 2, GFP_KERNEL);
++			if (!tmp) {
++				ret = -ENOMEM;
++				goto err;
++			}
++			while (remaining) {
++				xfer = min(remaining, chunk_space);
++				if (xfer == 1) {
++					msg[off++] = MSG_PADDING;
++					remaining--;
++					continue;
++				}
++				ret = tcm_spi_read(t, tmp, xfer + 2);
++				if (ret)
++					goto err;
++				if (tmp[0] != MSG_MARKER ||
++				    tmp[1] != STATUS_CONTINUED_READ) {
++					ret = -EIO;
++					goto err;
++				}
++				memcpy(&msg[off], &tmp[2], xfer);
++				off += xfer;
++				remaining -= xfer;
++			}
++			kfree(tmp);
++			tmp = NULL;
++		}
++	}
++
++	if (msg[total - 1] != MSG_PADDING) {
++		dev_err(&t->spi->dev, "bad message padding 0x%02x\n",
++			msg[total - 1]);
++		ret = -EIO;
++		goto err;
++	}
++
++	*payload = msg;
++	*plen = len;
++	/* payload starts after the header; hand back an offset-adjusted copy */
++	memmove(msg, msg + MSG_HEADER_SIZE, len);
++	return 0;
++err:
++	kfree(tmp);
++	kfree(msg);
++	return ret;
++}
++
++/*
++ * Write a command. The packet is cmd, len_lo, len_hi, payload; if the device
++ * has a write size limit the remainder follows in CMD_CONTINUE_WRITE chunks.
++ */
++static int tcm_write_command(struct ovt_tcm *t, u8 cmd, const u8 *payload,
++			     unsigned int len)
++{
++	unsigned int remaining = len + 2, chunk_space, xfer, idx = 0, i;
++	u8 *buf;
++	int ret = 0;
++
++	chunk_space = t->wr_chunk ? t->wr_chunk - 1 : remaining;
++	if (cmd == CMD_ROMBOOT_DOWNLOAD)
++		chunk_space = remaining;
++	buf = kmalloc(chunk_space + 1, GFP_KERNEL);
++	if (!buf)
++		return -ENOMEM;
++
++	for (i = 0; remaining; i++) {
++		xfer = min(remaining, chunk_space);
++		if (i == 0) {
++			buf[0] = cmd;
++			buf[1] = len & 0xff;
++			buf[2] = len >> 8;
++			if (xfer > 2)
++				memcpy(&buf[3], payload, xfer - 2);
++			idx = xfer - 2;
++		} else {
++			buf[0] = CMD_CONTINUE_WRITE;
++			memcpy(&buf[1], payload + idx, xfer);
++			idx += xfer;
++		}
++		ret = tcm_spi_write(t, buf, xfer + 1);
++		if (ret)
++			break;
++		remaining -= xfer;
++		if (remaining)
++			usleep_range(500, 1000);
++	}
++	kfree(buf);
++	return ret;
++}
++
++/*
++ * Send a command and wait for the IRQ thread to deliver the response.
++ * *resp (if not NULL) receives a kmalloc'd copy of the response payload.
++ */
++static int tcm_command(struct ovt_tcm *t, u8 cmd, const u8 *payload,
++		       unsigned int len, u8 **resp, unsigned int *resp_len)
++{
++	int ret;
++
++	mutex_lock(&t->cmd_lock);
++	reinit_completion(&t->resp_done);
++	t->resp_err = false;
++	t->resp_buf = NULL;
++	t->resp_len = 0;
++	WRITE_ONCE(t->pending_cmd, cmd);
++
++	ret = tcm_write_command(t, cmd, payload, len);
++	if (ret)
++		goto out;
++
++	if (!wait_for_completion_timeout(&t->resp_done,
++					 msecs_to_jiffies(RESPONSE_TIMEOUT_MS))) {
++		dev_err(&t->spi->dev, "command 0x%02x timed out\n", cmd);
++		ret = -ETIMEDOUT;
++		goto out;
++	}
++	if (t->resp_err) {
++		dev_err(&t->spi->dev, "command 0x%02x failed, code 0x%02x\n",
++			cmd, t->resp_code);
++		ret = -EIO;
++		kfree(t->resp_buf);
++		t->resp_buf = NULL;
++		goto out;
++	}
++	if (resp) {
++		*resp = t->resp_buf;
++		if (resp_len)
++			*resp_len = t->resp_len;
++	} else {
++		kfree(t->resp_buf);
++	}
++	t->resp_buf = NULL;
++out:
++	WRITE_ONCE(t->pending_cmd, 0);
++	mutex_unlock(&t->cmd_lock);
++	return ret;
++}
++
++/* ---------------------------------------------------------- firmware ---- */
++
++static int tcm_parse_image(struct ovt_tcm *t)
++{
++	const u8 *img = t->fw->data;
++	size_t size = t->fw->size;
++	u32 areas, addr, length, i;
++	const struct area_descriptor *d;
++
++	memset(&t->app_code, 0, sizeof(t->app_code));
++	memset(&t->app_cfg, 0, sizeof(t->app_cfg));
++	memset(&t->disp_cfg, 0, sizeof(t->disp_cfg));
++	memset(&t->os_cfg, 0, sizeof(t->os_cfg));
++
++	if (size < 8 || get_unaligned_le32(img) != IMAGE_FILE_MAGIC)
++		return -EINVAL;
++	areas = get_unaligned_le32(img + 4);
++	if (areas > (size - 8) / 4)
++		return -EINVAL;
++
++	for (i = 0; i < areas; i++) {
++		struct fw_area *dst = NULL;
++
++		addr = get_unaligned_le32(img + 8 + 4 * i);
++		if (addr > size || size - addr < sizeof(*d))
++			return -EINVAL;
++		d = (const void *)(img + addr);
++		if (get_unaligned_le32(d->magic) != FLASH_AREA_MAGIC)
++			continue;
++		length = get_unaligned_le32(d->length);
++		if (length > size - addr - sizeof(*d))
++			return -EINVAL;
++
++		if (!strncmp(d->id, "ROMBOOT_APP_CODE", 16))
++			dst = &t->app_code;
++		else if (!strncmp(d->id, "APP_CONFIG", 10))
++			dst = &t->app_cfg;
++		else if (!strncmp(d->id, "DISPLAY", 7))
++			dst = &t->disp_cfg;
++		else if (!strncmp(d->id, "OPENSHORT", 9))
++			dst = &t->os_cfg;
++		else
++			continue;
++
++		if (get_unaligned_le32(d->checksum) !=
++		    (crc32_le(~0, (const u8 *)(d + 1), length) ^ ~0)) {
++			dev_err(&t->spi->dev, "checksum error in area %.16s\n",
++				d->id);
++			return -EINVAL;
++		}
++		dst->data = (const u8 *)(d + 1);
++		dst->size = length;
++	}
++
++	if (!t->app_code.size || !t->app_cfg.size)
++		return -EINVAL;
++	return 0;
++}
++
++static int tcm_load_image(struct ovt_tcm *t)
++{
++	int ret;
++
++	if (t->fw)
++		return 0;
++	ret = request_firmware(&t->fw, t->fw_name, &t->spi->dev);
++	if (ret) {
++		dev_err(&t->spi->dev, "cannot load %s: %d\n", t->fw_name, ret);
++		return ret;
++	}
++	ret = tcm_parse_image(t);
++	if (ret) {
++		dev_err(&t->spi->dev, "%s is not a usable HDL image\n",
++			t->fw_name);
++		release_firmware(t->fw);
++		t->fw = NULL;
++	}
++	return ret;
++}
++
++static void tcm_release_image(struct ovt_tcm *t)
++{
++	release_firmware(t->fw);
++	t->fw = NULL;
++}
++
++/* ----------------------------------------------------- touch reporting -- */
++
++static int tcm_report_bits(const u8 *rep, unsigned int rep_len,
++			   unsigned int offset, unsigned int bits, u32 *out)
++{
++	unsigned int bit_off = offset % 8, byte_off = offset / 8, left = bits;
++	u32 val = 0;
++
++	if (!bits || bits > 32)
++		return -EINVAL;
++	if (offset + bits > rep_len * 8) {
++		*out = 0;
++		return 0;
++	}
++	while (left) {
++		unsigned int n = min(8 - bit_off, left);
++		u8 b = (rep[byte_off] >> bit_off) & (0xff >> (8 - n));
++
++		val |= (u32)b << (bits - left);
++		bit_off = 0;
++		byte_off++;
++		left -= n;
++	}
++	*out = val;
++	return 0;
++}
++
++static int tcm_parse_touch(struct ovt_tcm *t, const u8 *rep, unsigned int len)
++{
++	const u8 *cfg = t->report_cfg;
++	unsigned int idx = 0, offset = 0, obj = 0, next = 0, loop_start = 0;
++	bool active_only = false;
++	u32 data;
++
++	memset(t->objs, 0, sizeof(*t->objs) * t->max_objects);
++
++	while (idx < t->report_cfg_len) {
++		u8 code = cfg[idx++];
++		unsigned int bits;
++
++		switch (code) {
++		case TOUCH_END:
++			return 0;
++		case TOUCH_FOREACH_ACTIVE_OBJECT:
++			obj = 0;
++			next = idx;
++			loop_start = offset;
++			active_only = true;
++			break;
++		case TOUCH_FOREACH_OBJECT:
++			obj = 0;
++			next = idx;
++			active_only = false;
++			break;
++		case TOUCH_FOREACH_END:
++			if (active_only) {
++				/* repeat while the report still has bits */
++				if (offset < len * 8 && offset > loop_start) {
++					loop_start = offset;
++					idx = next;
++				}
++			} else {
++				obj++;
++				if (obj < t->max_objects)
++					idx = next;
++			}
++			break;
++		case TOUCH_PAD_TO_NEXT_BYTE:
++			offset = round_up(offset, 8);
++			break;
++		case TOUCH_TIMESTAMP:
++		case TOUCH_OBJECT_N_INDEX:
++		case TOUCH_OBJECT_N_CLASSIFICATION:
++		case TOUCH_OBJECT_N_X_POSITION:
++		case TOUCH_OBJECT_N_Y_POSITION:
++		case TOUCH_OBJECT_N_Z:
++		case TOUCH_OBJECT_N_X_WIDTH:
++		case TOUCH_OBJECT_N_Y_WIDTH:
++			if (idx >= t->report_cfg_len)
++				return -EINVAL;
++			bits = cfg[idx++];
++			if (tcm_report_bits(rep, len, offset, bits, &data))
++				return -EINVAL;
++			offset += bits;
++			if (code == TOUCH_OBJECT_N_INDEX) {
++				obj = data;
++				break;
++			}
++			if (code == TOUCH_TIMESTAMP)
++				break;
++			if (obj >= t->max_objects)
++				break;
++			switch (code) {
++			case TOUCH_OBJECT_N_CLASSIFICATION:
++				t->objs[obj].status = data;
++				break;
++			case TOUCH_OBJECT_N_X_POSITION:
++				t->objs[obj].x = data;
++				break;
++			case TOUCH_OBJECT_N_Y_POSITION:
++				t->objs[obj].y = data;
++				break;
++			case TOUCH_OBJECT_N_Z:
++				t->objs[obj].z = data;
++				break;
++			case TOUCH_OBJECT_N_X_WIDTH:
++				t->objs[obj].x_width = data;
++				break;
++			case TOUCH_OBJECT_N_Y_WIDTH:
++				t->objs[obj].y_width = data;
++				break;
++			}
++			break;
++		default:
++			/* unknown field: it carries a bit count, skip it */
++			if (idx >= t->report_cfg_len)
++				return -EINVAL;
++			offset += cfg[idx++];
++			break;
++		}
++	}
++	return 0;
++}
++
++static void tcm_report_touch(struct ovt_tcm *t, const u8 *rep, unsigned int len)
++{
++	unsigned int i;
++
++	if (!t->touch_ready || t->suspended)
++		return;
++	if (tcm_parse_touch(t, rep, len))
++		return;
++
++	for (i = 0; i < t->max_objects; i++) {
++		u8 st = t->objs[i].status;
++		bool down = st == 1 || st == 2;	/* finger, gloved finger */
++
++		if (!down && !t->prev_status[i])
++			continue;
++		input_mt_slot(t->input, i);
++		input_mt_report_slot_state(t->input, MT_TOOL_FINGER, down);
++		if (down) {
++			input_report_abs(t->input, ABS_MT_POSITION_X, t->objs[i].x);
++			input_report_abs(t->input, ABS_MT_POSITION_Y, t->objs[i].y);
++			input_report_abs(t->input, ABS_MT_PRESSURE, t->objs[i].z);
++			input_report_abs(t->input, ABS_MT_TOUCH_MAJOR,
++					 (t->objs[i].x_width + t->objs[i].y_width) / 2);
++		}
++		t->prev_status[i] = down;
++	}
++	input_mt_sync_frame(t->input);
++	input_sync(t->input);
++}
++
++static void tcm_release_all(struct ovt_tcm *t)
++{
++	unsigned int i;
++
++	if (!t->input || !t->prev_status)
++		return;
++	for (i = 0; i < t->max_objects; i++) {
++		input_mt_slot(t->input, i);
++		input_mt_report_slot_state(t->input, MT_TOOL_FINGER, false);
++		t->prev_status[i] = 0;
++	}
++	input_mt_sync_frame(t->input);
++	input_sync(t->input);
++}
++
++/* Fixed layout, same as the stock driver: 4+4+12+12+16+16+16 bits/object. */
++static int tcm_set_report_config(struct ovt_tcm *t)
++{
++	static const u8 layout[] = {
++		TOUCH_FOREACH_ACTIVE_OBJECT,
++		TOUCH_OBJECT_N_INDEX, 4,
++		TOUCH_OBJECT_N_CLASSIFICATION, 4,
++		TOUCH_OBJECT_N_X_POSITION, 12,
++		TOUCH_OBJECT_N_Y_POSITION, 12,
++		TOUCH_OBJECT_N_X_WIDTH, 16,
++		TOUCH_OBJECT_N_Y_WIDTH, 16,
++		TOUCH_OBJECT_N_Z, 16,
++		TOUCH_FOREACH_END,
++		TOUCH_END,
++	};
++	unsigned int max = get_unaligned_le16(t->app.max_touch_report_config_size);
++	u8 *buf;
++	int ret;
++
++	if (max < TOUCH_REPORT_CONFIG_MIN)
++		return -EINVAL;
++	buf = kzalloc(max, GFP_KERNEL);
++	if (!buf)
++		return -ENOMEM;
++	memcpy(buf, layout, sizeof(layout));
++	ret = tcm_command(t, CMD_SET_TOUCH_REPORT_CONFIG, buf, max, NULL, NULL);
++	kfree(buf);
++	return ret;
++}
++
++static int tcm_register_input(struct ovt_tcm *t)
++{
++	struct input_dev *in;
++	int ret;
++
++	if (t->input)
++		return 0;
++	in = devm_input_allocate_device(&t->spi->dev);
++	if (!in)
++		return -ENOMEM;
++	in->name = "omnivision_tcm_touch";
++	in->id.bustype = BUS_SPI;
++	input_set_capability(in, EV_KEY, BTN_TOUCH);
++	input_set_abs_params(in, ABS_MT_POSITION_X, 0, t->max_x, 0, 0);
++	input_set_abs_params(in, ABS_MT_POSITION_Y, 0, t->max_y, 0, 0);
++	input_set_abs_params(in, ABS_MT_PRESSURE, 0, MAX_Z_VALUE, 0, 0);
++	input_set_abs_params(in, ABS_MT_TOUCH_MAJOR, 0, MAX_MAJOR_VALUE, 0, 0);
++	ret = input_mt_init_slots(in, t->max_objects, INPUT_MT_DIRECT);
++	if (ret)
++		return ret;
++	ret = input_register_device(in);
++	if (ret)
++		return ret;
++	t->input = in;
++	return 0;
++}
++
++/* Application firmware is running: read what it can do, set up reporting. */
++static int tcm_bring_up_touch(struct ovt_tcm *t)
++{
++	u8 *resp = NULL;
++	unsigned int rlen, tries;
++	int ret;
++
++	ret = tcm_command(t, CMD_IDENTIFY, NULL, 0, &resp, &rlen);
++	if (ret)
++		return ret;
++	memcpy(&t->id, resp, min_t(unsigned int, rlen, sizeof(t->id)));
++	t->wr_chunk = min_t(unsigned int, get_unaligned_le16(t->id.max_write_size),
++			    WR_CHUNK_SIZE);
++	kfree(resp);
++	if (t->id.mode != MODE_APPLICATION_FIRMWARE &&
++	    t->id.mode != MODE_HOSTDOWNLOAD_FIRMWARE) {
++		dev_err(&t->spi->dev, "unexpected mode 0x%02x after download\n",
++			t->id.mode);
++		return -EIO;
++	}
++
++	for (tries = 0; tries < 20; tries++) {
++		resp = NULL;
++		ret = tcm_command(t, CMD_GET_APPLICATION_INFO, NULL, 0,
++				  &resp, &rlen);
++		if (ret)
++			return ret;
++		memset(&t->app, 0, sizeof(t->app));
++		memcpy(&t->app, resp, min_t(unsigned int, rlen, sizeof(t->app)));
++		kfree(resp);
++		if (get_unaligned_le16(t->app.status) != 0x01 &&	/* booting */
++		    get_unaligned_le16(t->app.status) != 0x02)		/* updating */
++			break;
++		msleep(100);
++	}
++	if (get_unaligned_le16(t->app.status) != APP_STATUS_OK) {
++		dev_err(&t->spi->dev, "application status 0x%04x\n",
++			get_unaligned_le16(t->app.status));
++		return -EIO;
++	}
++
++	t->max_x = get_unaligned_le16(t->app.max_x);
++	t->max_y = get_unaligned_le16(t->app.max_y);
++	t->max_objects = get_unaligned_le16(t->app.max_objects);
++	if (!t->max_x || !t->max_y || !t->max_objects)
++		return -EINVAL;
++
++	ret = tcm_set_report_config(t);
++	if (ret)
++		return ret;
++
++	resp = NULL;
++	ret = tcm_command(t, CMD_GET_TOUCH_REPORT_CONFIG, NULL, 0, &resp, &rlen);
++	if (ret)
++		return ret;
++
++	t->touch_ready = false;
++	kfree(t->report_cfg);
++	t->report_cfg = resp;
++	t->report_cfg_len = rlen;
++
++	if (!t->objs) {
++		t->objs = devm_kcalloc(&t->spi->dev, t->max_objects,
++				       sizeof(*t->objs), GFP_KERNEL);
++		t->prev_status = devm_kzalloc(&t->spi->dev, t->max_objects,
++					      GFP_KERNEL);
++		if (!t->objs || !t->prev_status)
++			return -ENOMEM;
++	}
++	ret = tcm_register_input(t);
++	if (ret)
++		return ret;
++
++	t->touch_ready = true;
++	dev_info(&t->spi->dev, "touch ready: %ux%u, %u objects, config id %.16s\n",
++		 t->max_x, t->max_y, t->max_objects, t->app.customer_config_id);
++	return 0;
++}
++
++/* ------------------------------------------------------ download work --- */
++
++static int tcm_send_config(struct ovt_tcm *t, u8 type, const struct fw_area *a)
++{
++	unsigned int pad = 0, len;
++	u8 *buf, *resp = NULL;
++	unsigned int rlen;
++	int ret;
++
++	if (!a->size)
++		return -EINVAL;
++	if (type == HDL_TOUCH_CONFIG)
++		pad = round_up(a->size, 8) - a->size;
++	len = a->size + 2 + pad;
++	buf = kzalloc(len, GFP_KERNEL);
++	if (!buf)
++		return -ENOMEM;
++	/* byte 0 is the HDL protocol version the firmware asked for */
++	buf[0] = t->fw_status.hdl_version == 2 ? 2 : 1;
++	buf[1] = type;
++	memcpy(&buf[2], a->data, a->size);
++
++	ret = tcm_command(t, CMD_DOWNLOAD_CONFIG, buf, len, &resp, &rlen);
++	kfree(buf);
++	if (ret)
++		return ret;
++	if (rlen >= sizeof(t->fw_status))
++		memcpy(&t->fw_status, resp, sizeof(t->fw_status));
++	kfree(resp);
++	return 0;
++}
++
++static void tcm_cfg_work(struct work_struct *work)
++{
++	struct ovt_tcm *t = container_of(work, struct ovt_tcm, cfg_work);
++	int ret = 0, guard = 0;
++
++	if (!t->hdl_busy)
++		return;
++	ret = tcm_load_image(t);
++	if (ret)
++		goto fail;
++
++	while ((t->fw_status.need_app_config || t->fw_status.need_disp_config ||
++		(t->fw_status.need_open_short_config && t->os_cfg.size)) &&
++	       guard++ < 10) {
++		if (t->fw_status.need_app_config)
++			ret = tcm_send_config(t, HDL_TOUCH_CONFIG, &t->app_cfg);
++		else if (t->fw_status.need_disp_config)
++			ret = tcm_send_config(t, HDL_DISPLAY_CONFIG, &t->disp_cfg);
++		else
++			ret = tcm_send_config(t, HDL_OPEN_SHORT_CONFIG, &t->os_cfg);
++		if (ret)
++			goto fail;
++	}
++
++	/* nothing more requested: the application firmware is up */
++	ret = tcm_bring_up_touch(t);
++fail:
++	if (ret)
++		dev_err(&t->spi->dev, "bring-up after download failed: %d\n", ret);
++	tcm_release_image(t);
++	t->hdl_busy = false;
++}
++
++static void tcm_hdl_work(struct work_struct *work)
++{
++	struct ovt_tcm *t = container_of(work, struct ovt_tcm, hdl_work);
++	u8 *buf;
++	int ret;
++
++	t->touch_ready = false;
++	tcm_release_all(t);
++
++	ret = tcm_load_image(t);
++	if (ret)
++		goto fail;
++
++	buf = kzalloc(t->app_code.size + ROMBOOT_HDR_BYTES, GFP_KERNEL);
++	if (!buf) {
++		ret = -ENOMEM;
++		goto fail;
++	}
++	buf[0] = t->app_code.size >> 16;
++	memcpy(buf + ROMBOOT_HDR_BYTES, t->app_code.data, t->app_code.size);
++
++	t->wr_chunk = 0;	/* unlimited in ROM boot */
++	ret = tcm_command(t, CMD_ROMBOOT_DOWNLOAD, buf,
++			  t->app_code.size + ROMBOOT_HDR_BYTES, NULL, NULL);
++	kfree(buf);
++	if (ret)
++		goto fail;
++
++	/* completes when the new firmware's IDENTIFY report arrives */
++	ret = tcm_command(t, CMD_ROMBOOT_RUN_BOOTLOADER_FW, NULL, 0, NULL, NULL);
++	if (ret)
++		goto fail;
++	/* from here the firmware sends a STATUS report asking for configs */
++	return;
++fail:
++	dev_err(&t->spi->dev, "firmware download failed: %d\n", ret);
++	tcm_release_image(t);
++	t->hdl_busy = false;
++}
++
++/* ------------------------------------------------------------- IRQ ------ */
++
++static irqreturn_t tcm_irq_thread(int irq, void *data)
++{
++	struct ovt_tcm *t = data;
++	u8 code, *payload = NULL, pending;
++	unsigned int len;
++	int ret;
++
++	ret = tcm_read_message(t, &code, &payload, &len);
++	if (ret) {
++		/* the part is simply not talking, e.g. in reset */
++		if (READ_ONCE(t->pending_cmd)) {
++			t->resp_err = true;
++			t->resp_code = STATUS_INVALID;
++			complete(&t->resp_done);
++		}
++		return IRQ_HANDLED;
++	}
++	if (code == STATUS_IDLE || code == STATUS_BUSY ||
++	    code == STATUS_CONTINUED_READ)
++		return IRQ_HANDLED;
++
++	pending = READ_ONCE(t->pending_cmd);
++
++	if (code < REPORT_IDENTIFY) {
++		/* command response */
++		if (pending) {
++			t->resp_code = code;
++			t->resp_err = code != STATUS_OK;
++			t->resp_buf = payload;
++			t->resp_len = len;
++			payload = NULL;
++			complete(&t->resp_done);
++		}
++		goto out;
++	}
++
++	switch (code) {
++	case REPORT_IDENTIFY:
++		if (len >= 2) {
++			memset(&t->id, 0, sizeof(t->id));
++			memcpy(&t->id, payload, min_t(unsigned int, len, sizeof(t->id)));
++			t->got_identify = true;
++		}
++		if (pending == CMD_ROMBOOT_RUN_BOOTLOADER_FW) {
++			/* the "response" to these is the device coming back */
++			t->resp_err = false;
++			t->resp_code = STATUS_OK;
++			complete(&t->resp_done);
++			break;
++		}
++		if (t->id.mode == MODE_ROMBOOTLOADER && !t->hdl_busy) {
++			t->hdl_busy = true;
++			t->fw_status = (struct fw_status){ 0 };
++			queue_work(t->wq, &t->hdl_work);
++		}
++		break;
++	case REPORT_STATUS:
++		if (len >= sizeof(t->fw_status) && t->hdl_busy) {
++			memcpy(&t->fw_status, payload, sizeof(t->fw_status));
++			queue_work(t->wq, &t->cfg_work);
++		}
++		break;
++	case REPORT_TOUCH:
++		tcm_report_touch(t, payload, len);
++		break;
++	default:
++		break;
++	}
++out:
++	kfree(payload);
++	return IRQ_HANDLED;
++}
++
++/* --------------------------------------------------------- probe etc. --- */
++
++static void tcm_hw_reset(struct ovt_tcm *t)
++{
++	gpiod_set_value_cansleep(t->reset, 1);
++	msleep(20);
++	gpiod_set_value_cansleep(t->reset, 0);
++}
++
++static void tcm_init_work(struct work_struct *work)
++{
++	struct ovt_tcm *t = container_of(work, struct ovt_tcm, init_work);
++	u8 code, *payload;
++	unsigned int len;
++
++	tcm_hw_reset(t);
++	msleep(200);
++	/*
++	 * With a level-triggered interrupt the identify report has already
++	 * been picked up by the IRQ thread. With an edge, it may have been
++	 * missed while the handler was not requested: look once by hand.
++	 */
++	if (!t->got_identify && !tcm_read_message(t, &code, &payload, &len)) {
++		if (code == REPORT_IDENTIFY && len >= 2) {
++			memcpy(&t->id, payload,
++			       min_t(unsigned int, len, sizeof(t->id)));
++			t->got_identify = true;
++			if (t->id.mode == MODE_ROMBOOTLOADER && !t->hdl_busy) {
++				t->hdl_busy = true;
++				queue_work(t->wq, &t->hdl_work);
++			}
++		}
++		kfree(payload);
++	}
++	if (!t->got_identify)
++		dev_warn(&t->spi->dev, "no identify report after reset\n");
++}
++
++static int ovt_tcm_probe(struct spi_device *spi)
++{
++	struct device *dev = &spi->dev;
++	struct ovt_tcm *t;
++	int ret;
++
++	t = devm_kzalloc(dev, sizeof(*t), GFP_KERNEL);
++	if (!t)
++		return -ENOMEM;
++	t->spi = spi;
++	mutex_init(&t->spi_lock);
++	mutex_init(&t->cmd_lock);
++	init_completion(&t->resp_done);
++	INIT_WORK(&t->hdl_work, tcm_hdl_work);
++	INIT_WORK(&t->cfg_work, tcm_cfg_work);
++	INIT_WORK(&t->init_work, tcm_init_work);
++	spi_set_drvdata(spi, t);
++
++	ret = device_property_read_string(dev, "firmware-name", &t->fw_name);
++	if (ret) {
++		dev_err(dev, "firmware-name is required\n");
++		return ret;
++	}
++
++	t->reset = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
++	if (IS_ERR(t->reset))
++		return dev_err_probe(dev, PTR_ERR(t->reset), "reset gpio\n");
++
++	spi->bits_per_word = 8;
++	ret = spi_setup(spi);
++	if (ret)
++		return ret;
++
++	t->wq = devm_alloc_ordered_workqueue(dev, "ovt-tcm", 0);
++	if (!t->wq)
++		return -ENOMEM;
++
++	ret = devm_request_threaded_irq(dev, spi->irq, NULL, tcm_irq_thread,
++					IRQF_ONESHOT, "ovt-tcm", t);
++	if (ret)
++		return dev_err_probe(dev, ret, "irq\n");
++
++	queue_work(t->wq, &t->init_work);
++	return 0;
++}
++
++static void ovt_tcm_remove(struct spi_device *spi)
++{
++	struct ovt_tcm *t = spi_get_drvdata(spi);
++
++	disable_irq(spi->irq);
++	cancel_work_sync(&t->init_work);
++	cancel_work_sync(&t->hdl_work);
++	cancel_work_sync(&t->cfg_work);
++	tcm_release_image(t);
++	kfree(t->report_cfg);
++}
++
++static int ovt_tcm_suspend(struct device *dev)
++{
++	struct ovt_tcm *t = dev_get_drvdata(dev);
++
++	t->suspended = true;
++	tcm_release_all(t);
++	if (t->touch_ready)
++		tcm_command(t, CMD_ENTER_DEEP_SLEEP, NULL, 0, NULL, NULL);
++	return 0;
++}
++
++static int ovt_tcm_resume(struct device *dev)
++{
++	struct ovt_tcm *t = dev_get_drvdata(dev);
++
++	if (t->touch_ready)
++		tcm_command(t, CMD_EXIT_DEEP_SLEEP, NULL, 0, NULL, NULL);
++	t->suspended = false;
++	return 0;
++}
++
++static DEFINE_SIMPLE_DEV_PM_OPS(ovt_tcm_pm, ovt_tcm_suspend, ovt_tcm_resume);
++
++static const struct of_device_id ovt_tcm_of_match[] = {
++	{ .compatible = "omnivision,tcm-spi" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, ovt_tcm_of_match);
++
++static const struct spi_device_id ovt_tcm_id[] = {
++	{ "omnivision_tcm_spi" },
++	{ }
++};
++MODULE_DEVICE_TABLE(spi, ovt_tcm_id);
++
++static struct spi_driver ovt_tcm_driver = {
++	.driver = {
++		.name = "omnivision_tcm_spi",
++		.of_match_table = ovt_tcm_of_match,
++		.pm = pm_sleep_ptr(&ovt_tcm_pm),
++	},
++	.id_table = ovt_tcm_id,
++	.probe = ovt_tcm_probe,
++	.remove = ovt_tcm_remove,
++};
++module_spi_driver(ovt_tcm_driver);
++
++MODULE_DESCRIPTION("OmniVision TCM touchscreen (SPI, host download) - X6525 draft");
++MODULE_LICENSE("GPL");
+-- 
+2.47.3
+

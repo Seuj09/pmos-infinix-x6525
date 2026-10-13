@@ -10,6 +10,14 @@ to apply **in this order** to a clean checkout of it, producing byte-identical f
 | 2 | `dt-bindings: arm: sprd: add Infinix X6525 board` | bindings/mainline |
 | 3 | `WIP: arm64: dts: sprd: add device tree for Infinix X6525` | the ums9230 tree |
 | 4 | `WIP: drm/panel: add driver for the TD4160 HX 720x1612 panel` | the ums9230 tree, later drm-misc |
+| 5 | `dt-bindings: input: add OmniVision TCM SPI touchscreen` | bindings/mainline |
+| 6 | `Input: add OmniVision TCM SPI touchscreen driver (host download)` | the ums9230 tree, later input |
+
+Patch 3 adds the touch node together with the rest of the board, and 5 and 6 document and drive it;
+the series is only consistent once all six are applied, which is what the verification below checks.
+The build inputs CI applies are separate: `../0001-x6525-build-glue.patch` and
+`../0002-x6525-touch-glue.patch` (the same hunks as 1, 2, 4, 5/6's Kconfig and Makefile entries, so a
+local build and CI put the same thing in the tree).
 
 ```sh
 git clone --depth 1 --branch v7.2-rc6-ums9230-0 https://codeberg.org/ums9230-mainline/linux

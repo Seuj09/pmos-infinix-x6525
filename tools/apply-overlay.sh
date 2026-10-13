@@ -6,12 +6,14 @@
 #       https://codeberg.org/ums9230-mainline/linux kernel
 #   ./tools/apply-overlay.sh kernel
 #
-# It copies dts/ums9230-infinix-x6525.dts, drivers/panel-td4160-hx.c and
-# bindings/infinix,td4160-hx-panel.yaml into the tree, then applies
-# patches/0001-x6525-build-glue.patch, which adds the dtb-y entry, the panel
-# Kconfig and Makefile lines, and the DT binding entries (board compatible and
-# vendor prefix). Re-running is safe: a patch that is already in is reported
-# rather than applied twice.
+# It copies dts/ums9230-infinix-x6525.dts, the two drivers and the two bindings
+# into the tree, then applies the glue patches in patches/*.patch: the dtb-y
+# entry, the panel Kconfig and Makefile lines, the DT binding entries (board
+# compatible and vendor prefix) and the touchscreen Kconfig/Makefile lines.
+# patches/upstream* is skipped - those are submission copies of what is already
+# in the tree. Re-running is safe: a patch that is already in is reported rather
+# than applied twice, and a patch that no longer fits fails instead of
+# half-applying.
 #
 # The patch is cut against the tag the CI pins. When you bump that tag, refresh
 # it: fetch the five touched files at the new tag, re-apply the same edits, and
@@ -39,9 +41,13 @@ install -Dm644 "$HERE/dts/ums9230-infinix-x6525.dts" \
 	"$TREE/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts"
 install -Dm644 "$HERE/drivers/panel-td4160-hx.c" \
 	"$TREE/drivers/gpu/drm/panel/panel-td4160-hx.c"
+install -Dm644 "$HERE/drivers/ovt-tcm-spi.c" \
+	"$TREE/drivers/input/touchscreen/ovt-tcm-spi.c"
 install -Dm644 "$HERE/bindings/infinix,td4160-hx-panel.yaml" \
 	"$TREE/Documentation/devicetree/bindings/display/panel/infinix,td4160-hx-panel.yaml"
-echo "copied device tree, panel driver and binding"
+install -Dm644 "$HERE/bindings/omnivision,tcm-spi.yaml" \
+	"$TREE/Documentation/devicetree/bindings/input/touchscreen/omnivision,tcm-spi.yaml"
+echo "copied device tree, both drivers and both bindings"
 
 # 'git apply' rather than patch(1): its --check semantics are unambiguous in
 # both directions, whereas patch's reverse detection happily reports success

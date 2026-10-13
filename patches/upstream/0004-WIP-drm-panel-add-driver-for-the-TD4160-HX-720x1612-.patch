@@ -1,6 +1,6 @@
-From 8dce6dc649d3f12e63d135bb4e3a06ed7bc15d9e Mon Sep 17 00:00:00 2001
+From fa8bf4161a9d79eb477fde1f9088279a44fc49ea Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Tue, 13 Oct 2026 12:49:54 +0000
+Date: Tue, 13 Oct 2026 21:46:00 +0000
 Subject: [PATCH 4/4] WIP: drm/panel: add driver for the TD4160 HX 720x1612
  panel
 
