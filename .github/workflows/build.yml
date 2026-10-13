@@ -48,8 +48,11 @@ jobs:
       - name: Build the device tree
         run: |
           make -C kernel ARCH=arm64 defconfig
+          # arm64 wants the DTB named relative to arch/arm64/boot/dts/, not as a
+          # full source path (that doubles the prefix and matches no rule).
           make -C kernel ARCH=arm64 -j"$(nproc)" \
-            arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dtb
+            sprd/ums9230-infinix-x6525.dtb ||
+          make -C kernel ARCH=arm64 -j"$(nproc)" dtbs
           ls -l kernel/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dtb
 
       - name: Enable the panel driver, and check it survives olddefconfig
@@ -71,7 +74,8 @@ jobs:
         run: |
           make -C kernel ARCH=arm64 LLVM=1 -j"$(nproc)" modules_prepare
           make -C kernel ARCH=arm64 LLVM=1 -j"$(nproc)" \
-            drivers/gpu/drm/panel/panel-td4160-hx.o
+            drivers/gpu/drm/panel/panel-td4160-hx.o ||
+          make -C kernel ARCH=arm64 LLVM=1 -j"$(nproc)" M=drivers/gpu/drm/panel modules
           ls -l kernel/drivers/gpu/drm/panel/panel-td4160-hx.o
 
       - name: Upload what was built
