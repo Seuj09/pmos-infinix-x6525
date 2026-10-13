@@ -1,0 +1,364 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Infinix X6525 ("Infinix Smart 8") - Unisoc UMS9230 (Tiger T606)
+ *
+ * DRAFT SKELETON. Nothing here has been tested on the device.
+ *
+ * Every value is either:
+ *   [T]  traced to a named source, or
+ *   TODO must be read off the device before it can be trusted.
+ *
+ * Sources:
+ *   - Structure: ums9230-reeder-s19mps.dts (Jolla C2, same SoC, mainline).
+ *   - Board data: the stock 5.4 tree, arch/arm64/boot/dts/sprd/
+ *     (ums9230-1h10_go-overlay.dts, ums9230-mach.dtsi, ums9230.dts, qogirl6.dtsi).
+ *   - Hardware present: config-helix-stock.aarch64 (this repo).
+ *
+ * The device reports (from the stock images in this repo):
+ *   model "Spreadtrum UMS9230-1H10-GO Board", compatible "sprd,ums9230-1h10-go",
+ *   panel 720x1612, boot console ttyS1.
+ *
+ * HOW TO FILL IN THE TODOs
+ *   1. Ground truth for panel/touch - read the live cmdline on the stock device:
+ *        adb shell cat /proc/cmdline      # lcd_name=..., tp_vendor_id=...
+ *        adb shell cat /proc/modules | grep -iE 'focal|tcm|himax|chipone|fts'
+ *   2. Ground truth for storage/GPIOs - decompile what the bootloader hands over:
+ *        dtc -I dtb -O dts <vendor_boot dtb>     # base: ums9230.dts + 1h10
+ *        dtc -I dtb -O dts <dtbo entry 18>       # board: UMS9230-1H10-GO
+ *   3. Storage: exactly one of &ufs / &sdio1 is internal. Pick from (2).
+ *
+ * Upstreaming checklist - see dts/README.md for the full list.
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/usb/pd.h>
+
+#include "ums9230.dtsi"
+#include "sc2730.dtsi"
+
+/ {
+	model = "Infinix X6525";
+	compatible = "infinix,x6525", "sprd,ums9230";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;		/* ttyS1 [T: console=ttyS1,115200n8] */
+		/* mmc0 = &sdio1;		TODO: internal storage, see below */
+		i2c0 = &i2c0;
+		i2c1 = &i2c1;
+		i2c2 = &i2c2;
+		i2c3 = &i2c3;
+		i2c4 = &i2c4;
+		i2c5 = &i2c5;			/* chargers are here [T] */
+		i2c6 = &i2c6;
+		i2c7 = &aon_i2c0;
+	};
+
+	chosen {
+		stdout-path = "serial1:115200n8";	/* [T] */
+
+		framebuffer {
+			compatible = "simple-framebuffer";
+			memory-region = <&framebuffer_region>;
+			width = <720>;
+			height = <1612>;	/* [T: lcd_size=1612x720] */
+			stride = <(720 * 4)>;
+			format = "a8r8g8b8";
+
+			status = "disabled";	/* the display driver takes over */
+		};
+	};
+
+	reserved-memory {
+		framebuffer_region: framebuffer-region@9e000000 {
+			compatible = "framebuffer";
+			reg = <0 0x9e000000 0 (720 * 1612 * 4)>;
+			iommu-addresses = <&dpu 0x9e000000 (720 * 1612 * 4)>;
+			no-map;
+			/*
+			 * TODO: address and size copied from the reeder DTS.
+			 * Verify against the base DTB the bootloader passes.
+			 */
+		};
+
+		ramoops@fff80000 {
+			compatible = "ramoops";
+			reg = <0x0 0xfff80000 0x0 0x40000>;
+			console-size = <0x8000>;
+			record-size = <0x8000>;
+			pmsg-size = <0x8000>;
+			/* TODO: verify; same values as the downstream mach.dtsi. */
+		};
+
+		linux,cma {
+			compatible = "shared-dma-pool";
+			size = <0x0 0x8000000>;
+			reusable;
+			linux,cma-default;
+		};
+	};
+
+	backlight: backlight {
+		compatible = "pwm-backlight";
+		pwms = <&pwm 2 40000>;	/* [T: downstream 1h10-go - pwm ch 2, 40000 ns] */
+		/*
+		 * TODO: brightness table. Downstream uses the vendor
+		 * "sprd,sharkl6-backlight" driver with max-brightness-level 924 and
+		 * brightness-scale 1023; the reeder's pwm-backlight table is the
+		 * mainline equivalent, but the values must match this panel.
+		 */
+		brightness-levels = <0 1023>;
+		default-brightness-level = <800>;
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		key-volumedown {
+			wakeup-source;
+			debounce-interval = <2>;
+			gpios = <&ap_gpio 124 GPIO_ACTIVE_LOW>;	/* [T: downstream 1h10-go] */
+			linux,code = <KEY_VOLUMEDOWN>;
+		};
+
+		/*
+		 * TODO: key-power and key-volumeup.
+		 * Note the two trees disagree here: downstream 1h10-go puts
+		 * volume-down on ap_gpio 124, while the reeder puts volume-up on
+		 * ap_gpio 124. Neither is authoritative for this board - take the
+		 * GPIOs from the decompiled board DTB (step 2 above).
+		 */
+	};
+
+	bat: battery {
+		compatible = "simple-battery";
+		/*
+		 * TODO: every value. The reeder's simple-battery block is a
+		 * starting point, but capacity and OCV tables are per-cell.
+		 */
+	};
+};
+
+/* ---- storage ------------------------------------------------------------
+ * Exactly one of &ufs / &sdio1 is the internal storage; the other interface,
+ * if wired, is the microSD slot. Downstream 1h10-go only adds a card-detect to
+ * &sdio0, which matches the reeder's SD slot being sdio0. The stock config has
+ * both SCSI_UFS_SPRD_QOGIRL6=m and MMC_SDHCI_SPRD=m, so it cannot tell us which
+ * one this board uses. TODO: confirm from the board DTB.
+ */
+&sdio0 {
+	/* microSD slot */
+	cd-gpios = <&eic_sync 35 GPIO_ACTIVE_HIGH>;	/* downstream says eic_sync, */
+							/* the reeder uses eic_async - verify */
+	vmmc-supply = <&vddsdcore>;
+	vqmmc-supply = <&vddsdio>;
+	bus-width = <4>;
+	no-sdio;
+	no-mmc;
+	status = "okay";
+};
+
+&ufs {
+	/* TODO: if this board has eMMC instead of UFS, delete this node and
+	 * enable &sdio1 with bus-width = <8>; non-removable; instead. */
+	vcc-supply = <&vddemmccore>;
+	status = "okay";
+};
+
+/* ---- USB ----------------------------------------------------------------
+ * The SoC USB controller is MUSB (sprd,ums9230-musb) - same as the reeder, and
+ * the reason USB_MUSB_HDRC/SPRD must be built in for pmOS USB networking.
+ *
+ * The stock device uses linux,extcon-usb-gpio (mach.dtsi) plus pmic_typec and
+ * pmic_pd extcons; the reeder uses the PMIC Type-C controller as the role
+ * switch. TODO: decide which provider this board actually has. The structure
+ * below is the reeder's.
+ */
+&hsphy {
+	phy-supply = <&vddusb33>;
+	status = "okay";
+};
+
+&usb {
+	dr_mode = "otg";
+	usb-role-switch;
+	role-switch-default-mode = "peripheral";
+	status = "okay";
+
+	port {
+		usb_hs_ep: endpoint {
+			remote-endpoint = <&tcpc_hs_ep>;
+		};
+	};
+};
+
+/* ---- PMIC / charging ----------------------------------------------------
+ * Stock config: CHARGER_BQ2560X=m, CHARGER_BQ2597X=m, MFD_SC27XX_PMIC=m,
+ * REGULATOR_SC2730=m [T].
+ * Downstream 1h10-go: bq2560x @0x6b (irq ap_gpio 115) and bq2597x @0x65
+ * (irq ap_gpio 126) on i2c5. Mainline has a bq256xx driver - and the ums9230
+ * tree extends it with an OTG VBUS regulator - but no bq2597x driver, so the
+ * charge pump stays out of scope for bring-up.
+ */
+&i2c5 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	bq25601_charger: charger@6b {
+		compatible = "ti,bq25601";	/* TODO: exact part in the bq2560x family */
+		reg = <0x6b>;
+		monitored-battery = <&bat>;
+		interrupts-extended = <&ap_gpio 115 IRQ_TYPE_EDGE_FALLING>;	/* [T] */
+
+		bq25601_otg_vbus: usb-otg-vbus {
+			regulator-name = "usb-otg-vbus";
+		};
+	};
+};
+
+&pmic_typec_pd {
+	vbus-supply = <&bq25601_otg_vbus>;
+	status = "okay";
+
+	connector {
+		compatible = "usb-c-connector";
+		label = "USB-C";
+		data-role = "dual";
+		power-role = "dual";
+		try-power-role = "sink";
+		source-pdos = <PDO_FIXED(5000, 1200, PDO_FIXED_USB_COMM)>;
+		sink-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_USB_COMM)>;
+		op-sink-microwatt = <10000000>;
+
+		port {
+			tcpc_hs_ep: endpoint {
+				remote-endpoint = <&usb_hs_ep>;
+			};
+		};
+	};
+};
+
+&sc2730_fgu {
+	power-supplies = <&bq25601_charger>;
+	monitored-battery = <&bat>;
+	sprd,calib-resistance-micro-ohms = <4850>;	/* TODO: verify */
+	status = "okay";
+};
+
+/* ---- display ------------------------------------------------------------
+ * No mainline driver exists for this panel yet. The device's dtbo offers
+ * lcd_td4160_hx / lcd_td4160_txd / lcd_ft8057s_dpt, all 720x1612; the reeder's
+ * panel-chipone-icnl9916-720x1600.c is the driver template and the init
+ * sequence is inside dtbo entry 18 (decompile it, step 2 above).
+ */
+&disp {
+	status = "okay";
+};
+
+&dpu {
+	memory-region = <&framebuffer_region>;
+	status = "okay";
+};
+
+&dsi {
+	status = "okay";
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	panel@0 {
+		compatible = "TODO,td4160";	/* placeholder - not submittable */
+		reg = <0>;
+		reset-gpios = <&ap_gpio 50 GPIO_ACTIVE_LOW>;	/* TODO: from board DTB */
+		backlight = <&backlight>;
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&dsi_out>;
+			};
+		};
+	};
+};
+
+&dsi_out {
+	remote-endpoint = <&panel_in>;
+};
+
+/* ---- touchscreen --------------------------------------------------------
+ * The downstream generic node (tp/ums9230-spi3-gpio144-145-tp.dtsi) puts touch
+ * on SPI3, IRQ on ap_gpio 144, reset on ap_gpio 146, with four possible
+ * compatibles: omnivision,tcm-spi, focaltech,fts-modules, himax,hxcommon,
+ * chipone-tddi. All four drivers are =m in the stock config, so the config
+ * does not identify the part. TODO: check which module loads on the device.
+ */
+&spi3 {
+	status = "okay";
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	touchscreen@0 {
+		compatible = "TODO";		/* focaltech,fts | omnivision,tcm-spi | ... */
+		reg = <0>;
+		spi-max-frequency = <3000000>;	/* [T: downstream ubl-max-freq] */
+		interrupts-extended = <&ap_gpio 144 IRQ_TYPE_EDGE_FALLING>;	/* [T] */
+		reset-gpios = <&ap_gpio 146 GPIO_ACTIVE_HIGH>;	/* [T: downstream; */
+								/* the reeder uses 145 - verify] */
+	};
+};
+
+/* ---- SoC blocks that are already plain mainline ------------------------ */
+
+&cpufreq {
+	sprd,soc-version = /bits/ 64 <0x36303654>;	/* "T606" - same SoC [T] */
+	status = "okay";
+};
+
+&gpu {
+	mali-supply = <&vddgpu>;
+	status = "okay";
+};
+
+&modem {
+	status = "okay";
+};
+
+&modem_dai {
+	status = "okay";
+};
+
+&sc2730_codec {
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&wcn {
+	/*
+	 * TODO: enable/reset GPIOs and supplies differ per board.
+	 * The reeder uses ap_gpio 118 (enable) and ap_gpio 117 (reset) -
+	 * take the real ones from the board DTB.
+	 */
+	status = "okay";
+};
+
+&sound {
+	model = "infinix-x6525";
+	/*
+	 * TODO: widgets, routing and aux-devs. The reeder drives a
+	 * simple-audio-amplifier from ap_gpio 136; this board's speaker amp
+	 * GPIO is unknown.
+	 */
+	status = "okay";
+};
