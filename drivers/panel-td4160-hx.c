@@ -41,6 +41,8 @@
 #include <drm/drm_panel.h>
 #include <drm/drm_probe_helper.h>
 
+#include <video/mipi_display.h>
+
 #define TD4160_MAX_BRIGHTNESS	0xfff	/* sprd,max-level */
 #define TD4160_DEFAULT_BRIGHTNESS 0xa5a	/* sprd,default-brightness */
 
@@ -527,17 +529,7 @@ static const struct drm_display_mode td4160_panel_mode = {
 static int td4160_panel_get_modes(struct drm_panel *panel,
 				  struct drm_connector *connector)
 {
-	struct drm_display_mode *mode;
-
-	mode = drm_mode_duplicate(connector->dev, &td4160_panel_mode);
-	if (!mode)
-		return -ENOMEM;
-
-	drm_mode_set_name(mode);
-	mode->type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
-	drm_mode_probed_add(connector, mode);
-
-	return 1;
+	return drm_connector_helper_get_modes_fixed(connector, &td4160_panel_mode);
 }
 
 static const struct drm_panel_funcs td4160_panel_funcs = {
@@ -556,9 +548,11 @@ static int td4160_panel_probe(struct mipi_dsi_device *dsi)
 	struct td4160_panel *ctx;
 	int ret;
 
-	ctx = devm_kzalloc(&dsi->dev, sizeof(*ctx), GFP_KERNEL);
-	if (!ctx)
-		return -ENOMEM;
+	ctx = devm_drm_panel_alloc(&dsi->dev, struct td4160_panel, panel,
+				   &td4160_panel_funcs, DRM_MODE_CONNECTOR_DSI);
+	if (IS_ERR(ctx))
+		return dev_err_probe(&dsi->dev, PTR_ERR(ctx),
+				     "Failed to allocate panel\n");
 
 	ctx->reset = devm_gpiod_get(&dsi->dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(ctx->reset))
@@ -575,13 +569,16 @@ static int td4160_panel_probe(struct mipi_dsi_device *dsi)
 		return dev_err_probe(&dsi->dev, PTR_ERR(ctx->backlight),
 				     "Failed to register backlight\n");
 
-	drm_panel_init(&ctx->panel, &dsi->dev, &td4160_panel_funcs,
-		       DRM_MODE_CONNECTOR_DSI);
+	ctx->panel.prepare_prev_first = true;
 	drm_panel_add(&ctx->panel);
 
 	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST;
 	dsi->format = MIPI_DSI_FMT_RGB888;
 	dsi->lanes = 4;
+	/* from the board DT: sprd,phy-bit-clock = 0xf6180 kbps,
+	 * sprd,phy-escape-clock = 0x4e20 kHz */
+	dsi->hs_rate = 1008000000;
+	dsi->lp_rate = 20000000;
 
 	ret = mipi_dsi_attach(dsi);
 	if (ret < 0) {
@@ -595,8 +592,12 @@ static int td4160_panel_probe(struct mipi_dsi_device *dsi)
 static void td4160_panel_remove(struct mipi_dsi_device *dsi)
 {
 	struct td4160_panel *ctx = mipi_dsi_get_drvdata(dsi);
+	int ret;
 
-	mipi_dsi_detach(dsi);
+	ret = mipi_dsi_detach(dsi);
+	if (ret < 0)
+		dev_err(&dsi->dev, "Failed to detach from DSI host: %d\n", ret);
+
 	drm_panel_remove(&ctx->panel);
 }
 
