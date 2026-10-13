@@ -31,6 +31,30 @@
   appear only as name/id/base/size/bpp) - so the panel timings must come from the board DT, i.e. the
   `&panel` fragment for the selected variant in dtbo entry 18.
 
+# Extracted from the board device tree (dtbo entry 18, id 0x1900)
+Decompiled with `tools/dtbo-extract.py` + `tools/dtb-dump.py` from the dtbo dump in the phone's
+Download folder. Entry 18 is `model = "Spreadtrum UMS9230-1H10-GO Board"`, `compatible =
+"sprd,ums9230-1h10-go"`.
+
+- Panel node for this unit: `lcd_td4160_hx_mipi_hdp_x6525`, with `sprd,lcm_ic_name = "TD4160"`,
+  `sprd,lcm_ic_vendor = "HX"`, `sprd,lcm_ic_inch = "6.56"`, `sprd,phy-bit-clock = 1008000` kbps.
+  `display-timings/timing0` is the native mode (`native-mode = <0x02>`): 153.6 MHz, hfp 155 / hsa 4 /
+  hbp 80, vfp 1020 / vsa 4 / vbp 32 -> 959x2668, i.e. 60.03 Hz.
+- The board DT's supplier table pairs panel with touch:
+  `supplier-1 = "lcd_td4160_hx_mipi_hdp_x6525, omnivision, td4160"` (0 = txd/omnivision,
+  2 = ft8057s/focaltech) - independent confirmation of the runtime finding.
+- Touch GPIOs are **irq = ap_gpio 16, reset = ap_gpio 145** (both flag 0 = active-high), SPI 8 MHz
+  (`ubl-max-freq = 0x7a1200`), `spi-mode = 3`. The generic downstream `tp/` node's 144/146 belong to a
+  different board.
+- Keys: volume-down `ap_gpio 124` (active-low), volume-up `ap_gpio 4` (active-high), power `pmic_eic 1`.
+- Charging is a Transsion `tran_charger` around an **Awinic AW32257** (`chargers = "aw32257"`).
+  Mainline has no AW32257 driver and the DT carries no address; the bq2560x/bq2597x parts in the stock
+  config belong to other 1h10 variants.
+- There is **no PWM backlight node**: brightness is written into the panel over DCS
+  (`sprd,backlight-param-write = 1`, 12-bit, `sprd,max-level = 0xfff`, default 0xa5a).
+- Panel reset is `ap_gpio 50` with flag 0 (active-high) - the reeder's driver assumes active-low, so
+  this is the first thing to flip if the panel stays dark.
+
 # First boot (SSH over USB)
 1. On GitHub: Actions → kernel → Run workflow. Mode `config` is the olddefconfig gate and does not need clang. Mode `image` also builds Image and modules with kernel.org LLVM 14 and `gcc-aarch64-linux-gnu`. The kernel ref defaults to `bpf-a17-selinux-test`.
    Locally: `PMOS_KERNEL_MODE=config ./build-kernel.sh <kernel tree>`, or `./build-kernel.sh <kernel tree> <clang dir>` for the full build. No `pmos` branch is required.

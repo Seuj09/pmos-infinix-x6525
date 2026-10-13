@@ -46,9 +46,9 @@ mainline tree at `arch/arm64/boot/dts/sprd/` (the `ums9230` branch of
 
 ## Still missing before it can boot a mainline kernel
 
-1. **Panel driver.** Drafted in this repo: `drivers/panel-td4160-hx.c`. It still needs the device's own
-   DCS sequence (dtbo entry 18 — regenerate with `tools/lcd-dtsi-to-c.py`) and the real mode timings,
-   which the bootloader supplies as `lcd_*` cmdline parameters.
+1. **Panel driver.** Drafted in this repo: `drivers/panel-td4160-hx.c`, now carrying this device's own
+   DCS sequence, reset sequence and mode timings, all extracted from dtbo entry 18 with the tools in
+   `tools/`. Untested; the remaining unknowns are the panel reset polarity and the brightness curve.
 2. **Touch driver.** Confirmed Omnivision TCM over SPI. No mainline driver exists, and `edt-ft5x06` is
    I2C-only so it cannot be reused. Port source: `drivers/input/touchscreen/omnivision_tcm/` in the
    stock 5.4 tree — ~390 KB of C across 20+ files plus four ~150 KB firmware images. The largest

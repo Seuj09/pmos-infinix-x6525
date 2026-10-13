@@ -1,37 +1,83 @@
 #!/usr/bin/env python3
 """
-Convert a Spreadtrum panel init sequence ("sprd,initial-command" array from a
-downstream lcd/*.dtsi, or the same array decompiled out of the dtbo the
-bootloader hands over) into mainline mipi_dsi_dcs_write_seq_multi() calls.
+Convert a Spreadtrum panel init sequence into mainline mipi_dsi_* calls.
 
-Usage:
-    python3 -I lcd-dtsi-to-c.py < file.dtsi
-    dtc -I dtb -O dts board.dtb | python3 -I lcd-dtsi-to-c.py
+Two input forms are supported.
 
-Each array line is a DSI packet: <data-type> <vc> <ack> <len> <payload...>
-    29 -> DCS long write        (payload = cmd + params)
-    05 -> DCS short write, 1 param
-    15 -> DCS short write, no param
-    13 -> generic short write, no param
-Anything else is emitted as a comment for manual handling, as are lines that
-look like delays (the vendor encodes some waits in the sequence and some as
-separate properties - check both).
+  --lines (default): the `sprd,initial-command = [ ... ];` array as it appears in
+  a downstream lcd/*.dtsi, one DSI packet per source line.
 
-Delays are NOT reconstructed: read them off the original node
-(sprd,sleep-*-command / explicit msleep notes) and insert mipi_dsi_msleep().
+  --stream: the same data as a flat byte stream, which is how it comes out of a
+  decompiled board DTB, e.g.
+
+      python3 -I dtb-dump.py board.dtb -p sprd,initial-command -r \
+          | python3 -I lcd-dtsi-to-c.py --stream
+
+  Both use the same packet layout: [data type][vc][ack][len][payload x len].
+  One vendor quirk has to be handled: for `--stream`, packets with data type
+  0x13 carry a *delay in milliseconds in the vc byte* and then a command in the
+  payload, which is how the sleep-out/sleep-in timing is stored (e.g.
+  `13 78 00 01 11` = wait 120 ms, then DCS 0x11).
+
+Delays are otherwise not reconstructed - check the original node for explicit
+waits and insert mipi_dsi_msleep() where needed.
 """
+import argparse
 import re
 import sys
 
 LINE = re.compile(r"^\s*([0-9a-fA-F]{2}(?:\s+[0-9a-fA-F]{2})*)\s*$")
 
+LONG_WRITE_DCS = {0x39, 0x23}
+LONG_WRITE_GENERIC = {0x29}
+SHORT_WRITE_DCS = {0x05, 0x15}
+SHORT_WRITE_GENERIC = {0x03}
+DELAY_OPCODE = 0x13
 
-def emit(payload: list[int]) -> str:
-    b = ", ".join(f"0x{x:02x}" for x in payload)
-    return f"\tmipi_dsi_dcs_write_seq_multi(&dsi_ctx, {b});"
+
+def fmt(payload):
+    return ", ".join(f"0x{b:02x}" for b in payload)
 
 
-def main() -> None:
+def emit(payload, comment=""):
+    if not payload:
+        return
+    tail = f"\t/* {comment} */" if comment else ""
+    print(f"\tmipi_dsi_dcs_write_seq_multi(&dsi_ctx, {fmt(payload)});{tail}")
+
+
+def emit_packet(dt, vc, payload, index):
+    if dt in LONG_WRITE_DCS or dt in SHORT_WRITE_DCS or dt == DELAY_OPCODE:
+        emit(payload)
+    elif dt in LONG_WRITE_GENERIC or dt in SHORT_WRITE_GENERIC:
+        print(f"\tmipi_dsi_generic_write_seq_multi(&dsi_ctx, {fmt(payload)});")
+    else:
+        print(f"\t/* packet {index}: data type 0x{dt:02x}, handle by hand: {fmt(payload)} */")
+
+
+def do_stream(tokens):
+    i = idx = 0
+    delays = 0
+    while i + 3 < len(tokens):
+        dt, vc, _ack, length = tokens[i:i + 4]
+        i += 4
+        if i + length > len(tokens):
+            print(f"\t/* truncated packet at byte {i - 4}: {fmt(tokens[i - 4:])} */")
+            break
+        payload = tokens[i:i + length]
+        i += length
+        idx += 1
+        if dt == DELAY_OPCODE:
+            if vc:
+                print(f"\tmipi_dsi_msleep(&dsi_ctx, {vc});\t/* vendor delay */")
+                delays += 1
+            emit(payload, f"opcode 0x13, delay {vc}ms")
+        else:
+            emit_packet(dt, vc, payload, idx)
+    print(f"/* {idx} packets, {delays} delays, {len(tokens)} bytes */", file=sys.stderr)
+
+
+def do_lines():
     started = False
     for raw in sys.stdin:
         line = raw.split("#")[0].strip()
@@ -49,18 +95,30 @@ def main() -> None:
         if len(data) < 4:
             print(f"\t/* short packet, check by hand: {' '.join(m.group(1).split())} */")
             continue
-        dtype, _vc, _ack, length = data[0], data[1], data[2], data[3]
+        dt, vc, _ack, length = data[0], data[1], data[2], data[3]
         payload = data[4:]
         if length != len(payload):
-            print(
-                f"\t/* length says {length} but {len(payload)} bytes follow - check by hand */"
-            )
-        if dtype == 0x29 or dtype == 0x05:
-            print(emit(payload))
-        elif dtype in (0x15, 0x13):
-            print(emit(payload[:1]))
+            print(f"\t/* length says {length} but {len(payload)} bytes follow */")
+        if dt == DELAY_OPCODE:
+            if vc:
+                print(f"\tmipi_dsi_msleep(&dsi_ctx, {vc});\t/* vendor delay */")
+            emit(payload, f"opcode 0x13, delay {vc}ms")
         else:
-            print(f"\t/* data type 0x{dtype:02x}, handle by hand: {payload} */")
+            emit_packet(dt, vc, payload, 0)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--stream", action="store_true",
+                    help="read a flat hex byte stream instead of a dtsi array")
+    args = ap.parse_args()
+
+    if args.stream:
+        text = sys.stdin.read()
+        tokens = [int(t, 16) for t in text.split()]
+        do_stream(tokens)
+    else:
+        do_lines()
 
 
 if __name__ == "__main__":

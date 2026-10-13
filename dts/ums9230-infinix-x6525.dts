@@ -101,18 +101,13 @@
 		};
 	};
 
-	backlight: backlight {
-		compatible = "pwm-backlight";
-		pwms = <&pwm 2 40000>;	/* [T: downstream 1h10-go - pwm ch 2, 40000 ns] */
-		/*
-		 * TODO: brightness table. Downstream uses the vendor
-		 * "sprd,sharkl6-backlight" driver with max-brightness-level 924 and
-		 * brightness-scale 1023; the reeder's pwm-backlight table is the
-		 * mainline equivalent, but the values must match this panel.
-		 */
-		brightness-levels = <0 1023>;
-		default-brightness-level = <800>;
-	};
+	/*
+	 * No backlight node: this board has no PWM backlight. Brightness is
+	 * written into the panel over DCS (sprd,backlight-param-write = 1, 12-bit
+	 * with sprd,max-level = 0xfff), so the panel driver registers the
+	 * backlight itself. The vendor's brightness-levels table in the board DT
+	 * is not reproduced yet.
+	 */
 
 	gpio-keys {
 		compatible = "gpio-keys";
@@ -120,25 +115,40 @@
 		key-volumedown {
 			wakeup-source;
 			debounce-interval = <2>;
-			gpios = <&ap_gpio 124 GPIO_ACTIVE_LOW>;	/* [T: downstream 1h10-go] */
+			gpios = <&ap_gpio 124 GPIO_ACTIVE_LOW>;	/* board DT: gpio 0x7c, flag 1 */
 			linux,code = <KEY_VOLUMEDOWN>;
 		};
 
-		/*
-		 * TODO: key-power and key-volumeup.
-		 * Note the two trees disagree here: downstream 1h10-go puts
-		 * volume-down on ap_gpio 124, while the reeder puts volume-up on
-		 * ap_gpio 124. Neither is authoritative for this board - take the
-		 * GPIOs from the decompiled board DTB (step 2 above).
-		 */
+		key-volumeup {
+			wakeup-source;
+			debounce-interval = <2>;
+			gpios = <&ap_gpio 4 GPIO_ACTIVE_HIGH>;	/* board DT: gpio 0x4, flag 0 */
+			linux,code = <KEY_VOLUMEUP>;
+		};
+
+		key-power {
+			wakeup-source;
+			debounce-interval = <2>;
+			gpios = <&pmic_eic 1 GPIO_ACTIVE_LOW>;	/* board DT: gpio 1, flag 1;
+								 * phandle unresolved in the
+								 * overlay dump - same as the reeder */
+			linux,code = <KEY_POWER>;
+		};
 	};
 
 	bat: battery {
 		compatible = "simple-battery";
-		/*
-		 * TODO: every value. The reeder's simple-battery block is a
-		 * starting point, but capacity and OCV tables are per-cell.
-		 */
+		/* scalars from the board DT; the OCV and JEITA tables there are
+		 * not transcribed yet */
+		charge-full-design-microamp-hours = <4950000>;
+		charge-term-current-microamp = <200000>;
+		constant-charge-voltage-max-microvolt = <4400000>;
+		voltage-min-design-microvolt = <3450000>;
+		factory-internal-resistance-micro-ohms = <140000>;
+		/* charge-sdp/dcp/cdp-current-microamp from the board DT */
+		charge-sdp-current-microamp = <500000>;
+		charge-dcp-current-microamp = <2000000>;
+		charge-cdp-current-microamp = <1500000>;
 	};
 };
 
@@ -198,32 +208,28 @@
 };
 
 /* ---- PMIC / charging ----------------------------------------------------
- * Stock config: CHARGER_BQ2560X=m, CHARGER_BQ2597X=m, MFD_SC27XX_PMIC=m,
- * REGULATOR_SC2730=m [T].
- * Downstream 1h10-go: bq2560x @0x6b (irq ap_gpio 115) and bq2597x @0x65
- * (irq ap_gpio 126) on i2c5. Mainline has a bq256xx driver - and the ums9230
- * tree extends it with an OTG VBUS regulator - but no bq2597x driver, so the
- * charge pump stays out of scope for bring-up.
+ * The bq2560x/bq2597x parts in the stock config (and the downstream generic
+ * 1h10-go overlay) are for *other* 1h10 variants. This board instead uses a
+ * Transsion "tran_charger" wrapping an Awinic AW32257:
+ *
+ *   tran_charger { compatible = "tran_charger"; chargers = "aw32257"; ... }
+ *
+ * Mainline has no AW32257 driver, and the vendor node carries no I2C address,
+ * so there is nothing to bind yet. Charging is a separate porting job; leaving
+ * it out does not stop the device booting or running on USB power. PMIC is
+ * still SC2730 (androidboot.pmic.chipid=2730), so sc2730.dtsi is correct.
  */
 &i2c5 {
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
 
-	bq25601_charger: charger@6b {
-		compatible = "ti,bq25601";	/* TODO: exact part in the bq2560x family */
-		reg = <0x6b>;
-		monitored-battery = <&bat>;
-		interrupts-extended = <&ap_gpio 115 IRQ_TYPE_EDGE_FALLING>;	/* [T] */
-
-		bq25601_otg_vbus: usb-otg-vbus {
-			regulator-name = "usb-otg-vbus";
-		};
-	};
+	/* TODO: Awinic AW32257 charger - address and mainline driver unknown. */
 };
 
 &pmic_typec_pd {
-	vbus-supply = <&bq25601_otg_vbus>;
+	/* TODO: the vendor feeds this from the charger's OTG VBUS regulator;
+	 * with no charger driver there is nothing to point at yet. */
 	status = "okay";
 
 	connector {
@@ -245,9 +251,9 @@
 };
 
 &sc2730_fgu {
-	power-supplies = <&bq25601_charger>;
 	monitored-battery = <&bat>;
 	sprd,calib-resistance-micro-ohms = <4850>;	/* TODO: verify */
+	/* TODO: power-supplies = the AW32257 charger once it has a driver */
 	status = "okay";
 };
 
@@ -278,8 +284,9 @@
 		compatible = "infinix,td4160-hx-panel";	/* vendor prefix TODO, see
 							 * drivers/panel-td4160-hx.c */
 		reg = <0>;
-		reset-gpios = <&ap_gpio 50 GPIO_ACTIVE_LOW>;	/* TODO: from board DTB */
-		backlight = <&backlight>;
+		/* board DT: ap_gpio 0x32 with flag 0 = active-high.
+		 * Flip this first if the panel stays dark. */
+		reset-gpios = <&ap_gpio 50 GPIO_ACTIVE_HIGH>;
 
 		port {
 			panel_in: endpoint {
@@ -294,13 +301,15 @@
 };
 
 /* ---- touchscreen --------------------------------------------------------
- * Confirmed on the device: the bound driver is omnivision_tcm_spi (spi3.0) and
- * the registered input device is "omnivision_tcm_touch". The vendor also loads
- * focaltech_ft8722, focaltech_ft8756_spi_ts and nvt_nt36xxx_spi_ts as
- * candidates, but himax and chipone are absent. The GPIOs below come from the
- * downstream generic node - verify them against the board DTB. No mainline
- * driver exists for this part (and mainline's edt-ft5x06 is I2C-only), so
- * omnivision_tcm/ from the stock tree has to be ported.
+ * Confirmed twice over: the device's bound driver is omnivision_tcm_spi
+ * (spi3.0) with input device "omnivision_tcm_touch", and the board DT's
+ * supplier table pairs this panel with omnivision:
+ *   supplier-1 = "lcd_td4160_hx_mipi_hdp_x6525, omnivision, td4160";
+ * The vendor loads focaltech_ft8722, focaltech_ft8756_spi_ts and
+ * nvt_nt36xxx_spi_ts as candidates too, but himax and chipone are absent.
+ * No mainline driver exists for this part (and mainline's edt-ft5x06 is
+ * I2C-only), so omnivision_tcm/ from the stock tree has to be ported.
+ * The GPIOs below are from the board DT, not the generic downstream node.
  */
 &spi3 {
 	status = "okay";
@@ -311,10 +320,11 @@
 	touchscreen@0 {
 		compatible = "omnivision,tcm-spi";	/* driver not ported yet */
 		reg = <0>;
-		spi-max-frequency = <3000000>;	/* [T: downstream ubl-max-freq] */
-		interrupts-extended = <&ap_gpio 144 IRQ_TYPE_EDGE_FALLING>;	/* [T] */
-		reset-gpios = <&ap_gpio 146 GPIO_ACTIVE_HIGH>;	/* [T: downstream; */
-								/* the reeder uses 145 - verify] */
+		spi-max-frequency = <8000000>;	/* board DT: ubl-max-freq 0x7a1200 */
+		/* board DT: irq-gpio 0x10, reset-gpio 0x91, both flag 0;
+		 * the vendor also sets spi-mode 3 */
+		interrupts-extended = <&ap_gpio 16 IRQ_TYPE_EDGE_FALLING>;
+		reset-gpios = <&ap_gpio 145 GPIO_ACTIVE_HIGH>;
 	};
 };
 
