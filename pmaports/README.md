@@ -37,6 +37,7 @@ Then, before opening the MR:
 - commit titles follow `COMMITSTYLE.md`: `device-infinix-x6525: …`;
 - keep it in `device/testing/` initially, like `device-jolla-c2`.
 
-Later (not boot-blocking): a `firmware-infinix-x6525-wcn` package for WiFi/Bluetooth, a touch driver
-(Omnivision TCM over SPI) with its module listed in a `modules-initfs` file, and the Awinic AW32257
-charger.
+Later (not boot-blocking): a `firmware-infinix-x6525-wcn` package for WiFi/Bluetooth, the touch
+driver's module in a `modules-initfs` file, and the Awinic AW32257 charger. The touch driver and its
+firmware package draft exist now - note that touch in the initramfs (unl0kr) would need both the
+module and the HDL image there, not just the module.

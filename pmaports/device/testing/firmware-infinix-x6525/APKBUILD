@@ -1,0 +1,32 @@
+# Reference: <https://postmarketos.org/devicepkg>
+maintainer="Seuj09 <jeus110310@gmail.com>"
+pkgname=firmware-infinix-x6525
+pkgver=1
+pkgrel=0
+pkgdesc="Firmware for the Infinix X6525"
+url=""
+arch="aarch64"
+license="proprietary"
+options="!check !archcheck !strip !spdx !tracedeps pmb:cross-native"
+
+# The HD touch controller has no flash: after every reset the driver has to
+# download an HDL image, which it finds through firmware-name in the board
+# device tree - postmarketos/sprd/hdl_firmware_01.img.
+#
+# The file comes off the device itself (/vendor/firmware/hdl_firmware_01.img on
+# the stock system, the only hdl_firmware image the running module asks for),
+# so it has to be republished somewhere fetchable before this package can be
+# submitted - a release asset on this repository works, which is the pattern
+# firmware-jolla-c2 uses with the maintainer's own storage. TODO: fill in
+# _tarball and the sha512sum.
+_tarball="TODO-firmware-infinix-x6525-$pkgver.tar.gz"
+source="$_tarball::TODO"
+
+package() {
+	install -Dm644 "$srcdir"/hdl_firmware_01.img \
+		"$pkgdir"/lib/firmware/postmarketos/sprd/hdl_firmware_01.img
+}
+
+sha512sums="
+TODO  $tarball
+"

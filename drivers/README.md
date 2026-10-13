@@ -33,10 +33,10 @@ Still open, in order of what would bite first:
 
 ## `ovt-tcm-spi.c` - touchscreen (new, untested on hardware)
 
-Goes in `drivers/input/touchscreen/`; `../patches/touch/0001-*.patch` is that, with the Kconfig
-(`TOUCHSCREEN_OVT_TCM_SPI`) and Makefile entries, on top of the mainline UMS9230 tree. It compiles
-clean with clang and `W=1`; the updated board DTS still builds; the binding is
-`../bindings/omnivision,tcm-spi.yaml`.
+Goes in `drivers/input/touchscreen/`; `../patches/upstream/0005-*.patch` (binding) and `0006-*.patch`
+(driver, with the Kconfig `TOUCHSCREEN_OVT_TCM_SPI` and Makefile entries) are the submission copies,
+and `../patches/0002-x6525-touch-glue.patch` carries the two build hunks that CI applies. It compiles
+- CI builds the object; the binding is `../bindings/omnivision,tcm-spi.yaml`.
 
 It is written from how the stock `omnivision_tcm` driver behaves on the wire, not copied from it. The
 chip has no flash, so after every reset the driver downloads firmware from a `hdl_firmware_*.img`:
@@ -47,11 +47,13 @@ downloads again on its own.
 
 Open points, in order of what would bite first:
 
-1. **Which image?** The stock driver picks one from `lcd_name`, and `lcd_td4160_hx_*` matches none of
-   its four names. `firmware-name` in the DTS is a placeholder (`hdl_firmware_1.img`). On the stock
-   system, `dmesg | grep "success to request"` names the one it really loads. The images are in the
-   stock kernel tree next to the driver; they still have to be packaged (not done, and not copied
-   here).
+1. **Which image - answered.** The stock *tree's* driver does not select by panel name at all: its
+   `strstr()` table only knows the "cw" variants and bails out when none of them match. The module the
+   device actually runs asks for `hdl_firmware_01.img` - the only `hdl_firmware` name in its strings,
+   and `/vendor/firmware` holds `hdl_firmware_00.img` and `_01.img`. So `firmware-name` is
+   `postmarketos/sprd/hdl_firmware_01.img` (note the double digit - the tree's single-digit names
+   would not resolve), and `../pmaports/device/testing/firmware-infinix-x6525/` packages it. The file
+   still has to be copied off the device and republished somewhere fetchable.
 2. The first hardware run will show whether the 9-byte first read plus continued reads match the
    chip's framing, and whether 8 MHz in SPI mode 3 is right with the SoC's SPI controller (the
    ROM-boot download is a single large transfer, as in the stock driver).

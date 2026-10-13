@@ -16,6 +16,12 @@ depends="
 # TODO: u-boot-infinix-x6525, once that board exists in the U-Boot fork. It is
 # not optional: U-Boot is chainloaded from boot_a, so without it there is no way
 # to boot the device at all.
+#
+# The touch controller has no flash, so its HDL image has to be on the rootfs
+# for the touchscreen to work at all - hence the recommendation rather than an
+# optional extra. Like firmware-jolla-c2-wcn it is non-free, which is why it is
+# only recommended.
+_pmb_recommends="firmware-infinix-x6525"
 makedepends="devicepkg-dev"
 source="
 	deviceinfo

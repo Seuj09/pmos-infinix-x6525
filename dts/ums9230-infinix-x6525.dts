@@ -332,19 +332,18 @@
 		 * it), which makes the line active-low. */
 		reset-gpios = <&ap_gpio 145 GPIO_ACTIVE_LOW>;
 		/*
-		 * TODO: pick the image for this panel. The vendor driver does not
-		 * really choose by panel name: its strstr() table only knows the
-		 * "cw" variants (lcd_td4160_cw[_new|_old]_mipi_hd and
-		 * lcd_td4160b_cw_boe_mipi_hd) and it bails out when none of them
-		 * match, which is the case for lcd_td4160_hx_*. The module running
-		 * on the device is Infinix's own build, so ask it instead:
-		 *   strings /vendor_dlkm/lib/modules/omnivision_td4160.ko |
-		 *       grep -E 'lcd_td4160|hdl_firmware'
-		 *   ls /vendor/firmware | grep -i hdl
-		 * The file the second one names is also the one to package as
-		 * firmware.
+		 * The module the stock system runs asks for hdl_firmware_01.img:
+		 * that is the only hdl_firmware name in its strings, and
+		 * /vendor/firmware holds hdl_firmware_00.img and _01.img. Mind the
+		 * double digit - the images in the stock *kernel tree*
+		 * (hdl_firmware_0/1.img) would not resolve on this device, and the
+		 * tree's driver does not select them by panel name either.
+		 *
+		 * The image still has to be packaged; it goes under
+		 * /lib/firmware/postmarketos/sprd, like the other firmware for this
+		 * SoC.
 		 */
-		firmware-name = "hdl_firmware_1.img";
+		firmware-name = "postmarketos/sprd/hdl_firmware_01.img";
 	};
 };
 
