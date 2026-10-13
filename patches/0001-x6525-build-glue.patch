@@ -1,0 +1,63 @@
+diff -urN a/arch/arm64/boot/dts/sprd/Makefile b/arch/arm64/boot/dts/sprd/Makefile
+--- a/arch/arm64/boot/dts/sprd/Makefile	2026-10-13 12:15:21.882269269 +0000
++++ b/arch/arm64/boot/dts/sprd/Makefile	2026-10-13 12:15:25.668950876 +0000
+@@ -4,4 +4,5 @@
+ 			sp9863a-1h10.dtb		\
+ 			ums512-1h10.dtb			\
+ 			ums9230-reeder-s19mps.dtb	\
++			ums9230-infinix-x6525.dtb	\
+ 			ums9620-2h10.dtb
+diff -urN a/Documentation/devicetree/bindings/arm/sprd/sprd.yaml b/Documentation/devicetree/bindings/arm/sprd/sprd.yaml
+--- a/Documentation/devicetree/bindings/arm/sprd/sprd.yaml	2026-10-13 12:15:22.718939237 +0000
++++ b/Documentation/devicetree/bindings/arm/sprd/sprd.yaml	2026-10-13 12:15:25.668950876 +0000
+@@ -37,6 +37,7 @@
+ 
+       - items:
+           - enum:
++              - infinix,x6525
+               - reeder,s19mps
+           - const: sprd,ums9230
+ 
+diff -urN a/Documentation/devicetree/bindings/vendor-prefixes.yaml b/Documentation/devicetree/bindings/vendor-prefixes.yaml
+--- a/Documentation/devicetree/bindings/vendor-prefixes.yaml	2026-10-13 12:15:23.635609520 +0000
++++ b/Documentation/devicetree/bindings/vendor-prefixes.yaml	2026-10-13 12:15:25.668950876 +0000
+@@ -805,6 +805,8 @@
+     description: Shenzhen iNet Mobile Internet Technology Co., Ltd
+   "^infineon,.*":
+     description: Infineon Technologies
++  "^infinix,.*":
++    description: Infinix Mobility Limited
+   "^inforce,.*":
+     description: Inforce Computing
+   "^ingenic,.*":
+diff -urN a/drivers/gpu/drm/panel/Kconfig b/drivers/gpu/drm/panel/Kconfig
+--- a/drivers/gpu/drm/panel/Kconfig	2026-10-13 12:15:24.645613505 +0000
++++ b/drivers/gpu/drm/panel/Kconfig	2026-10-13 12:15:25.668950876 +0000
+@@ -115,6 +115,16 @@
+ 	  MIPI-DSI video mode panel with a resolution of 720x1600.
+ 	  This type of panel is mainly found on mobile phones.
+ 
++config DRM_PANEL_TD4160_HX
++	tristate "TD4160 HX 720x1612 panel"
++	depends on OF
++	depends on DRM_MIPI_DSI
++	depends on BACKLIGHT_CLASS_DEVICE
++	help
++	  Say Y here if you want to enable support for the TD4160 HX
++	  MIPI-DSI video mode panel with a resolution of 720x1612, as
++	  found in the Infinix X6525.
++
+ config DRM_PANEL_CHIPWEALTH_CH13726A
+ 	tristate "CHIPWEALTH CH13726A-based DSI panel"
+ 	depends on OF
+diff -urN a/drivers/gpu/drm/panel/Makefile b/drivers/gpu/drm/panel/Makefile
+--- a/drivers/gpu/drm/panel/Makefile	2026-10-13 12:15:25.612283986 +0000
++++ b/drivers/gpu/drm/panel/Makefile	2026-10-13 12:15:25.668950876 +0000
+@@ -10,6 +10,7 @@
+ obj-$(CONFIG_DRM_PANEL_BOE_TV101WUM_LL2) += panel-boe-tv101wum-ll2.o
+ obj-$(CONFIG_DRM_PANEL_BOE_TV101WUM_NL6) += panel-boe-tv101wum-nl6.o
+ obj-$(CONFIG_DRM_PANEL_CHIPONE_ICNL9916_720_1600) += panel-chipone-icnl9916-720x1600.o
++obj-$(CONFIG_DRM_PANEL_TD4160_HX) += panel-td4160-hx.o
+ obj-$(CONFIG_DRM_PANEL_CHIPWEALTH_CH13726A) += panel-chipwealth-ch13726a.o
+ obj-$(CONFIG_DRM_PANEL_DSI_CM) += panel-dsi-cm.o
+ obj-$(CONFIG_DRM_PANEL_LVDS) += panel-lvds.o

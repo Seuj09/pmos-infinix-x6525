@@ -1,0 +1,86 @@
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "dts/**"
+      - "drivers/**"
+      - "bindings/**"
+      - "patches/**"
+      - "tools/**"
+      - ".github/workflows/build.yml"
+
+permissions:
+  contents: read
+
+env:
+  KERNEL_REPO: https://codeberg.org/ums9230-mainline/linux
+  # Keep in step with the pmaports kernel package
+  # (linux-postmarketos-unisoc-ums9230), and refresh patches/ when bumping.
+  KERNEL_TAG: v7.2-rc6-ums9230-0
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout the port
+        uses: actions/checkout@v4
+
+      - name: Checkout the kernel at ${{ env.KERNEL_TAG }}
+        run: git clone --depth 1 --branch "$KERNEL_TAG" "$KERNEL_REPO" kernel
+
+      - name: Host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential clang flex libelf-dev libssl-dev llvm lld
+
+      - name: Apply the overlay
+        run: ./tools/apply-overlay.sh kernel
+
+      - name: Build the device tree
+        run: |
+          make -C kernel ARCH=arm64 defconfig
+          make -C kernel ARCH=arm64 -j"$(nproc)" \
+            arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dtb
+          ls -l kernel/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dtb
+
+      - name: Enable the panel driver, and check it survives olddefconfig
+        run: |
+          cd kernel
+          ./scripts/config --module DRM_SPRD            # selects DRM_MIPI_DSI
+          ./scripts/config --enable BACKLIGHT_CLASS_DEVICE
+          ./scripts/config --module DRM_PANEL_TD4160_HX
+          make ARCH=arm64 olddefconfig
+          for sym in CONFIG_DRM_SPRD CONFIG_DRM_MIPI_DSI \
+                     CONFIG_BACKLIGHT_CLASS_DEVICE CONFIG_DRM_PANEL_TD4160_HX; do
+            grep -qE "^${sym}=(y|m)$" .config || {
+              echo "$sym did not survive olddefconfig"
+              exit 1
+            }
+          done
+
+      - name: Prepare and build the panel driver
+        run: |
+          make -C kernel ARCH=arm64 LLVM=1 -j"$(nproc)" modules_prepare
+          make -C kernel ARCH=arm64 LLVM=1 -j"$(nproc)" \
+            drivers/gpu/drm/panel/panel-td4160-hx.o
+          ls -l kernel/drivers/gpu/drm/panel/panel-td4160-hx.o
+
+      - name: Upload what was built
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x6525-build
+          path: |
+            kernel/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dtb
+            kernel/drivers/gpu/drm/panel/panel-td4160-hx.o
+            kernel/.config
+          if-no-files-found: warn
