@@ -9,18 +9,18 @@ arch="aarch64"
 license="proprietary"
 options="!check !archcheck !strip !spdx !tracedeps pmb:cross-native"
 
-# The HD touch controller has no flash: after every reset the driver has to
-# download an HDL image, which it finds through firmware-name in the board
-# device tree - postmarketos/sprd/hdl_firmware_01.img.
+# The touch controller has no flash: after every reset the driver downloads an
+# HDL image, which it finds through firmware-name in the board device tree -
+# postmarketos/sprd/hdl_firmware_01.img.
 #
 # The file comes off the device itself (/vendor/firmware/hdl_firmware_01.img on
-# the stock system, the only hdl_firmware image the running module asks for),
-# so it has to be republished somewhere fetchable before this package can be
-# submitted - a release asset on this repository works, which is the pattern
-# firmware-jolla-c2 uses with the maintainer's own storage. TODO: fill in
-# _tarball and the sha512sum.
-_tarball="TODO-firmware-infinix-x6525-$pkgver.tar.gz"
-source="$_tarball::TODO"
+# the stock system - the image its running module asks for, and the one with the
+# DISPLAY area for this panel). The tarball and its checksum are already final;
+# only the URL is missing, because it has to be published somewhere fetchable
+# first. Note a release asset on *this* repository would not do: it is private,
+# and pmaports CI has to be able to fetch it.
+_tarball="firmware-infinix-x6525-$pkgver.tar.gz"
+source="$_tarball::TODO-publish-and-put-the-url-here"
 
 package() {
 	install -Dm644 "$srcdir"/hdl_firmware_01.img \
@@ -28,5 +28,5 @@ package() {
 }
 
 sha512sums="
-TODO  $tarball
+a8ae389d7479ad8b3226cfb3a0d153f5306cdbe6a9b85e31584c5e6c7c34232a06562134ac9b3669fb4a0919e3335a830bd2b7b08a87e132c500d22fe70fa176  $_tarball
 "

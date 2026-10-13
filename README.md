@@ -53,5 +53,6 @@ uploaded as `x6525-build`.
 | `uboot/` | the X6525 U-Boot board: a defconfig and a device tree, no board directory |
 | `patches/upstream-uboot/` | the two U-Boot board patches for submission |
 | `pmaports/` | the `device-infinix-x6525` package, mirroring the pmaports path |
+| `firmware/` | the touch HDL image off the device, the upload tarball and its hashes |
 | `tools/` | dtbo/dtb extraction and the vendor-sequence converter |
 | `linux-infinix-x6525/`, `device-infinix-x6525/`, `repack.sh` | the earlier downstream 5.4 approach |
