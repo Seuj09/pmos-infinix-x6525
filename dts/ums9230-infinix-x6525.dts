@@ -318,13 +318,22 @@
 	#size-cells = <0>;
 
 	touchscreen@0 {
-		compatible = "omnivision,tcm-spi";	/* driver not ported yet */
+		compatible = "omnivision,tcm-spi";
 		reg = <0>;
 		spi-max-frequency = <8000000>;	/* board DT: ubl-max-freq 0x7a1200 */
-		/* board DT: irq-gpio 0x10, reset-gpio 0x91, both flag 0;
-		 * the vendor also sets spi-mode 3 */
-		interrupts-extended = <&ap_gpio 16 IRQ_TYPE_EDGE_FALLING>;
+		spi-cpha;			/* SPI mode 3, as the vendor sets it */
+		spi-cpol;
+		/* board DT: irq-gpio 0x10, reset-gpio 0x91, both flag 0.
+		 * The chip holds the line low until the report has been read,
+		 * so level-low is safer than an edge (no missed first report). */
+		interrupts-extended = <&ap_gpio 16 IRQ_TYPE_LEVEL_LOW>;
 		reset-gpios = <&ap_gpio 145 GPIO_ACTIVE_HIGH>;
+		/*
+		 * TODO: pick the image for this panel. The stock driver chooses
+		 * from lcd_name and "lcd_td4160_hx_*" matches none of its names.
+		 * On the stock system:  dmesg | grep "success to request"
+		 */
+		firmware-name = "hdl_firmware_1.img";
 	};
 };
 

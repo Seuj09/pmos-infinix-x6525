@@ -29,4 +29,33 @@ Still open, in order of what would bite first:
    linear;
 3. the charging driver (Awinic AW32257 via Transsion `tran_charger`) - unrelated to the panel, but it
    has to be ported separately before the battery charges under mainline;
-4. the touch driver (Omnivision TCM over SPI) - not started, see `../dts/README.md`.
+4. the touch driver - see below.
+
+## `ovt-tcm-spi.c` - touchscreen (new, untested on hardware)
+
+Goes in `drivers/input/touchscreen/`; `../patches/touch/0001-*.patch` is that, with the Kconfig
+(`TOUCHSCREEN_OVT_TCM_SPI`) and Makefile entries, on top of the mainline UMS9230 tree. It compiles
+clean with clang and `W=1`; the updated board DTS still builds; the binding is
+`../bindings/omnivision,tcm-spi.yaml`.
+
+It is written from how the stock `omnivision_tcm` driver behaves on the wire, not copied from it. The
+chip has no flash, so after every reset the driver downloads firmware from a `hdl_firmware_*.img`:
+ROM-boot IDENTIFY, `CMD_ROMBOOT_DOWNLOAD`, run bootloader, then `APP_CONFIG` / `DISPLAY` / `OPENSHORT`
+on request, then it reads app info, fixes the touch report layout and registers a multitouch input
+device. A panel reset resets the touch IC as well; the driver sees the new ROM-boot IDENTIFY and
+downloads again on its own.
+
+Open points, in order of what would bite first:
+
+1. **Which image?** The stock driver picks one from `lcd_name`, and `lcd_td4160_hx_*` matches none of
+   its four names. `firmware-name` in the DTS is a placeholder (`hdl_firmware_1.img`). On the stock
+   system, `dmesg | grep "success to request"` names the one it really loads. The images are in the
+   stock kernel tree next to the driver; they still have to be packaged (not done, and not copied
+   here).
+2. The first hardware run will show whether the 9-byte first read plus continued reads match the
+   chip's framing, and whether 8 MHz in SPI mode 3 is right with the SoC's SPI controller (the
+   ROM-boot download is a single large transfer, as in the stock driver).
+3. Not implemented: the older F35/RMI download path, flash update, diagnostics, gestures and
+   double-tap wake, the stock sysfs and watchdog. Suspend only sends deep sleep / exit deep sleep.
+4. The IRQ is now level-low in the DTS (the stock driver also reads only while the line is low); the
+   previous edge-falling setting could miss the first IDENTIFY report.
