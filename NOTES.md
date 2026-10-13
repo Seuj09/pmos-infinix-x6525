@@ -16,9 +16,10 @@
 3. Back up boot_a, check `fastboot getvar current-slot`, then `./repack.sh Image initramfs.gz` and `fastboot flash boot_a boot-pmos.img`
 4. Flash the rootfs to userdata (sparse). This erases Android data. The initramfs looks for the `pmOS_root` label
 5. On the host a `rndis` USB network interface should appear. Add `pmos.debug-shell` to the cmdline if it does not
-If the phone reboots into Android first-stage init, the bootloader ignored the boot ramdisk and the vendor ramdisk must be replaced while keeping the stock DTB.
+If the phone reboots into Android first-stage init, the bootloader ignored the boot ramdisk and the vendor ramdisk must be replaced.
 
 # Build notes
 - No `pmos` branch is needed: build-kernel.sh merges pmos.config onto the stock Helix config in an out directory. The workflow and the local script share that gate: every `=y` and every turned-off symbol in `pmos.config` must survive `olddefconfig`.
 - MODULE_SIG and MODULE_SIG_ALL stay on (only MODULE_SIG_FORCE is turned off), so modules are still signed; built-in drivers need no key to boot.
 - The release string is normally `5.4.302-Helix+` (the `+` disappears on an annotated-tag checkout), which is what the kernel APKBUILD expects.
+- Correction to an earlier note here: `deviceinfo_header_version="4"` does **not** drop the DTB. boot-deploy builds a vendor_boot.img for v3/v4 and embeds the DTB from `deviceinfo_dtb` (the kernel package's dtbs) with mkbootimg; `deviceinfo_flash_offset_*` are ignored at v4. Flashing boot alone with `repack.sh` is a fallback, not a requirement. See README.

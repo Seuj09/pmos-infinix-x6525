@@ -33,6 +33,7 @@ deviceinfo_flash_sparse="true"   # Unisoc fastboot usually wants sparse images (
 deviceinfo_initfs_compression="gzip"
 deviceinfo_usb_network_function="rndis.usb0"   # Unisoc vendor RNDIS gadget (sprd_f_rndis), built in via pmos.config
 # Display, eMMC and USB drivers are modules in the stock config; pmos.config builds them in.
-# NOTE: pmbootstrap with header_version=4 would write its own vendor_boot (dropping the stock DTB).
-# Until a generated vendor_boot embeds the extracted DTB, flash boot only, with repack.sh.
+# NOTE (corrected): header_version=4 does not drop the DTB. boot-deploy generates vendor_boot.img for
+# v3/v4 and embeds the DTB from deviceinfo_dtb (the kernel package's dtbs) via mkbootimg, so the stock
+# DTB is replaced by ours rather than lost. flash_offset_* are ignored at v4. See README.
 deviceinfo_modules_initfs=""
