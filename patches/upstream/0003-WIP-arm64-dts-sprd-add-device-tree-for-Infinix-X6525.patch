@@ -228,10 +228,10 @@ index 0000000..e2ca8f0
 + */
 +&sdio0 {
 +	/* microSD slot */
-+	cd-gpios = <&eic_sync 35 GPIO_ACTIVE_HIGH>;	/* eic_sync confirmed: the running system */
++	cd-gpios = <&eic_sync 35 GPIO_ACTIVE_LOW>;	/* eic_sync confirmed: the running system */
 +							/* has gpio-355 "cd" on the eic-sync chip; the */
-+							/* reeder's eic_async is not this board. Polarity */
-+							/* is unchecked - it read high in the dump. */
++							/* reeder's eic_async is not this board. It read */
++							/* high with the slot empty, so low = card in. */
 +	vmmc-supply = <&vddsdcore>;
 +	vqmmc-supply = <&vddsdio>;
 +	bus-width = <4>;
