@@ -1,0 +1,75 @@
+name: rom
+
+# Builds a postmarketOS image for the X6525 out of the packages drafted in
+# pmaports/, and uploads what you flash.
+#
+# It runs on an arm64 runner on purpose: on x86_64 everything would go through
+# qemu-user, and a kernel build under emulation takes hours rather than the
+# twenty-odd minutes it takes natively. If ubuntu-24.04-arm is ever unavailable,
+# the fallback is `ubuntu-24.04` and a lot of patience - not a different command.
+#
+# `pmbootstrap init` asks its questions on stdin and cannot run unattended, so
+# this writes the config file it would have written (the keys are the Config
+# dataclass's fields) and points pmbootstrap at it with --config. The image's
+# user password is x6525pmos; change it on first login.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rom:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get pmbootstrap and pmaports, and add this port's packages
+        run: |
+          git clone -q --depth 1 \
+            https://gitlab.postmarketos.org/postMarketOS/pmbootstrap.git /tmp/pmb
+          pip install --break-system-packages -q /tmp/pmb
+          pmbootstrap --version
+
+          # edge, so device/testing/ exists - which is where these belong
+          git clone -q --depth 1 \
+            https://gitlab.postmarketos.org/postMarketOS/pmaports.git /tmp/pmaports
+          cp -r pmaports/device/testing/device-infinix-x6525 \
+                pmaports/device/testing/linux-postmarketos-unisoc-ums9230 \
+                pmaports/device/testing/u-boot-infinix-x6525 \
+                pmaports/device/testing/firmware-infinix-x6525 \
+                /tmp/pmaports/device/testing/
+          ls /tmp/pmaports/device/testing/ | grep -E "x6525|ums9230"
+
+      - name: Write the config init would have written
+        run: |
+          cat > /tmp/pmb.cfg <<'EOF'
+          [pmbootstrap]
+          device = infinix-x6525
+          kernel = stable
+          ui = console
+          user = user
+          hostname = x6525
+          timezone = GMT
+          locale = en_US.UTF-8
+          ssh_keys = false
+          jobs = 4
+          EOF
+          cat /tmp/pmb.cfg
+
+      - name: Build kernel, U-Boot, rootfs and image
+        run: |
+          pmbootstrap -c /tmp/pmb.cfg --aports /tmp/pmaports -y --details-to-stdout \
+            install --password x6525pmos
+
+      - name: Export what to flash
+        run: |
+          pmbootstrap -c /tmp/pmb.cfg --aports /tmp/pmaports --details-to-stdout export
+          ls -la /tmp/postmarketOS-export/
+
+      - name: Upload it
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x6525-rom
+          path: /tmp/postmarketOS-export/
+          if-no-files-found: warn
