@@ -102,14 +102,22 @@ jobs:
           ./scripts/config --module TOUCHSCREEN_OVT_TCM_SPI
           ./scripts/config --module CHARGER_BQ2415X
           ./scripts/config --module CHARGER_EXTCON_DETECT
-          ./scripts/config --module SC27XX_ADC          # the thermistor zones read it
+          # The PMIC chain, in dependency order. SC27XX_ADC depends on
+          # MFD_SC27XX_PMIC and the pinned defconfig has none of these, so
+          # anything enabled without its dependency is switched straight back
+          # off by olddefconfig - which is how this gate failed once.
+          ./scripts/config --module SPI_SPRD_ADI       # the ADI bus the PMIC sits on
+          ./scripts/config --module MFD_SC27XX_PMIC
+          ./scripts/config --module REGULATOR_SC2730   # vddsdcore/vddsdio/vddusb33
+          ./scripts/config --module SC27XX_ADC         # the thermistor zones read it
           ./scripts/config --module GENERIC_ADC_THERMAL
           make ARCH=arm64 olddefconfig
           for sym in CONFIG_DRM_SPRD CONFIG_DRM_MIPI_DSI \
                      CONFIG_BACKLIGHT_CLASS_DEVICE CONFIG_DRM_PANEL_TD4160_HX \
                      CONFIG_TOUCHSCREEN_OVT_TCM_SPI CONFIG_CHARGER_BQ2415X \
-                     CONFIG_CHARGER_EXTCON_DETECT CONFIG_SC27XX_ADC \
-                     CONFIG_GENERIC_ADC_THERMAL; do
+                     CONFIG_CHARGER_EXTCON_DETECT CONFIG_SPI_SPRD_ADI \
+                     CONFIG_MFD_SC27XX_PMIC CONFIG_REGULATOR_SC2730 \
+                     CONFIG_SC27XX_ADC CONFIG_GENERIC_ADC_THERMAL; do
             grep -qE "^${sym}=(y|m)$" .config || {
               echo "$sym did not survive olddefconfig"
               exit 1

@@ -20,17 +20,28 @@ marks `fate = "obsolete"`.
    ```
    CONFIG_DRM_PANEL_TD4160_HX=y
    CONFIG_TOUCHSCREEN_OVT_TCM_SPI=m
-   CONFIG_CHARGER_BQ2415X=y
-   CONFIG_FUEL_GAUGE_SC27XX=y
-   CONFIG_CHARGER_EXTCON_DETECT=y
-   CONFIG_EXTCON_USB_GPIO=y
+   CONFIG_SPI_SPRD_ADI=y
+   CONFIG_MFD_SC27XX_PMIC=y
+   CONFIG_REGULATOR_SC2730=y
    CONFIG_SC27XX_ADC=y
    CONFIG_GENERIC_ADC_THERMAL=m
+   CONFIG_FUEL_GAUGE_SC27XX=y
+   CONFIG_CHARGER_BQ2415X=y
+   CONFIG_CHARGER_EXTCON_DETECT=y
+   CONFIG_EXTCON_USB_GPIO=y
    ```
 
-   The last two are for the board thermistor zones (`board-thmzone`, `pa-thmzone`, `chg-thmzone`).
-   The pinned tree's `defconfig` already has `GENERIC_ADC_THERMAL=m` but not `SC27XX_ADC`; without
-   it the zones never register (the fuel gauge's ADC channels need it too).
+   The PMIC chain is the first four of those, in dependency order, and the pinned tree's `defconfig`
+   has **none** of them. The PMIC hangs off the ADI bus (`spi@64200000`), the DTS's supplies are its
+   LDOs - `vddemmccore`/`vddsdio` among them, so the eMMC rootfs needs `REGULATOR_SC2730` *before*
+   the initramfs mounts, not in a module loaded after - and the keys, the fuel gauge and the
+   thermistors all sit on that PMIC too. `SC27XX_ADC` **depends on `MFD_SC27XX_PMIC`**: a fragment
+   that lists the ADC without the MFD gets it silently switched back off by `olddefconfig`, which is
+   exactly how the CI gate failed once.
+
+   `SC27XX_ADC` and `GENERIC_ADC_THERMAL` are what the board thermistor zones (`board-thmzone`,
+   `pa-thmzone`, `chg-thmzone`) read; `GENERIC_ADC_THERMAL` is already `=m` in the pinned defconfig.
+   `FUEL_GAUGE_SC27XX` is the battery, and the charger pair plus `EXTCON_USB_GPIO` are below.
 
    The panel's dependencies (`DRM_MIPI_DSI`, `BACKLIGHT_CLASS_DEVICE`, `DRM_SPRD`) are already `=y`
    there. The charger four are what the DTS nodes bind to and **nothing enables them today**: the
