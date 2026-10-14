@@ -138,13 +138,27 @@
 
 	bat: battery {
 		compatible = "simple-battery";
-		/* scalars from the board DT; the OCV and JEITA tables there are
-		 * not transcribed yet */
+		/* scalars, OCV and resistance tables read off the running device;
+		 * the vendor JEITA tables are downstream extras and not carried */
 		charge-full-design-microamp-hours = <4950000>;
 		charge-term-current-microamp = <200000>;
 		constant-charge-voltage-max-microvolt = <4400000>;
 		voltage-min-design-microvolt = <3450000>;
 		factory-internal-resistance-micro-ohms = <140000>;
+		resistance-temp-table = <50 80>, <25 100>, <10 168>,
+					<0 421>, <(-10) 688>;
+		ocv-capacity-celsius = <20>;
+		ocv-capacity-table-0 = <4380000 100>, <4312000 95>,
+				       <4248000 90>, <4191000 85>,
+				       <4135000 80>, <4081000 75>,
+				       <4029000 70>, <3977000 65>,
+				       <3937000 60>, <3875000 55>,
+				       <3839000 50>, <3813000 45>,
+				       <3795000 40>, <3780000 35>,
+				       <3772000 30>, <3762000 25>,
+				       <3746000 20>, <3722000 15>,
+				       <3683000 10>, <3623000 5>,
+				       <3400000 0>;
 		/* charge-sdp/dcp/cdp-current-microamp from the board DT */
 		charge-sdp-current-microamp = <500000>;
 		charge-dcp-current-microamp = <2000000>;
@@ -214,22 +228,42 @@
  *
  *   tran_charger { compatible = "tran_charger"; chargers = "aw32257"; ... }
  *
- * Mainline has no AW32257 driver, and the vendor node carries no I2C address,
- * so there is nothing to bind yet. Charging is a separate porting job; leaving
- * it out does not stop the device booting or running on USB power. PMIC is
- * still SC2730 (androidboot.pmic.chipid=2730), so sc2730.dtsi is correct.
+ * The AW32257 is a register-compatible TI bq24158: the live device tree has
+ * it on i2c3 (20100000) at 0x6a, and its registers read back as
+ * 00=d0 01=30 02=b6 03=53 04=59. Register 0x03 = 0x53 decodes with
+ * bq2415x_charger.c as vender 2, part number 2, revision 3, and at address
+ * 0x6a that driver reports exactly "bq24158, revision 1.0" - the string the
+ * stock driver prints. The vendor node's property names (ti,current-limit
+ * and the rest) are the mainline driver's own, so no new driver is needed.
+ * Units: mainline wants mA / mV / mohm, the vendor node mixes uA and mV
+ * (650000 uA -> 650 mA, 100000 -> 100, 60000 -> 60).
+ *
+ * Not carried over: charge,chg-pd-gpio (ap_gpio 115, polarity and meaning
+ * unknown), the otg-vbus regulator, tran_charger and charger-manager.
+ * Without ti,usb-charger-detection the driver starts in mode "off"; charging
+ * is switched on from userspace (sysfs "mode") until a USB detector exists.
+ * PMIC is still SC2730 (androidboot.pmic.chipid=2730).
  */
-&i2c5 {
+&i2c3 {
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
 
-	/* TODO: Awinic AW32257 charger - address and mainline driver unknown. */
+	charger: charger@6a {
+		compatible = "ti,bq24158";
+		reg = <0x6a>;
+		ti,current-limit = <100>;		/* mA, vendor 100000 uA */
+		ti,weak-battery-voltage = <3400>;	/* mV */
+		ti,battery-regulation-voltage = <4400>;	/* mV */
+		ti,charge-current = <650>;		/* mA, vendor 650000 uA */
+		ti,termination-current = <60>;		/* mA, vendor 60000 uA */
+		ti,resistor-sense = <56>;		/* mohm */
+	};
 };
 
 &pmic_typec_pd {
 	/* TODO: the vendor feeds this from the charger's OTG VBUS regulator;
-	 * with no charger driver there is nothing to point at yet. */
+	 * the bq2415x driver has no OTG regulator, so nothing to point at. */
 	status = "okay";
 
 	connector {
@@ -253,7 +287,7 @@
 &sc2730_fgu {
 	monitored-battery = <&bat>;
 	sprd,calib-resistance-micro-ohms = <4850>;	/* TODO: verify */
-	/* TODO: power-supplies = the AW32257 charger once it has a driver */
+	power-supplies = <&charger>;
 	status = "okay";
 };
 

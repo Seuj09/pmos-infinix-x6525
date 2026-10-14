@@ -159,22 +159,21 @@ U-Boot board, smallest first:
 3. Confirm the DTB is inside the artifact the pmaports package installs (see the open item above).
 4. Then upstream the two `patches/upstream-uboot/` patches and drop the `WIP:` prefixes.
 
-Charger:
-1. Confirm the register map against `drivers/power/supply/bq2415x_charger.c` (register names, bitfields
-   and the vendor/revision decoding that produced "bq24158"). Everything else below depends on it.
-2. Decide the driver: either add a DT front-end to `bq2415x_charger.c` (it is platform-data only today,
-   and the chip really is that family's register layout), or ship a separate `aw32257` driver in
-   `drivers/` next to the panel and touch ones. The separate driver is the safer of the two for
-   upstream - it does not rewrite an existing driver - and gives a clean binding for the Awinic extras
-   (`otg-vbus` regulator, `charge,chg-pd-gpio`, stat pin, high-impedance mode).
-3. DTS glue, all values already read off the device: `&i2c3 { charger@6a { ... } }`, the `bat: battery`
-   node with the real profile, `&sc2730_fgu { monitored-battery = <&bat>; power-supplies = <&charger>; }`,
-   `extcon-gpio` with `vbus-gpio = <&pmic_eic 0 GPIO_ACTIVE_HIGH>`, and - if we want the vendor's charge
-   policy - `charger-manager` with `cm-fuel-gauge`/`cm-chargers`.
-4. Still unknown, needs a look: what provides the `board-thmzone` thermal zone that both `tran_charger`
-   and `charger-manager` point at (mainline would need the sprd tsensor/ADC path), what
-   `charge,chg-pd-gpio` (ap_gpio 115) actually gates, and whether mainline's
-   `sc27xx_fuel_gauge.c` understands the vendor's `*-jeita-temp-table` properties at all.
+Charger (resolved - no new driver):
+1. Register map confirmed against `drivers/power/supply/bq2415x_charger.c`: register 0x03 = 0x53 gives
+   vender 2, part number 2, revision 3; at I2C address 0x6a the driver's `bq2415x_detect_chip()` maps
+   part number 2 to BQ24158 and revision 3 to "1.0" - the exact string the stock driver prints. The
+   binding (`power/supply/bq2415x.yaml`) already lists `ti,bq24158`, and its property names
+   (`ti,current-limit`, `ti,weak-battery-voltage`, `ti,battery-regulation-voltage`, `ti,charge-current`,
+   `ti,termination-current`, `ti,resistor-sense`) are the ones the vendor node uses.
+2. Units differ: mainline wants mA / mV / mohm, the vendor node has uA for three of them
+   (650000 -> 650, 100000 -> 100, 60000 -> 60). The DTS now has `charger@6a` on `&i2c3` and
+   `&sc2730_fgu { power-supplies = <&charger>; }`; the dtb builds.
+3. Still open: without `ti,usb-charger-detection` the driver starts in mode "off" (switch it on through
+   sysfs until a USB detector exists); what `charge,chg-pd-gpio` (ap_gpio 115) gates and its polarity;
+   the `board-thmzone` thermal zone; and whether mainline's `sc27xx_fuel_gauge.c` understands the
+   vendor's JEITA tables. The bq2415x driver has no OTG regulator, so the Type-C source path has no
+   VBUS regulator yet. `tran_charger` and `charger-manager` are not carried over.
 
 Missing from before, still open:
 - publish the touch firmware tarball somewhere fetchable and put the URL in the
