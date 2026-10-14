@@ -7,49 +7,44 @@ marks `fate = "obsolete"`.
 
 **It cannot be submitted as-is.** Three things must exist first, in this order:
 
-1. **The DTS and driver must be in the kernel tree.** pmaports builds
+1. **The DTS and drivers must reach the kernel package.** pmaports builds
    `linux-postmarketos-unisoc-ums9230` from a *tarball at a tag*, so `deviceinfo_dtb` cannot resolve
-   until the tree at that tag contains `sprd/ums9230-infinix-x6525.dtb`. Feed it the series in
-   `../patches/upstream/`, then bump `KERNEL_TAG` in `../.github/workflows/build.yml` and the `_tag`
-   in the pmaports kernel APKBUILD to a tag that includes it.
+   until a tree at that tag contains `sprd/ums9230-infinix-x6525.dtb`. Two routes, and the first
+   works today: `device/testing/linux-postmarketos-unisoc-ums9230/` here is that package with the
+   nine patches from `../patches/upstream/` added to `source=` - `default_prepare`, which the package
+   already calls, applies them with `patch -p1`, verified against the same tag it builds from - plus
+   the four config symbols below. Copy it in beside the device package and the ROM builds. Once the
+   series is merged instead, drop that directory, bump `KERNEL_TAG` in
+   `../.github/workflows/build.yml` and the `_tag` in the kernel APKBUILD to a tag containing it, and
+   the patches come back out.
 
-2. **The port's drivers must be enabled in that package's config.** The ums9230 config has
-   `CONFIG_DRM_PANEL_CHIPONE_ICNL9916_720_1600=y` (built-in, not a module — the display has to work in
-   the initramfs for unl0kr). Add ours:
+2. **Four config symbols in that package's config.** Its config
+   (`config-postmarketos-unisoc-ums9230.aarch64`) is what the ROM's kernel actually uses, and it
+   already carries everything else this port needs: the PMIC chain (`SPI_SPRD_ADI`,
+   `MFD_SC27XX_PMIC`, `REGULATOR_SC2730`), `SC27XX_ADC`, `GENERIC_ADC_THERMAL`, `FUEL_GAUGE_SC27XX`,
+   `EXTCON_USB_GPIO`, `CHARGER_MANAGER`, `DRM_SPRD`, and MUSB (`USB_MUSB_HDRC`/`USB_MUSB_SPRD` — the
+   blocker from the old downstream plan). Only these four are missing, and the staging package above
+   has them:
 
    ```
-   CONFIG_DRM_PANEL_TD4160_HX=y
-   CONFIG_TOUCHSCREEN_OVT_TCM_SPI=m
-   CONFIG_SPI_SPRD_ADI=y
-   CONFIG_MFD_SC27XX_PMIC=y
-   CONFIG_REGULATOR_SC2730=y
-   CONFIG_SC27XX_ADC=y
-   CONFIG_GENERIC_ADC_THERMAL=m
-   CONFIG_FUEL_GAUGE_SC27XX=y
-   CONFIG_CHARGER_BQ2415X=y
-   CONFIG_CHARGER_EXTCON_DETECT=y
-   CONFIG_EXTCON_USB_GPIO=y
+   CONFIG_DRM_PANEL_TD4160_HX=y       # the sibling panel is =y too, for unl0kr
+   CONFIG_TOUCHSCREEN_OVT_TCM_SPI=m   # as is the sibling touch driver
+   CONFIG_CHARGER_EXTCON_DETECT=m
+   CONFIG_CHARGER_BQ2415X=m           # the file had this one explicitly "is not set"
    ```
 
-   The PMIC chain is the first four of those, in dependency order, and the pinned tree's `defconfig`
-   has **none** of them. The PMIC hangs off the ADI bus (`spi@64200000`), the DTS's supplies are its
-   LDOs - `vddemmccore`/`vddsdio` among them, so the eMMC rootfs needs `REGULATOR_SC2730` *before*
-   the initramfs mounts, not in a module loaded after - and the keys, the fuel gauge and the
-   thermistors all sit on that PMIC too. `SC27XX_ADC` **depends on `MFD_SC27XX_PMIC`**: a fragment
-   that lists the ADC without the MFD gets it silently switched back off by `olddefconfig`, which is
-   exactly how the CI gate failed once.
+   Three things learned the hard way, worth keeping: a symbol whose dependency is off is a no-op, so
+   `SC27XX_ADC` without `MFD_SC27XX_PMIC` is silently switched back off by `olddefconfig` (that is
+   how the CI gate failed once — the tree's own `defconfig` still has none of the PMIC chain, which
+   is why the gate enables it by hand); the thermistor zones are named
+   `board-thermal`/`pa-thermal`/`chg-thermal` because `thermal-zones.yaml` only accepts
+   `<name>-thermal`; and `REGULATOR_SC2730` matters early rather than late, since
+   `vddemmccore`/`vddsdio` are its LDOs and the rootfs is on that eMMC.
 
-   `SC27XX_ADC` and `GENERIC_ADC_THERMAL` are what the board thermistor zones (`board-thmzone`,
-   `pa-thmzone`, `chg-thmzone`) read; `GENERIC_ADC_THERMAL` is already `=m` in the pinned defconfig.
-   `FUEL_GAUGE_SC27XX` is the battery, and the charger pair plus `EXTCON_USB_GPIO` are below.
-
-   The panel's dependencies (`DRM_MIPI_DSI`, `BACKLIGHT_CLASS_DEVICE`, `DRM_SPRD`) are already `=y`
-   there. The charger four are what the DTS nodes bind to and **nothing enables them today**: the
-   pinned tree's own `defconfig` has none of `CHARGER_BQ2415X`, `CHARGER_EXTCON_DETECT`,
-   `FUEL_GAUGE_SC27XX` or `CHARGER_MANAGER`, and CI turns them on only for its own build (the
-   `olddefconfig` gate in the workflow). They can be modules, but then charging and the battery
-   indicator only come up after the rootfs mounts. Touch can be a module too — for touch *in* the
-   initramfs (unl0kr) that module and the HDL image both have to go in a `modules-initfs` file.
+   Charging and the battery indicator come up when those modules load, which is after the rootfs
+   mounts. Touch *in* the initramfs (unl0kr) would additionally need the touch module and the HDL
+   image in a `modules-initfs` file — this device package has none yet, which is fine for a first
+   boot on USB networking.
 
 3. **A `u-boot-infinix-x6525` package.** The deviceinfo chainloads U-Boot from `boot_a`, so without it
    nothing boots. The package is complete, and it builds from the port's own fork of the U-Boot tree -
@@ -59,6 +54,25 @@ marks `fate = "obsolete"`.
    once the board is merged there. The X6525 boots from eMMC on `sdio3`, which U-Boot's SDHCI path
    covers (the reeder exercises UFS instead), and CI builds `u-boot.bin` from the same two files on
    every push.
+
+## Publishing the touch firmware
+
+`firmware-infinix-x6525` is complete except for its URL: the tarball in `../firmware/` is what gets
+uploaded and its sha512 is already in the APKBUILD, so one upload settles the package. That is a
+public act on a public repository, so it needs the owner to say go rather than an agent deciding it;
+the command is
+
+```sh
+gh release create firmware-v1 --repo Seuj09/ums9230-mainline-linux --target x6525 \
+  --title "X6525 touch firmware (hdl_firmware_01.img)" \
+  --notes "The Omnivision TCM HDL image the Infinix X6525's touch controller needs." \
+  ../firmware/firmware-infinix-x6525-1.tar.gz
+```
+
+after which `source=` in that APKBUILD becomes the release URL it prints, and the hash does not
+change. Until then, copy the device package **without** `firmware-infinix-x6525` — it is in
+`_pmb_recommends`, so `pmbootstrap install` would otherwise fail fetching a URL that does not exist
+yet — and accept a phone with no touchscreen for the first boot.
 
 Then, before opening the MR:
 

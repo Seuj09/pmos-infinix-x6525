@@ -15,10 +15,15 @@ options="!check !archcheck !strip !spdx !tracedeps pmb:cross-native"
 #
 # The file comes off the device itself (/vendor/firmware/hdl_firmware_01.img on
 # the stock system - the image its running module asks for, and the one with the
-# DISPLAY area for this panel). The tarball and its checksum are already final;
-# only the URL is missing, because it has to be published somewhere fetchable
-# first. Note a release asset on *this* repository would not do: it is private,
-# and pmaports CI has to be able to fetch it.
+# DISPLAY area for this panel). The tarball, its checksum and where it will live
+# are all settled; the release has not been published yet, because that is a
+# public act on a public repository. One command does it - see ../README.md -
+# after which source= becomes:
+#   source="$_tarball::https://github.com/Seuj09/ums9230-mainline-linux/releases/download/firmware-v1/$_tarball"
+# and the copy of the tarball that is already in ../../../firmware/ is what gets
+# uploaded, so the checksum below does not change.
+# Note a release asset on *this* repository would not do: it is private, and
+# pmaports CI has to be able to fetch it.
 _tarball="firmware-infinix-x6525-$pkgver.tar.gz"
 source="$_tarball::TODO-publish-and-put-the-url-here"
 

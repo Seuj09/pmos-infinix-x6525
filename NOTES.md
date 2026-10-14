@@ -276,14 +276,24 @@ Charger (resolved - no new driver):
    vendor's JEITA tables. The bq2415x driver has no OTG regulator, so the Type-C source path has no
    VBUS regulator yet. `tran_charger` and `charger-manager` are not carried over.
 
-Missing from before, still open:
-- publish the touch firmware tarball somewhere fetchable and put the URL in the
-  `firmware-infinix-x6525` APKBUILD `source=` (the tarball and its sha512 are already final).
-- `firmware-infinix-x6525-wcn` (WiFi/BT) does not exist yet.
-- touch under unl0kr needs the touch module and the HDL image in `modules-initfs`.
-- the wiki device page, which pmaports CI checks at MR time.
-- physical first boot, watching the list in "First boot" plus the panel reset polarity, the DCS
-  brightness curve, eMMC on sdio3 in U-Boot and the SD card-detect line (`eic_sync` 35, empty slot reads high, so ACTIVE_LOW; check with a card in).
+The ROM, and the first boot:
+- **the kernel package is drafted** in `pmaports/device/testing/linux-postmarketos-unisoc-ums9230/`:
+  pmaports' own package with the nine patches added to `source=` (verified to apply with `patch -p1`,
+  which is what `default_prepare` uses, reproducing `dts/`, `drivers/` and `bindings/` byte for byte)
+  and the four symbols its config was missing. That config is pmaports' own and is what the ROM's
+  kernel actually uses, so CI now checks those four survive `olddefconfig` in it, last in the job
+  because the check replaces `.config`.
+- **the firmware URL is waiting on a decision, not on work**: publishing the tarball in `firmware/`
+  is a public act on a public repository, so it needs a go-ahead (the command is in
+  `pmaports/README.md`). Until it runs, copy the device package *without* `firmware-infinix-x6525` -
+  it is in `_pmb_recommends`, so `install` would otherwise fail fetching a URL that does not exist -
+  and the phone comes up without a touchscreen.
+- **then it is the phone**: `pmbootstrap` build and flash per `FIRST_BOOT.md`, and the hardware list
+  there - panel reset polarity, the DCS brightness curve, the eMMC/SD phy timing, and the touch
+  firmware download, which is the likeliest first failure.
+- `firmware-infinix-x6525-wcn` (WiFi/Bluetooth) does not exist yet; touch under unl0kr needs the
+  touch module and the HDL image in a `modules-initfs` file; the wiki device page is required at MR
+  time; and the SD card-detect is settled (`eic_sync` 35, ACTIVE_LOW, empty slot reads high).
 
 # First boot (SSH over USB)
 1. On GitHub: Actions → kernel → Run workflow. Mode `config` is the olddefconfig gate and does not need clang. Mode `image` also builds Image and modules with kernel.org LLVM 14 and `gcc-aarch64-linux-gnu`. The kernel ref defaults to `bpf-a17-selinux-test`.

@@ -178,24 +178,49 @@ jobs:
                 kernel/drivers/input/touchscreen/ovt-tcm-spi.o \
                 kernel/drivers/power/supply/extcon-charger-detect.o
 
-      - name: Verify the package source we already publish
+      - name: Verify the package sources that have URLs
         run: |
-          # The u-boot package builds from a fork tarball whose checksum GitHub
-          # derives on demand, so a regenerated archive would break the build on
-          # the phone and nowhere else. Check it here instead. The firmware
-          # package still has a TODO url and joins this check when it is out.
-          P="$GITHUB_WORKSPACE/pmaports/device/testing/u-boot-infinix-x6525/APKBUILD"
-          url=$(sed -n 's/^url="\(.*\)"$/\1/p' "$P")
-          commit=$(sed -n 's/^_commit="\(.*\)"$/\1/p' "$P")
-          want=$(sed -n 's/^\([0-9a-f]\{128\}\)  .*/\1/p' "$P")
-          curl -sSL -o /tmp/source.tar.gz "$url/archive/$commit.tar.gz"
-          got=$(sha512sum /tmp/source.tar.gz | cut -d' ' -f1)
-          echo "want $want"
-          echo "got  $got"
-          [ "$got" = "$want" ] || {
-            echo "the u-boot source tarball no longer matches the APKBUILD sha512"
-            exit 1
+          # GitHub derives commit archives on demand, so a regenerated tarball
+          # would break a build on the phone and nowhere else. Every package
+          # whose source is a real URL is fetched and checked here; a package
+          # still carrying a TODO url is skipped until it is published.
+          check() {   # <url> <sha512>
+            curl -sSL -o /tmp/source.tar.gz "$1"
+            got=$(sha512sum /tmp/source.tar.gz | cut -d' ' -f1)
+            echo "$1"
+            echo "  want $2"
+            echo "  got  $got"
+            [ "$got" = "$2" ] || { echo "  does not match the APKBUILD"; exit 1; }
           }
+          sha() { sed -n 's/^\([0-9a-f]\{128\}\)  .*/\1/p' "$1"; }
+
+          P="$GITHUB_WORKSPACE/pmaports/device/testing/u-boot-infinix-x6525/APKBUILD"
+          check "$(sed -n 's/^url="\(.*\)"$/\1/p' "$P")/archive/$(sed -n 's/^_commit="\(.*\)"$/\1/p' "$P").tar.gz" "$(sha "$P")"
+
+          P="$GITHUB_WORKSPACE/pmaports/device/testing/firmware-infinix-x6525/APKBUILD"
+          url=$(sed -n 's/^source="[^:]*::\(.*\)"$/\1/p' "$P")
+          case "$url" in
+            http*) check "$url" "$(sha "$P")" ;;
+            *)     echo "firmware: not published yet ($url)" ;;
+          esac
+
+      - name: Check the ROM's own kernel config takes our symbols
+        run: |
+          # The ROM builds with pmaports' config, not with the tree's defconfig,
+          # so the four symbols this port adds have to survive olddefconfig
+          # there, dependencies and all. Last in the job on purpose: it replaces
+          # .config, and the steps above and the upload want the tree's own.
+          cd kernel
+          cp "$GITHUB_WORKSPACE"/pmaports/device/testing/linux-postmarketos-unisoc-ums9230/config-postmarketos-unisoc-ums9230.aarch64 .config
+          make ARCH=arm64 olddefconfig
+          for sym in CONFIG_DRM_PANEL_TD4160_HX CONFIG_TOUCHSCREEN_OVT_TCM_SPI \
+                     CONFIG_CHARGER_EXTCON_DETECT CONFIG_CHARGER_BQ2415X; do
+            grep -qE "^${sym}=(y|m)$" .config || {
+              echo "$sym did not survive olddefconfig in the ROM's kernel config"
+              exit 1
+            }
+          done
+          echo "the ROM's kernel config takes all four"
 
       - name: Upload what was built
         if: always()

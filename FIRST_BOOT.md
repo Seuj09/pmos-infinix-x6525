@@ -8,6 +8,29 @@ sources say should happen, so a deviation is information, not necessarily a bug 
 The order matters. Each stage is only worth looking at once the one before it passes, and every stage
 ends with where to look if it fails.
 
+## Building the ROM
+
+Everything the ROM needs is in this repository, and none of it waits on a merge:
+
+```sh
+cp -r pmaports/device/testing/{device-infinix-x6525,linux-postmarketos-unisoc-ums9230,u-boot-infinix-x6525} \
+    <pmaports>/device/testing/
+pmbootstrap init          # the device is offered under "infinix" once it is in the tree
+pmbootstrap install
+pmbootstrap flasher flash_kernel
+pmbootstrap flasher flash_rootfs
+```
+
+`linux-postmarketos-unisoc-ums9230/` here is the kernel package with this port's nine patches in
+`source=` and its four config symbols added (the reasoning is in `pmaports/README.md`), and the
+u-boot package builds from the port's fork, so the payload `flash_kernel` puts in `boot` is already
+this board's.
+
+`firmware-infinix-x6525` (the touch firmware) is deliberately **not** in that copy: it sits in
+`_pmb_recommends` and its release is not published yet, so leaving it out is what lets `install`
+finish with a package it can actually fetch. Touch comes later and takes one upload - the command is
+in `pmaports/README.md`.
+
 ## 0. Before flashing anything
 
 - Back up `boot_a` and, to be safe, `boot_b`, `vendor_boot_a`, `dtbo_a` and `vbmeta_a`. Only `boot_a` is
