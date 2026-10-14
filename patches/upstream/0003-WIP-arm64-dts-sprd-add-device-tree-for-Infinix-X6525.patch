@@ -1,6 +1,6 @@
-From 3dd97a724a314adf73deec2f05a2ea6da75bc29a Mon Sep 17 00:00:00 2001
+From 4e43be5d1e5bf1c6ac532689466d1ee0d88b03fc Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Tue, 13 Oct 2026 22:01:17 +0000
+Date: Wed, 14 Oct 2026 11:57:21 +0000
 Subject: [PATCH] WIP: arm64: dts: sprd: add device tree for Infinix X6525
 
 The Infinix X6525 is a Unisoc UMS9230 (Tiger T606) phone, sold as the
@@ -23,16 +23,15 @@ The charger is an Awinic AW32257 that reads back as a TI bq24158 (i2c3, 0x6a),
 so it binds to the existing bq2415x driver with the vendor's own ti,*
 properties converted to mA/mV.
 
-Not yet handled, so this is marked WIP: charger detection and the charge-pd
-gpio, the panel
+Not yet handled, so this is marked WIP: the charge-pd gpio, the panel
 timings' blanking looks unusual (vfront 1020) and the panel reset polarity
 (active-high in the vendor DT) needs confirming on hardware.
 
 Signed-off-by: Seuj09 <jeus110310@gmail.com>
 ---
  arch/arm64/boot/dts/sprd/Makefile             |   1 +
- .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 399 ++++++++++++++++++
- 2 files changed, 400 insertions(+)
+ .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 595 ++++++++++++++++++
+ 2 files changed, 596 insertions(+)
  create mode 100644 arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 
 diff --git a/arch/arm64/boot/dts/sprd/Makefile b/arch/arm64/boot/dts/sprd/Makefile
@@ -47,10 +46,10 @@ index 0af83bf..2bb8086 100644
  			ums9620-2h10.dtb
 diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 new file mode 100644
-index 0000000..e2ca8f0
+index 0000000..fa79365
 --- /dev/null
 +++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
-@@ -0,0 +1,569 @@
+@@ -0,0 +1,595 @@
 +// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 +/*
 + * Infinix X6525 ("Infinix Smart 8") - Unisoc UMS9230 (Tiger T606)
@@ -100,7 +99,10 @@ index 0000000..e2ca8f0
 +	aliases {
 +		serial0 = &uart0;
 +		serial1 = &uart1;		/* ttyS1 [T: console=ttyS1,115200n8] */
-+		/* mmc0 = &sdio1;		TODO: internal storage, see below */
++		/* the internal storage is the eMMC, so it is the first mmc
++		 * device: sprdboot.flash=emmc and androidboot.boot_devices=
++		 * .../201d0000.sdio, sdio0 is the microSD slot */
++		mmc0 = &sdio3;
 +		i2c0 = &i2c0;
 +		i2c1 = &i2c1;
 +		i2c2 = &i2c2;
@@ -241,9 +243,32 @@ index 0000000..e2ca8f0
 +};
 +
 +&sdio3 {
-+	/* eMMC - the boot device */
-+	bus-width = <8>;		/* TODO: verify the width from the board DTB */
++	/* eMMC - the boot device. Read off the running device's own
++	 * sdio@201d0000 node (`sprd,name = "sdio_emmc"`), phy delays included:
++	 * they are this board's tuning, not the driver's defaults, and
++	 * sdhci-sprd reads exactly these four-cell properties.
++	 *
++	 * The HS200/HS400 flags describe the part. Note that sdhci-sprd keeps
++	 * SDHCI_QUIRK2_BROKEN_HS200 set for sprd,sdhci-r11, which clears
++	 * MMC_CAP2_HS200 in the core - and HS400 is gated behind HS200 - so
++	 * expect the link to come up at DDR52 for now.
++	 */
++	bus-width = <8>;
++	cap-mmc-hw-reset;
++	mmc-hs400-enhanced-strobe;
++	mmc-hs400-1_8v;
++	mmc-hs200-1_8v;
++	mmc-ddr-1_8v;
 +	non-removable;
++	no-sdio;
++	no-sd;
++
++	sprd,phy-delay-mmc-highspeed = <0x60 0x2e 0x2c 0x2c>;
++	sprd,phy-delay-mmc-ddr52 = <0x3e 0x6a 0x48 0x48>;
++	sprd,phy-delay-mmc-hs200 = <0x7f 0xb5 0xb5 0xb5>;
++	sprd,phy-delay-mmc-hs400 = <0x3f 0xb5 0x3d 0x3d>;
++	sprd,phy-delay-mmc-hs400es = <0x40 0x80 0x3d 0x3d>;
++
 +	vmmc-supply = <&vddemmccore>;
 +	vqmmc-supply = <&vddsdio>;
 +	status = "okay";

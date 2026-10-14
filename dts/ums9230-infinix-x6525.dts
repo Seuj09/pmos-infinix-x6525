@@ -47,7 +47,10 @@
 	aliases {
 		serial0 = &uart0;
 		serial1 = &uart1;		/* ttyS1 [T: console=ttyS1,115200n8] */
-		/* mmc0 = &sdio1;		TODO: internal storage, see below */
+		/* the internal storage is the eMMC, so it is the first mmc
+		 * device: sprdboot.flash=emmc and androidboot.boot_devices=
+		 * .../201d0000.sdio, sdio0 is the microSD slot */
+		mmc0 = &sdio3;
 		i2c0 = &i2c0;
 		i2c1 = &i2c1;
 		i2c2 = &i2c2;
@@ -188,9 +191,32 @@
 };
 
 &sdio3 {
-	/* eMMC - the boot device */
-	bus-width = <8>;		/* TODO: verify the width from the board DTB */
+	/* eMMC - the boot device. Read off the running device's own
+	 * sdio@201d0000 node (`sprd,name = "sdio_emmc"`), phy delays included:
+	 * they are this board's tuning, not the driver's defaults, and
+	 * sdhci-sprd reads exactly these four-cell properties.
+	 *
+	 * The HS200/HS400 flags describe the part. Note that sdhci-sprd keeps
+	 * SDHCI_QUIRK2_BROKEN_HS200 set for sprd,sdhci-r11, which clears
+	 * MMC_CAP2_HS200 in the core - and HS400 is gated behind HS200 - so
+	 * expect the link to come up at DDR52 for now.
+	 */
+	bus-width = <8>;
+	cap-mmc-hw-reset;
+	mmc-hs400-enhanced-strobe;
+	mmc-hs400-1_8v;
+	mmc-hs200-1_8v;
+	mmc-ddr-1_8v;
 	non-removable;
+	no-sdio;
+	no-sd;
+
+	sprd,phy-delay-mmc-highspeed = <0x60 0x2e 0x2c 0x2c>;
+	sprd,phy-delay-mmc-ddr52 = <0x3e 0x6a 0x48 0x48>;
+	sprd,phy-delay-mmc-hs200 = <0x7f 0xb5 0xb5 0xb5>;
+	sprd,phy-delay-mmc-hs400 = <0x3f 0xb5 0x3d 0x3d>;
+	sprd,phy-delay-mmc-hs400es = <0x40 0x80 0x3d 0x3d>;
+
 	vmmc-supply = <&vddemmccore>;
 	vqmmc-supply = <&vddsdio>;
 	status = "okay";

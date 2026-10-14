@@ -41,14 +41,18 @@ In the U-Boot console:
 
 ```
 mmc list
-mmc dev 3        # the eMMC is sdio3; the index depends on the aliases, find it with mmc list
-part list mmc 3
+mmc dev 0        # the board device tree aliases the eMMC (sdio3) as mmc0, so it is device 0
+part list mmc 0  # if mmc list shows something else first, use the number it prints
 ```
 
 Expect the stock partition table with `super` and the `pmOS_boot` / `pmOS_root` contents after flashing.
-- **eMMC not found or I/O errors:** bus width and timing. The DTS says 8-bit, HS400es/HS200 values from the
-  vendor tree. Try forcing a lower mode first (`bus-width = <4>` or dropping `mmc-hs400-enhanced-strobe`
-  and `mmc-hs200-1_8v`) - if that fixes it, the delay values are the suspect.
+- **The eMMC is slow (DDR52, tens of MB/s):** expected, not a fault. `sdhci-sprd` keeps
+  `SDHCI_QUIRK2_BROKEN_HS200` set for `sprd,sdhci-r11`, and the core clears `MMC_CAP2_HS200` for it -
+  HS400 is gated behind HS200, so the HS200/HS400 flags the DTS declares never take effect.
+- **eMMC not found or I/O errors:** the DTS now carries the device's own values (8-bit, the speed flags
+  and all five `sprd,phy-delay-*` sets, read off the running system), so the remaining suspect is the
+  delay *tuning*: drop `sprd,phy-delay-mmc-ddr52` to fall back to the driver's defaults, or force
+  `bus-width = <4>`, and see if the errors move.
 - **SD card not seen:** card-detect. The DTS uses `eic_sync 35` (confirmed on the stock system; the empty slot
   reads high, so the flag is ACTIVE_LOW - check with a card in). `CONFIG_MMC_BROKEN_CD` is set in U-Boot, so U-Boot itself does not care; the
   kernel does. Test with a card in and out and read `cat /sys/kernel/debug/gpio`.
