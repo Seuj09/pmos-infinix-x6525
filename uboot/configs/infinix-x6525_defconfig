@@ -1,6 +1,6 @@
-# Draft, modelled on reeder-s19mps_defconfig with the differences the X6525
-# needs: its own device tree, and no UFS (this board has an eMMC on sdio3 and
-# no UFS device), so CMD_UFS/SCSI/UFS/UFS_SPRD_UMS9230 are dropped.
+# Modelled on reeder-s19mps_defconfig with the differences the X6525 needs: its
+# own device tree, and no UFS (this board has an eMMC on sdio3 and no UFS
+# device), so CMD_UFS/SCSI/UFS/UFS_SPRD_UMS9230 are dropped.
 CONFIG_ARM=y
 CONFIG_POSITION_INDEPENDENT=y
 CONFIG_ARCH_SPRD=y

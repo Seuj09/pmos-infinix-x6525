@@ -1,6 +1,6 @@
-From 4630973114609c2ad4c865880b3b029fe5162c03 Mon Sep 17 00:00:00 2001
+From 021be124589110189c8202a2447133d1841ebc85 Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Tue, 13 Oct 2026 13:15:17 +0000
+Date: Wed, 14 Oct 2026 11:22:35 +0000
 Subject: [PATCH 2/2] configs: Add defconfig for Infinix X6525
 
 Same as reeder-s19mps_defconfig apart from the device tree, minus the UFS and
@@ -14,13 +14,13 @@ Signed-off-by: Seuj09 <jeus110310@gmail.com>
 
 diff --git a/configs/infinix-x6525_defconfig b/configs/infinix-x6525_defconfig
 new file mode 100644
-index 0000000..a46a8cd
+index 0000000..3e0402f
 --- /dev/null
 +++ b/configs/infinix-x6525_defconfig
 @@ -0,0 +1,61 @@
-+# Draft, modelled on reeder-s19mps_defconfig with the differences the X6525
-+# needs: its own device tree, and no UFS (this board has an eMMC on sdio3 and
-+# no UFS device), so CMD_UFS/SCSI/UFS/UFS_SPRD_UMS9230 are dropped.
++# Modelled on reeder-s19mps_defconfig with the differences the X6525 needs: its
++# own device tree, and no UFS (this board has an eMMC on sdio3 and no UFS
++# device), so CMD_UFS/SCSI/UFS/UFS_SPRD_UMS9230 are dropped.
 +CONFIG_ARM=y
 +CONFIG_POSITION_INDEPENDENT=y
 +CONFIG_ARCH_SPRD=y

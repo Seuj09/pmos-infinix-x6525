@@ -2,7 +2,7 @@
 /*
  * Infinix X6525 ("Smart 8") - Unisoc UMS9230
  *
- * Draft: modelled on ums9230-reeder-s19mps.dts, with the values taken from this
+ * Modelled on ums9230-reeder-s19mps.dts, with the values taken from this
  * device's stock bootloader parameters (lcd_base, lcd_size, logo_bpix,
  * sprdboot.flash, androidboot.boot_devices).
  */

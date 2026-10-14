@@ -173,7 +173,10 @@ U-Boot board, smallest first:
    fuel gauge needs the OCV table for its capacity estimate and the charging animation. Done (OCV, resistance-temp and fast-charge threshold; `voltage-max-design-microvolt` not added - not read off the device).~~
 3. ~~Confirm the DTB is inside the artifact the pmaports package installs.~~ Done - the CI artifact
    carries it, see "U-Boot board, reverified against the fork" above.
-4. Then upstream the two `patches/upstream-uboot/` patches and drop the `WIP:` prefixes.
+4. ~~Then upstream the two `patches/upstream-uboot/` patches and drop the `WIP:` prefixes.~~ The
+   prefixes are gone - both patches were regenerated with `git format-patch` so the diffstat, blob
+   hashes and subjects are derived rather than hand-kept, and checked with `git am` in order. All
+   that is left is sending them to the fork.
 
 Charger (resolved - no new driver):
 1. Register map confirmed against `drivers/power/supply/bq2415x_charger.c`: register 0x03 = 0x53 gives

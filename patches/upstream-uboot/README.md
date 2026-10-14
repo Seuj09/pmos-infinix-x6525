@@ -1,9 +1,10 @@
 # U-Boot board patches
 
 Two patches for [codeberg.org/ums9230-mainline/u-boot](https://codeberg.org/ums9230-mainline/u-boot),
-split the way that fork splits its own board commits (`WIP: add device tree …` and
-`configs: Add defconfig …`). Verified to apply to a clean clone of the `ums9230` branch and to
-reproduce byte-identical files to what CI builds.
+split the way that fork splits its own board commits - one device tree, one defconfig. The fork marks
+its own Reeder device tree commit `WIP:`; these two do not, since the board builds in CI and the
+values that came from the Reeder have been checked against this phone. Verified with `git am` to apply
+in order to a clean checkout and to reproduce byte-identical files to what CI builds.
 
 ```sh
 git clone --depth 1 --branch ums9230 https://codeberg.org/ums9230-mainline/u-boot
@@ -24,9 +25,12 @@ First things to check when it runs:
 
 - whether eMMC comes up on `sdio3` — the reeder boots from UFS, so that path is less exercised. The
   microSD slot is enabled as a rescue route for exactly this reason.
-- the memory size, copied from the reeder; this board reports `androidboot.ddrsize=4096M`.
 - `CONFIG_SYS_BOOTM_LEN=0x800000` (8 MB, also copied) — worth watching if the uncompressed arm64
   `Image` on the boot partition ever exceeds it.
+
+Settled since this was written: the memory node is the **4 GiB** window this phone reports
+(`0x0 0x80000000 0x0 0xfffff000`, from `androidboot.ddrsize=4096M`), not the Reeder's 8 GiB one, and
+the DTB inside the CI-built `u-boot.bin` carries it.
 
 ## Deliberately not included
 
