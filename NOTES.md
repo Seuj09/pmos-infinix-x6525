@@ -149,6 +149,14 @@ nothing corrects memory at runtime - so relocation and the stack would land abov
   The board reserves one frame, which is all the bootloader and U-Boot draw into.
 
 ## U-Boot board, reverified against the fork
+- **it builds, and the artifact is this board's**: a native `make ARCH=arm` from the fork's
+  `ums9230` tip plus the two patches finishes with no errors and passes U-Boot's own `OFCHK`
+  check, and the `u-boot.bin` it produces (450,536 bytes here, 452,376 in CI) embeds a
+  **14,920-byte DTB** - the same size CI's does - containing `Infinix` and `201d0000` and no
+  `reeder`, with the 4 GiB memory node inside. Every defconfig symbol takes effect except
+  `CONFIG_SYS_RELOC_GD_ENV_ADDR`, which no longer exists in the fork's Kconfig; the reeder's
+  defconfig has the same dead line, so ours mirrors it rather than diverging.
+
 
 - the board DTB needs **no** `arch/arm/dts/Makefile` entry: `scripts/Makefile.dts` puts
   `$(CONFIG_DEFAULT_DEVICE_TREE).dtb` into `dtb-y` itself.
@@ -170,7 +178,7 @@ branch that is the upstream base plus this port's commits and nothing else:
 
 | Tree | Fork and branch | Tip |
 |---|---|---|
-| kernel | `github.com/Seuj09/ums9230-mainline-linux`, branch `x6525` | `5c860479bbe57d16055ac9594eeb36f1fc0ab98b` |
+| kernel | `github.com/Seuj09/ums9230-mainline-linux`, branch `x6525` | `2f0f93b0cb27358ee3238eca1c8fd6a212b38a63` |
 | U-Boot | `github.com/Seuj09/ums9230-mainline-u-boot`, branch `x6525` | `d169d38cab37a39282c96a1bfa0d32aff5d326df` |
 
 The kernel branch is the tag `v7.2-rc6-ums9230-0` plus the nine patches in `patches/upstream/`, one

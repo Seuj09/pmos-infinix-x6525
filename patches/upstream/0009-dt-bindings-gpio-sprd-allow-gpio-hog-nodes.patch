@@ -1,14 +1,14 @@
-From 29beb2505a4d8fb49a673b799be97ae865160874 Mon Sep 17 00:00:00 2001
+From 0df60a213c64aaa9157b2f0f73ac372dbee88c17 Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
 Date: Wed, 14 Oct 2026 21:59:55 +0000
 Subject: [PATCH] dt-bindings: gpio: sprd: allow gpio-hog nodes
 
-The controller's binding is additionalProperties: false and, unlike the other
-GPIO bindings, it does not carry the patternProperties block that accepts hog
-nodes (aspeed,ast2400-gpio.yaml has it, and the old shared gpio.yaml used to).
-So a board that holds one of these lines at a fixed level - the Infinix X6525
-hogs a charger-enable pin low from early boot - fails dtbs_check on a binding
-it cannot satisfy.
+The controller's binding is additionalProperties: false and, unlike the
+other GPIO bindings, carries no patternProperties block for hog nodes -
+aspeed,ast2400-gpio.yaml has one, and the old shared gpio.yaml used to. A
+board that holds one of these lines at a fixed level therefore fails
+dtbs_check on a binding it cannot satisfy; the Infinix X6525 hogs a
+charger-enable pin low from early boot.
 
 Signed-off-by: Seuj09 <jeus110310@gmail.com>
 ---
