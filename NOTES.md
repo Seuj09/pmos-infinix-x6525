@@ -193,7 +193,7 @@ Charger (resolved - no new driver):
    is limited to 500 mA until BC1.2 detection in the SC2730 has a driver (the stock system does it with
    its `sprd_bc1p2` module, a possible model for a mainline port). `charge,chg-pd-gpio` (ap_gpio 115)
    is named `charger_en` on the stock system and sits low while charging, so the DTS hogs it
-   output-low. Still open: the `board-thmzone` thermal zone; and whether mainline's `sc27xx_fuel_gauge.c` understands the
+   output-low. Thermistors are now described (see below). Still open: the `board-thmzone` thermal zone; and whether mainline's `sc27xx_fuel_gauge.c` understands the
    vendor's JEITA tables. The bq2415x driver has no OTG regulator, so the Type-C source path has no
    VBUS regulator yet. `tran_charger` and `charger-manager` are not carried over.
 
@@ -220,3 +220,10 @@ If the phone reboots into Android first-stage init, the bootloader ignored the b
 - MODULE_SIG and MODULE_SIG_ALL stay on (only MODULE_SIG_FORCE is turned off), so modules are still signed; built-in drivers need no key to boot.
 - The release string is normally `5.4.302-Helix+` (the `+` disappears on an annotated-tag checkout), which is what the kernel APKBUILD expects.
 - Correction to an earlier note here: `deviceinfo_header_version="4"` does **not** drop the DTB. boot-deploy builds a vendor_boot.img for v3/v4 and embeds the DTB from `deviceinfo_dtb` (the kernel package's dtbs) with mkbootimg; `deviceinfo_flash_offset_*` are ignored at v4. Flashing boot alone with `repack.sh` is a fallback, not a requirement. See README.
+
+# Thermistors (second live dump)
+
+board (`tboard`), pa and chg are `generic-adc-thermal` on SC2730 ADC channels 1, 2 and 4, all with
+one NTC table (-40 C at 1131 mV down to 125 C at 43 mV). The stock zones have no trips and no
+polling, so the DTS only exposes the temperatures. chg reads about 4 C (probably unpopulated).
+The SD card-detect line `eic_sync` 35 read high in the dump; whether a card was in is still unknown.

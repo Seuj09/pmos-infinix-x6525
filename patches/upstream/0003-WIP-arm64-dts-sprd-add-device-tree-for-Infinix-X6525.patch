@@ -50,7 +50,7 @@ new file mode 100644
 index 0000000..e2ca8f0
 --- /dev/null
 +++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
-@@ -0,0 +1,469 @@
+@@ -0,0 +1,569 @@
 +// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 +/*
 + * Infinix X6525 ("Infinix Smart 8") - Unisoc UMS9230 (Tiger T606)
@@ -364,6 +364,106 @@ index 0000000..e2ca8f0
 +			tcpc_hs_ep: endpoint {
 +				remote-endpoint = <&usb_hs_ep>;
 +			};
++		};
++	};
++};
++
++/*
++ * The three board thermistors the stock tree describes (board/tboard on adc
++ * channel 1, pa on 2, chg on 4 of the SC2730 ADC). All three share one NTC
++ * table, read off the running device: millidegrees Celsius against the ADC
++ * reading in mV. The stock zones carry no trips and no polling, so these only
++ * expose the temperatures (chg reads about 4 C, so that one is probably not
++ * populated on this board).
++ */
++/ {
++	tboard_thermistor: tboard-thermistor {
++		compatible = "generic-adc-thermal";
++		#thermal-sensor-cells = <0>;
++		io-channels = <&pmic_adc 1>;
++		io-channel-names = "sensor-channel";
++		temperature-lookup-table = <
++			(-39742) 1131
++			(-29777) 1110
++			(-19480) 1074
++			(-4679) 983
++			10110 838
++			24805 654
++			44922 413
++			54903 316
++			64895 238
++			74884 178
++			84883 133
++			94883 100
++			104880 75
++			114889 57
++			124872 43
++		>;
++	};
++	pa_thermistor: pa-thermistor {
++		compatible = "generic-adc-thermal";
++		#thermal-sensor-cells = <0>;
++		io-channels = <&pmic_adc 2>;
++		io-channel-names = "sensor-channel";
++		temperature-lookup-table = <
++			(-39742) 1131
++			(-29777) 1110
++			(-19480) 1074
++			(-4679) 983
++			10110 838
++			24805 654
++			44922 413
++			54903 316
++			64895 238
++			74884 178
++			84883 133
++			94883 100
++			104880 75
++			114889 57
++			124872 43
++		>;
++	};
++	chg_thermistor: chg-thermistor {
++		compatible = "generic-adc-thermal";
++		#thermal-sensor-cells = <0>;
++		io-channels = <&pmic_adc 4>;
++		io-channel-names = "sensor-channel";
++		temperature-lookup-table = <
++			(-39742) 1131
++			(-29777) 1110
++			(-19480) 1074
++			(-4679) 983
++			10110 838
++			24805 654
++			44922 413
++			54903 316
++			64895 238
++			74884 178
++			84883 133
++			94883 100
++			104880 75
++			114889 57
++			124872 43
++		>;
++	};
++
++	thermal-zones {
++		board-thmzone {
++			polling-delay = <0>;
++			polling-delay-passive = <0>;
++			thermal-sensors = <&tboard_thermistor>;
++		};
++
++		pa-thmzone {
++			polling-delay = <0>;
++			polling-delay-passive = <0>;
++			thermal-sensors = <&pa_thermistor>;
++		};
++
++		chg-thmzone {
++			polling-delay = <0>;
++			polling-delay-passive = <0>;
++			thermal-sensors = <&chg_thermistor>;
 +		};
 +	};
 +};
