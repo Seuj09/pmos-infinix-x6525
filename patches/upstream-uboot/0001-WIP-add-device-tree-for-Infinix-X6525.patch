@@ -14,8 +14,10 @@ board's values:
   lcd_base=9e000000 with lcd_size=1612x720 at 24bpp
 - battery scalars taken from the board device tree
 
-The memory size is copied from the Reeder; this board reports
-androidboot.ddrsize=4096M, so it is worth confirming.
+The memory node is the 4 GiB window the stock kernel is handed
+(androidboot.ddrsize=4096M); the Reeder's 8 GiB value would put U-Boot's
+relocation above the end of DRAM. The battery node carries the OCV and
+resistance tables read from the running device.
 
 Signed-off-by: Seuj09 <jeus110310@gmail.com>
 ---
@@ -28,7 +30,7 @@ new file mode 100644
 index 0000000..d889fae
 --- /dev/null
 +++ b/arch/arm/dts/ums9230-infinix-x6525.dts
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,100 @@
 +// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 +/*
 + * Infinix X6525 ("Smart 8") - Unisoc UMS9230
@@ -58,7 +60,7 @@ index 0000000..d889fae
 +
 +	memory@80000000 {
 +		device_type = "memory";
-+		reg = <0x0 0x80000000 0x1 0xfffff000>;
++		reg = <0x0 0x80000000 0x0 0xfffff000>;
 +	};
 +
 +	chosen {
@@ -88,6 +90,21 @@ index 0000000..d889fae
 +		constant-charge-voltage-max-microvolt = <4400000>;
 +		voltage-min-design-microvolt = <3450000>;
 +		factory-internal-resistance-micro-ohms = <140000>;
++		fast-charge-threshold-microvolt = <4100000>;
++		resistance-temp-table = <50 80>, <25 100>, <10 168>,
++					<0 421>, <(-10) 688>;
++		ocv-capacity-celsius = <20>;
++		ocv-capacity-table-0 = <4380000 100>, <4312000 95>,
++				       <4248000 90>, <4191000 85>,
++				       <4135000 80>, <4081000 75>,
++				       <4029000 70>, <3977000 65>,
++				       <3937000 60>, <3875000 55>,
++				       <3839000 50>, <3813000 45>,
++				       <3795000 40>, <3780000 35>,
++				       <3772000 30>, <3762000 25>,
++				       <3746000 20>, <3722000 15>,
++				       <3683000 10>, <3623000 5>,
++				       <3400000 0>;
 +	};
 +};
 +

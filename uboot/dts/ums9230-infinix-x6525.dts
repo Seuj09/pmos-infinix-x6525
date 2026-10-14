@@ -27,7 +27,7 @@
 
 	memory@80000000 {
 		device_type = "memory";
-		reg = <0x0 0x80000000 0x1 0xfffff000>;
+		reg = <0x0 0x80000000 0x0 0xfffff000>;
 	};
 
 	chosen {
@@ -57,6 +57,21 @@
 		constant-charge-voltage-max-microvolt = <4400000>;
 		voltage-min-design-microvolt = <3450000>;
 		factory-internal-resistance-micro-ohms = <140000>;
+		fast-charge-threshold-microvolt = <4100000>;
+		resistance-temp-table = <50 80>, <25 100>, <10 168>,
+					<0 421>, <(-10) 688>;
+		ocv-capacity-celsius = <20>;
+		ocv-capacity-table-0 = <4380000 100>, <4312000 95>,
+				       <4248000 90>, <4191000 85>,
+				       <4135000 80>, <4081000 75>,
+				       <4029000 70>, <3977000 65>,
+				       <3937000 60>, <3875000 55>,
+				       <3839000 50>, <3813000 45>,
+				       <3795000 40>, <3780000 35>,
+				       <3772000 30>, <3762000 25>,
+				       <3746000 20>, <3722000 15>,
+				       <3683000 10>, <3623000 5>,
+				       <3400000 0>;
 	};
 };
 

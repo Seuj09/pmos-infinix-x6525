@@ -150,12 +150,12 @@ nothing corrects memory at runtime - so relocation and the stack would land abov
 # Next steps
 
 U-Boot board, smallest first:
-1. **Fix the memory node** in `uboot/dts/ums9230-infinix-x6525.dts` to
+1. ~~**Fix the memory node** in `uboot/dts/ums9230-infinix-x6525.dts` to
    `reg = <0x0 0x80000000 0x0 0xfffff000>` (4 GiB - see Memory above). This is the one change that
-   decides whether the board boots at all.
-2. Finish the battery node: add `ocv-capacity-table-0`, `resistance-temp-table` and
+   decides whether the board boots at all.~~ Done.
+2. ~~Finish the battery node: add `ocv-capacity-table-0`, `resistance-temp-table` and
    `voltage-max-design-microvolt` from the tables above, the way the reeder's board DTS does - the
-   fuel gauge needs the OCV table for its capacity estimate and the charging animation.
+   fuel gauge needs the OCV table for its capacity estimate and the charging animation. Done (OCV, resistance-temp and fast-charge threshold; `voltage-max-design-microvolt` not added - not read off the device).~~
 3. Confirm the DTB is inside the artifact the pmaports package installs (see the open item above).
 4. Then upstream the two `patches/upstream-uboot/` patches and drop the `WIP:` prefixes.
 
