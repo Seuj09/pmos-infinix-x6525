@@ -56,3 +56,6 @@ uploaded as `x6525-build`.
 | `firmware/` | the touch HDL image off the device, the upload tarball and its hashes |
 | `tools/` | dtbo/dtb extraction, the live device-tree dumper, the HDL image checker and the vendor-sequence converter |
 | `linux-infinix-x6525/`, `device-infinix-x6525/`, `repack.sh` | the earlier downstream 5.4 approach |
+
+
+First boot of the mainline port, stage by stage with what to send back: [FIRST_BOOT.md](FIRST_BOOT.md).
