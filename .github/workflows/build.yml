@@ -182,30 +182,44 @@ jobs:
         run: |
           # GitHub derives commit archives on demand, so a regenerated tarball
           # would break a build on the phone and nowhere else. Every package
-          # whose source is a real URL is fetched and checked here; a package
-          # still carrying a TODO url is skipped until it is published.
-          check() {   # <url> <sha512>
-            curl -sSL -o /tmp/source.tar.gz "$1"
+          # whose source is a real URL is fetched and checked against the
+          # sha512 in its APKBUILD here.
+          #
+          # An APKBUILD is a shell script, so the shell is what expands its
+          # variables. Reading the source= line out with sed instead leaves
+          # $_tarball and $pkgver literal - and then curl is handed a URL that
+          # was never a URL, 404s, and the check below reports "not published
+          # yet" about a file that has been published all along. Ask the shell.
+          var() { ( . "$1"; eval "printf '%s\n' \"\${$2}\"" ); }
+          sha() { sed -n 's/^\([0-9a-f]\{128\}\)  .*/\1/p' "$1"; }
+          source_url() {   # first source= entry, with any "name::" rename dropped
+            var "$1" source | head -1 | sed 's/^[^:]*::\(.*\)$/\1/'
+          }
+          fetch() { curl -sSLf -o /tmp/source.tar.gz "$1"; }
+          compare() {   # <url> <sha512> - the APKBUILD is wrong if this fails
             got=$(sha512sum /tmp/source.tar.gz | cut -d' ' -f1)
             echo "$1"
             echo "  want $2"
             echo "  got  $got"
             [ "$got" = "$2" ] || { echo "  does not match the APKBUILD"; exit 1; }
           }
-          sha() { sed -n 's/^\([0-9a-f]\{128\}\)  .*/\1/p' "$1"; }
+          check() { fetch "$1" && compare "$1" "$2"; }
 
           P="$GITHUB_WORKSPACE/pmaports/device/testing/u-boot-infinix-x6525/APKBUILD"
-          check "$(sed -n 's/^url="\(.*\)"$/\1/p' "$P")/archive/$(sed -n 's/^_commit="\(.*\)"$/\1/p' "$P").tar.gz" "$(sha "$P")"
+          check "$(var "$P" url)/archive/$(var "$P" _commit).tar.gz" "$(sha "$P")"
 
           P="$GITHUB_WORKSPACE/pmaports/device/testing/firmware-infinix-x6525/APKBUILD"
-          url=$(sed -n 's/^source="[^:]*::\(.*\)"$/\1/p' "$P")
-          if curl -sSLf -o /tmp/firmware.tar.gz "$url"; then
-            check "$url" "$(sha "$P")"
+          url=$(source_url "$P")
+          # An empty URL here is a broken extraction, not an unpublished file.
+          [ -n "$url" ] || { echo "firmware: no source= URL in $P"; exit 1; }
+          if fetch "$url"; then
+            compare "$url" "$(sha "$P")"
           else
             # Its URL is settled, the release workflow has simply not run yet.
-            # Warn rather than fail: a package build would fail on this loudly
-            # enough, and this is the one step in the repository that cannot be
-            # finished without someone pressing a button.
+            # Warn rather than fail on the fetch alone: a package build would
+            # fail on this loudly enough, and this is the one step in the
+            # repository that cannot be finished without someone pressing a
+            # button. A fetch that succeeds and then does not match still fails.
             echo "firmware: $url is not published yet - run the firmware release workflow"
           fi
 
