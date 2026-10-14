@@ -52,11 +52,13 @@ marks `fate = "obsolete"`.
    initramfs (unl0kr) that module and the HDL image both have to go in a `modules-initfs` file.
 
 3. **A `u-boot-infinix-x6525` package.** The deviceinfo chainloads U-Boot from `boot_a`, so without it
-   nothing boots. The board itself is drafted in `../uboot/` and `../patches/upstream-uboot/`; the
-   package draft here mirrors `u-boot-jolla-c2` and has three things to fill in once the board is
-   upstreamed to the fork: `_commit`, `pkgver` and the tarball's `sha512sum`. The X6525 boots from
-   eMMC on `sdio3`, which U-Boot's SDHCI path covers (the reeder exercises UFS instead), and CI already
-   builds `u-boot.bin` from these files.
+   nothing boots. The package is complete, and it builds from the port's own fork of the U-Boot tree -
+   branch `x6525` in `ums9230-mainline-u-boot`, which is that fork's `ums9230` plus the two board
+   commits this repo carries in `../uboot/` and `../patches/upstream-uboot/` - so it waits on nothing.
+   `_commit` and the `sha512` are the fork's tip; point both back at `codeberg.org/ums9230-mainline/u-boot`
+   once the board is merged there. The X6525 boots from eMMC on `sdio3`, which U-Boot's SDHCI path
+   covers (the reeder exercises UFS instead), and CI builds `u-boot.bin` from the same two files on
+   every push.
 
 Then, before opening the MR:
 

@@ -163,6 +163,33 @@ nothing corrects memory at runtime - so relocation and the stack would land abov
   of the artifact, its `/memory@80000000` is the 4 GiB window above. So installing `u-boot.bin` as the
   boot.img payload, the way `u-boot-jolla-c2` does, is correct.
 
+# Public forks (what pmaports can fetch)
+
+Both trees are published as forks of the GitHub mirrors of the Codeberg repos, each with an `x6525`
+branch that is the upstream base plus this port's commits and nothing else:
+
+| Tree | Fork and branch | Tip |
+|---|---|---|
+| kernel | `github.com/Seuj09/ums9230-mainline-linux`, branch `x6525` | `7d111ea95922b01c3d5b1ee7760cb1e769705f0a` |
+| U-Boot | `github.com/Seuj09/ums9230-mainline-u-boot`, branch `x6525` | `d169d38cab37a39282c96a1bfa0d32aff5d326df` |
+
+The kernel branch is the tag `v7.2-rc6-ums9230-0` plus the eight patches in `patches/upstream/`, one
+commit each (verified: the subjects match the patch files one for one and the tree's files are
+byte-identical to `dts/`, `drivers/` and `bindings/`). The U-Boot branch is the fork's `ums9230` plus
+its two board patches. Both were made by `git am`-ing the series, so `git format-patch` from either
+branch regenerates the patches - the branches are the source of truth now, not the patch files.
+`pmaports/device/testing/u-boot-infinix-x6525/APKBUILD` already builds from the U-Boot branch's tip
+(sha512 in place); the kernel side needs nothing until either a staging package is wanted or the
+series lands upstream.
+
+**Where patches go, and where they do not.** `ums9230-mainline/linux` releases by *tag*
+(`v6.12` … `v7.2-rc6-ums9230-0`, one per kernel version); its two branches (`ums9230`,
+`ums9230-opencp`) are older, divergent lines whose trees differ from the newest tag by ~17,300 files.
+So our patches are cut against the newest *tag* - correct for pmaports, which pins the same tag - and
+a Codeberg PR against `ums9230` would be aimed at a stale tree: the kernel series should go to the
+maintainer by mail or issue. U-Boot is the opposite, with one `ums9230` branch that our two patches
+`git am` cleanly onto, so a PR from the fork branch is the right mechanism there.
+
 # Working from the phone shell
 
 - this shell runs **on the phone** (Debian trixie in a container, the stock 5.4 kernel underneath), so

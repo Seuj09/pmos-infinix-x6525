@@ -10,6 +10,7 @@ on:
       - "patches/**"
       - "uboot/**"
       - "tools/**"
+      - "pmaports/**"
       - ".github/workflows/build.yml"
 
 permissions:
@@ -168,6 +169,25 @@ jobs:
           ls -l kernel/drivers/gpu/drm/panel/panel-td4160-hx.o \
                 kernel/drivers/input/touchscreen/ovt-tcm-spi.o \
                 kernel/drivers/power/supply/extcon-charger-detect.o
+
+      - name: Verify the package source we already publish
+        run: |
+          # The u-boot package builds from a fork tarball whose checksum GitHub
+          # derives on demand, so a regenerated archive would break the build on
+          # the phone and nowhere else. Check it here instead. The firmware
+          # package still has a TODO url and joins this check when it is out.
+          P="$GITHUB_WORKSPACE/pmaports/device/testing/u-boot-infinix-x6525/APKBUILD"
+          url=$(sed -n 's/^url="\(.*\)"$/\1/p' "$P")
+          commit=$(sed -n 's/^_commit="\(.*\)"$/\1/p' "$P")
+          want=$(sed -n 's/^\([0-9a-f]\{128\}\)  .*/\1/p' "$P")
+          curl -sSL -o /tmp/source.tar.gz "$url/archive/$commit.tar.gz"
+          got=$(sha512sum /tmp/source.tar.gz | cut -d' ' -f1)
+          echo "want $want"
+          echo "got  $got"
+          [ "$got" = "$want" ] || {
+            echo "the u-boot source tarball no longer matches the APKBUILD sha512"
+            exit 1
+          }
 
       - name: Upload what was built
         if: always()

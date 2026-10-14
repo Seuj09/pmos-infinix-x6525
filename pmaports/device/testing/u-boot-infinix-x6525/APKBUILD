@@ -1,13 +1,19 @@
 # Reference: <https://postmarketos.org/devicepkg>
 maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=u-boot-infinix-x6525
-# TODO: fill in once the board is in a commit in the fork (see ../README.md):
-# pkgver looks like <u-boot version>_git<commit date>, e.g. jolla-c2's
-# 2025.01_rc1_git20250423 with _commit 88db704f.
-pkgver=2025.07_git00000000
+# Built from the port's own fork of ums9230-mainline/u-boot, branch x6525,
+# which is the fork's ums9230 branch plus the two board commits (device tree and
+# defconfig) -- the same files this repo carries in uboot/ and
+# patches/upstream-uboot/, which is what CI builds. Point url and _commit back
+# at codeberg.org/ums9230-mainline/u-boot once the board is merged there.
+#
+# pkgver is <u-boot version>_git<commit date>, as jolla-c2 does; _commit is the
+# x6525 tip. GitHub's commit archives are regenerated on demand, so the hash
+# below is for that tarball as fetched today - check it if it ever fails.
+pkgver=2025.07_git20261014
 pkgrel=0
 pkgdesc="U-Boot bootloader for the Infinix X6525"
-url="https://codeberg.org/ums9230-mainline/u-boot"
+url="https://github.com/Seuj09/ums9230-mainline-u-boot"
 arch="aarch64"
 license="GPL-2.0-or-later OFL-1.1 BSD-2-Clause BSD-3-Clause eCos-2.0 IBM-pibs
 	ISC LGPL-2.0-only LGPL-2.1-only X11"
@@ -18,10 +24,11 @@ makedepends="
 	flex
 	openssl-dev
 "
-_commit="CHANGEME"
-source="$url/archive/$_commit.tar.gz"
+_commit="d169d38cab37a39282c96a1bfa0d32aff5d326df"
+source="$pkgname-$pkgver.tar.gz::$url/archive/$_commit.tar.gz"
 options="!check !tracedeps pmb:cross-native"
-builddir="$srcdir"/u-boot
+# GitHub names the extracted directory <repo>-<commit>
+builddir="$srcdir/ums9230-mainline-u-boot-$_commit"
 
 build() {
 	make ARCH=arm infinix-x6525_defconfig
@@ -34,5 +41,5 @@ package() {
 }
 
 sha512sums="
-CHANGEME  CHANGEME.tar.gz
+58ba25f4e7b22d6f5fc947b4d7f99ccdeffc70b89c97b9934556098bd7eb129d875135838262f23d0652bcdd2ebbadcc6659a75cf8ae426c1b41ee434dbfca32  $pkgname-$pkgver.tar.gz
 "
