@@ -49,8 +49,8 @@ Expect the stock partition table with `super` and the `pmOS_boot` / `pmOS_root` 
 - **eMMC not found or I/O errors:** bus width and timing. The DTS says 8-bit, HS400es/HS200 values from the
   vendor tree. Try forcing a lower mode first (`bus-width = <4>` or dropping `mmc-hs400-enhanced-strobe`
   and `mmc-hs200-1_8v`) - if that fixes it, the delay values are the suspect.
-- **SD card not seen:** card-detect. The DTS uses `eic_sync 35` (confirmed on the stock system; polarity
-  not yet checked against a card). `CONFIG_MMC_BROKEN_CD` is set in U-Boot, so U-Boot itself does not care; the
+- **SD card not seen:** card-detect. The DTS uses `eic_sync 35` (confirmed on the stock system; the empty slot
+  reads high, so the flag is ACTIVE_LOW - check with a card in). `CONFIG_MMC_BROKEN_CD` is set in U-Boot, so U-Boot itself does not care; the
   kernel does. Test with a card in and out and read `cat /sys/kernel/debug/gpio`.
 
 ## 3. Kernel starts, and how to see it

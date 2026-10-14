@@ -204,7 +204,7 @@ Missing from before, still open:
 - touch under unl0kr needs the touch module and the HDL image in `modules-initfs`.
 - the wiki device page, which pmaports CI checks at MR time.
 - physical first boot, watching the list in "First boot" plus the panel reset polarity, the DCS
-  brightness curve, eMMC on sdio3 in U-Boot and the SD card-detect line (`eic_sync` vs `eic_async`).
+  brightness curve, eMMC on sdio3 in U-Boot and the SD card-detect line (`eic_sync` 35, empty slot reads high, so ACTIVE_LOW; check with a card in).
 
 # First boot (SSH over USB)
 1. On GitHub: Actions → kernel → Run workflow. Mode `config` is the olddefconfig gate and does not need clang. Mode `image` also builds Image and modules with kernel.org LLVM 14 and `gcc-aarch64-linux-gnu`. The kernel ref defaults to `bpf-a17-selinux-test`.
