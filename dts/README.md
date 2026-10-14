@@ -29,9 +29,10 @@ the path each value came from.
 
 ## Still to be filled in
 
-1. **The five TODOs in the file** — each names what to read: the USB role-switch provider, the
-   `otg-vbus` regulator the vendor feeds from the charger, the panel's vendor prefix, the sound
-   card's widgets and routing, and the `ramoops` values (still the downstream mach.dtsi's).
+1. **Nothing is marked unknown any more.** The five TODOs — the USB role-switch provider, the
+   `otg-vbus` supply, the panel's vendor prefix, the sound card, and the `ramoops` values — were
+   each settled from the live tree and are now written up as the decision and its reason, in
+   place. The header still defines the `[T]` marker, which every traced value carries.
 2. **Hardware confirmation** — the panel reset polarity, the DCS brightness curve and the eMMC timing
    values are the vendor's own until this kernel runs on the phone. `../FIRST_BOOT.md` lists what to
    watch, in the order it will matter.

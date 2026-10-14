@@ -1,8 +1,7 @@
-From fa8bf4161a9d79eb477fde1f9088279a44fc49ea Mon Sep 17 00:00:00 2001
+From 425602527501074da007494cdddca5bcd345438d Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Tue, 13 Oct 2026 21:46:00 +0000
-Subject: [PATCH 4/4] WIP: drm/panel: add driver for the TD4160 HX 720x1612
- panel
+Date: Wed, 14 Oct 2026 12:24:58 +0000
+Subject: [PATCH] WIP: drm/panel: add driver for the TD4160 HX 720x1612  panel
 
 Panel driver for the TD4160 HX used in the Infinix X6525
 (lcd_name=lcd_td4160_hx_mipi_hdp_x6525, sprd,lcm_ic_vendor="HX", 6.56").
@@ -22,8 +21,8 @@ Signed-off-by: Seuj09 <jeus110310@gmail.com>
  .../panel/infinix,td4160-hx-panel.yaml        |  65 ++
  drivers/gpu/drm/panel/Kconfig                 |  10 +
  drivers/gpu/drm/panel/Makefile                |   1 +
- drivers/gpu/drm/panel/panel-td4160-hx.c       | 624 ++++++++++++++++++
- 4 files changed, 700 insertions(+)
+ drivers/gpu/drm/panel/panel-td4160-hx.c       | 626 ++++++++++++++++++
+ 4 files changed, 702 insertions(+)
  create mode 100644 Documentation/devicetree/bindings/display/panel/infinix,td4160-hx-panel.yaml
  create mode 100644 drivers/gpu/drm/panel/panel-td4160-hx.c
 
@@ -133,10 +132,10 @@ index 27fdbba..6295dfb 100644
  obj-$(CONFIG_DRM_PANEL_LVDS) += panel-lvds.o
 diff --git a/drivers/gpu/drm/panel/panel-td4160-hx.c b/drivers/gpu/drm/panel/panel-td4160-hx.c
 new file mode 100644
-index 0000000..3ffd911
+index 0000000..466150c
 --- /dev/null
 +++ b/drivers/gpu/drm/panel/panel-td4160-hx.c
-@@ -0,0 +1,624 @@
+@@ -0,0 +1,626 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * Panel driver for the 720x1612 TD4160 panel in the Infinix X6525
@@ -741,8 +740,10 @@ index 0000000..3ffd911
 +}
 +
 +static const struct of_device_id td4160_panel_of_match[] = {
-+	/* TODO: the panel module vendor prefix ("HX" in the vendor DT) still
-+	 * needs settling before this can be submitted upstream. */
++	/* The panel module's vendor is only ever named "HX" in the vendor data
++	 * (sprd,lcm_ic_vendor, with sprd,lcm_ic_name = "TD4160"), and no
++	 * registered DT prefix covers it, so the compatible uses the board
++	 * vendor's prefix instead of inventing one. */
 +	{ .compatible = "infinix,td4160-hx-panel" },
 +	{ /* sentinel */ }
 +};

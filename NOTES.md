@@ -120,6 +120,34 @@ This is where the U-Boot board is wrong: it copied the reeder's `0x1 0xfffff000`
 its RAM from that node, and `board/unisoc/ums9230/board.c` only fixes up WiFi/Bluetooth MAC addresses -
 nothing corrects memory at runtime - so relocation and the stack would land above the end of DRAM.
 
+## USB, audio and pstore (same live tree)
+
+- **USB**: the MUSB node (`usb@64900000`) runs `dr-mode = "peripheral"` with
+  `extcon = <&extcon-gpio &pmic_typec>` (the VBUS pin plus the PMIC Type-C
+  controller), `usb-phy = <&hsphy>` and `vbus-supply = <&otg-vbus>`. Mainline's
+  `musb-sprd.c` overrides `dr_mode` from the *build* config (`USB_MUSB_HOST` wins
+  over `USB_MUSB_GADGET`), which is why the board DTS keeps the reeder's role
+  switch: with both modes built, the port comes up as host until the role switch
+  says otherwise.
+- the Type-C/PD controller is `typec@380` (`sprd,sc2730-typec`,
+  `sprd,sc27xx-typec`) - one node in mainline, `pd@e00` with `sprd,sc2730-pd`,
+  driver `sc27xx_pd.c`. Its `vbus` regulator is **optional** there: a missing
+  supply is `-ENODEV` and tolerated, the source role is all that is lost.
+- the AW32257's `otg-vbus` child is a bare node (just `regulator-name`; the
+  vendor charger driver registers the regulator itself) and the USB node consumes
+  it as `vbus-supply`. Mainline's `bq2415x_charger.c` mentions no regulator at
+  all - grep it - so there is nothing for the board DTS to point at.
+- **speaker amp**: `sound@0` carries `sprd,spk-ext-pa-gpio = <&ap_gpio 113 0>`,
+  the amp enable line (active-high) where the reeder's is `ap_gpio 136`. The card
+  is `unisoc,vbc-v4-codec-sc2730` with 30 `sprd-audio-card,dai-link` children and
+  `sprd,spk-ext-pa-info = <0 0 0xd 0>` (not interpreted).
+- **pstore**: the live `ramoops@fff80000` is `reg = <0 0xfff80000 0 0x40000>` with
+  console/pmsg/record sizes of `0x8000` each - exactly what the board DTS had
+  marked unverified, so it is now confirmed rather than inherited.
+- **framebuffer**: `logobuffer@9e000000` reserves `0xab0000` (11.2 MB) at the same
+  base, i.e. the vendor keeps more slack than one 720x1612x4 frame (`0x46d000`).
+  The board reserves one frame, which is all the bootloader and U-Boot draw into.
+
 ## U-Boot board, reverified against the fork
 
 - the board DTB needs **no** `arch/arm/dts/Makefile` entry: `scripts/Makefile.dts` puts

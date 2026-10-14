@@ -1,6 +1,6 @@
-From 23bfcceebb321e2212ebd688131682406b5aea4b Mon Sep 17 00:00:00 2001
+From 0eef9458e4a3ed3e12d51f32d9f9a6ee6dc23a3a Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Wed, 14 Oct 2026 12:08:28 +0000
+Date: Wed, 14 Oct 2026 12:24:58 +0000
 Subject: [PATCH] WIP: arm64: dts: sprd: add device tree for Infinix X6525
 
 The Infinix X6525 is a Unisoc UMS9230 (Tiger T606) phone, sold as the
@@ -30,8 +30,8 @@ timings' blanking looks unusual (vfront 1020) and the panel reset polarity
 Signed-off-by: Seuj09 <jeus110310@gmail.com>
 ---
  arch/arm64/boot/dts/sprd/Makefile             |   1 +
- .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 600 ++++++++++++++++++
- 2 files changed, 601 insertions(+)
+ .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 666 ++++++++++++++++++
+ 2 files changed, 667 insertions(+)
  create mode 100644 arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 
 diff --git a/arch/arm64/boot/dts/sprd/Makefile b/arch/arm64/boot/dts/sprd/Makefile
@@ -46,10 +46,10 @@ index 0af83bf..2bb8086 100644
  			ums9620-2h10.dtb
 diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 new file mode 100644
-index 0000000..5e349e7
+index 0000000..e2dd08d
 --- /dev/null
 +++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
-@@ -0,0 +1,600 @@
+@@ -0,0 +1,666 @@
 +// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 +/*
 + * Infinix X6525 ("Infinix Smart 8") - Unisoc UMS9230 (Tiger T606)
@@ -130,8 +130,11 @@ index 0000000..5e349e7
 +			reg = <0 0x9e000000 0 (720 * 1612 * 4)>;
 +			iommu-addresses = <&dpu 0x9e000000 (720 * 1612 * 4)>;
 +			no-map;
-+			/* size derived from lcd_size=1612x720 at logo_bpix=24
-+			 * (4 bytes/px) - still worth checking against the DTB */
++			/* one 720x1612 frame at 4 bytes/px, which is what the
++			 * bootloader hands over (lcd_base, lcd_size, logo_bpix).
++			 * The stock tree reserves more at this base - its
++			 * logobuffer@9e000000 is 0xab0000 - but everything the
++			 * bootloader and U-Boot draw fits inside this size. */
 +		};
 +
 +		ramoops@fff80000 {
@@ -140,7 +143,8 @@ index 0000000..5e349e7
 +			console-size = <0x8000>;
 +			record-size = <0x8000>;
 +			pmsg-size = <0x8000>;
-+			/* TODO: verify; same values as the downstream mach.dtsi. */
++			/* confirmed against the running device: its own
++			 * ramoops@fff80000 carries exactly these values */
 +		};
 +
 +		linux,cma {
@@ -184,6 +188,15 @@ index 0000000..5e349e7
 +								 * overlay dump - same as the reeder */
 +			linux,code = <KEY_POWER>;
 +		};
++	};
++
++	speaker_amp: speaker-amp {
++		compatible = "simple-audio-amplifier";
++		sound-name-prefix = "Speaker Amp";
++		/* the vendor's sprd,spk-ext-pa-gpio, read off the running device
++		 * (ap_gpio 0x71, flag 0 = active-high). The reeder's equivalent
++		 * amp sits on ap_gpio 136. */
++		enable-gpios = <&ap_gpio 113 GPIO_ACTIVE_HIGH>;
 +	};
 +
 +	bat: battery {
@@ -283,10 +296,14 @@ index 0000000..5e349e7
 + * The SoC USB controller is MUSB (sprd,ums9230-musb) - same as the reeder, and
 + * the reason USB_MUSB_HDRC/SPRD must be built in for pmOS USB networking.
 + *
-+ * The stock device uses linux,extcon-usb-gpio (mach.dtsi) plus pmic_typec and
-+ * pmic_pd extcons; the reeder uses the PMIC Type-C controller as the role
-+ * switch. TODO: decide which provider this board actually has. The structure
-+ * below is the reeder's.
++ * The provider is the PMIC Type-C/PD controller (&pmic_typec_pd), whose
++ * mainline driver is sc27xx_pd.c: the stock device points its MUSB at that same
++ * controller plus the VBUS gpio extcon, and runs dr-mode = "peripheral".
++ *
++ * The role switch is kept even though this board only ever acts as a device:
++ * musb-sprd.c takes the mode from the build config rather than from dr_mode, so
++ * a kernel built with both USB_MUSB_HOST and USB_MUSB_GADGET comes up as a host
++ * until the role switch says otherwise - which is what the reeder relies on.
 + */
 +&hsphy {
 +	phy-supply = <&vddusb33>;
@@ -376,8 +393,11 @@ index 0000000..5e349e7
 +};
 +
 +&pmic_typec_pd {
-+	/* TODO: the vendor feeds this from the charger's OTG VBUS regulator;
-+	 * the bq2415x driver has no OTG regulator, so nothing to point at. */
++	/* No vbus-supply: the vendor's is the charger's own otg-vbus regulator
++	 * (its node has nothing but a name - the charger driver registers it),
++	 * and mainline's bq2415x registers no regulator for that boost.
++	 * sc27xx_pd.c treats a missing vbus as -ENODEV and carries on, so this
++	 * costs the source role, nothing else. */
 +	status = "okay";
 +
 +	connector {
@@ -532,8 +552,10 @@ index 0000000..5e349e7
 +	#size-cells = <0>;
 +
 +	panel@0 {
-+		compatible = "infinix,td4160-hx-panel";	/* vendor prefix TODO, see
-+							 * drivers/panel-td4160-hx.c */
++		/* the module is only ever named "HX"/"TD4160" in the vendor
++		 * data and that panel vendor has no registered prefix, so this
++		 * uses the board vendor's; see drivers/panel-td4160-hx.c */
++		compatible = "infinix,td4160-hx-panel";
 +		reg = <0>;
 +		/* board DT: ap_gpio 0x32 with flag 0 = active-high.
 +		 * Flip this first if the panel stays dark. */
@@ -643,12 +665,56 @@ index 0000000..5e349e7
 +
 +&sound {
 +	model = "infinix-x6525";
-+	/*
-+	 * TODO: widgets, routing and aux-devs. The reeder drives a
-+	 * simple-audio-amplifier from ap_gpio 136; this board's speaker amp
-+	 * GPIO is unknown.
-+	 */
++	/* Same codec (SC2730) and same amplifier arrangement as the reeder, so
++	 * the card's widgets and routing are the reeder's; the amplifier is
++	 * board-specific and is the speaker_amp node above. */
++	widgets =
++		"Headphone", "Headphones",
++		"Speaker", "Speaker",
++		"Line", "Modem Uplink",
++		"Line", "Modem Downlink";
++	pin-switches = "Speaker";
++	audio-routing =
++		"Headphones", "HPL_OUT",
++		"Headphones", "HPR_OUT",
++		"Speaker Amp INL", "HPL_OUT",
++		"Speaker Amp INR", "HPL_OUT",
++		"Speaker", "Speaker Amp OUTL",
++		"Speaker", "Speaker Amp OUTR",
++		"Modem Uplink", "Modem DAI AOUT",
++		"Modem DAI AIN", "Modem Downlink";
++	aux-devs = <&modem_dai>, <&speaker_amp>;
 +	status = "okay";
++
++	iis0-dai-link {
++		link-name = "IIS0";
++		dai-format = "i2s";
++		frame-inversion;
++		sprd,fixed-fmt = <24>;
++
++		codec {
++			sound-dai = <&dig_codec 0>, <&sc2730_codec 0>;
++		};
++	};
++
++	iis1-dai-link {
++		link-name = "IIS1";
++		dai-format = "i2s";
++		frame-inversion;
++		sprd,fixed-fmt = <24>;
++
++		codec {
++			sound-dai = <&dig_codec 1>, <&sc2730_codec 1>;
++		};
++	};
++
++	voice-dai-link {
++		link-name = "VOICE";
++
++		codec {
++			sound-dai = <&modem_dai>;
++		};
++	};
 +};
 -- 
 2.47.3

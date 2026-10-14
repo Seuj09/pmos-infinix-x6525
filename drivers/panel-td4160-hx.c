@@ -602,8 +602,10 @@ static void td4160_panel_remove(struct mipi_dsi_device *dsi)
 }
 
 static const struct of_device_id td4160_panel_of_match[] = {
-	/* TODO: the panel module vendor prefix ("HX" in the vendor DT) still
-	 * needs settling before this can be submitted upstream. */
+	/* The panel module's vendor is only ever named "HX" in the vendor data
+	 * (sprd,lcm_ic_vendor, with sprd,lcm_ic_name = "TD4160"), and no
+	 * registered DT prefix covers it, so the compatible uses the board
+	 * vendor's prefix instead of inventing one. */
 	{ .compatible = "infinix,td4160-hx-panel" },
 	{ /* sentinel */ }
 };
