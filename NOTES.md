@@ -48,12 +48,142 @@ Download folder. Entry 18 is `model = "Spreadtrum UMS9230-1H10-GO Board"`, `comp
   different board.
 - Keys: volume-down `ap_gpio 124` (active-low), volume-up `ap_gpio 4` (active-high), power `pmic_eic 1`.
 - Charging is a Transsion `tran_charger` around an **Awinic AW32257** (`chargers = "aw32257"`).
-  Mainline has no AW32257 driver and the DT carries no address; the bq2560x/bq2597x parts in the stock
-  config belong to other 1h10 variants.
+  Mainline has no AW32257 driver and the dtbo fragment carries no address; the bq2560x/bq2597x parts in
+  the stock config belong to other 1h10 variants. **The address, the node and what the chip actually is
+  are all in the live device tree now - see "The running device's own device tree" below.**
 - There is **no PWM backlight node**: brightness is written into the panel over DCS
   (`sprd,backlight-param-write = 1`, 12-bit, `sprd,max-level = 0xfff`, default 0xa5a).
 - Panel reset is `ap_gpio 50` with flag 0 (active-high) - the reeder's driver assumes active-low, so
   this is the first thing to flip if the panel stays dark.
+
+# The running device's own device tree
+
+The stock kernel exposes its expanded tree, so these values are read off the phone instead of being
+inferred from a dtbo: `/proc/device-tree` (same thing as `/sys/firmware/devicetree/base`).
+`tools/dtdir-dump.py <node>` prints one node, `-R` walks a subtree; a phandle resolves by looking for
+the `phandle` property with the same value. This is the first place to look for board values now - it
+is what the kernel was actually handed, including nodes and properties the dtbo dump does not carry.
+
+## Charging
+
+- `aw32257` is an **I2C** device at **3-006a**, i.e. `/soc/ap-apb/i2c@0x20100000/aw32257@6a` - bus
+  `i2c3` (`20100000`), address **0x6a**, driver `aw32257-charger`, `compatible = "awinic,aw32257"`.
+- its node: `reg = <0x6a>`, `extcon = <&extcon-gpio>`, `monitored-battery = <&battery>`,
+  `phys = <&hsphy@64570000>`, `charge,chg-pd-gpio = <&ap_gpio 115 GPIO_ACTIVE_HIGH>`, an `otg-vbus`
+  regulator child, and TI-style scalars in mixed units: `ti,battery-regulation-voltage = <4400>` (mV),
+  `ti,charge-current = <650000>` (uA), `ti,current-limit = <100000>` (uA),
+  `ti,termination-current = <60000>` (uA), `ti,weak-battery-voltage = <3400>` (mV),
+  `ti,resistor-sense = <56>`.
+- **the chip identifies itself as a TI part**: `model_name` is `"chip bq24158, revision 1.0, vender code
+  010"`, and its `registers` attribute dumps exactly five registers, 0x00-0x04
+  (`0x00=d0 0x01=30 0x02=b6 0x03=53 0x04=59`). A five-register 0x00..0x04 map together with those
+  names (`battery_regulation_voltage`, `weak_battery_voltage`, `resistor_sense`, `current_limit`) is the
+  bq2415x family layout, so the AW32257 looks like a register-compatible **bq24158**. Still to confirm
+  against the actual driver: the pinned tree has exactly one bq2415x driver,
+  `drivers/power/supply/bq2415x_charger.c` (`CONFIG_CHARGER_BQ2415X`).
+- `tran_charger` is Transsion's platform-level framework: `chargers = "aw32257"`,
+  `pd_max_power = <5000000>`, `tran-thermal-zone = "board-thmzone"`, and a fast-charge current versus
+  board temperature table `fchg-boardtemp-cur` = (41 C, 1.4 A) (43 C, 1.2 A) (44 C, 0.8 A).
+- `charger-manager` is a **mainline** driver (`drivers/power/supply/charger-manager.c`, and
+  `CONFIG_CHARGER_MANAGER` is in the pinned tree). The node: `cm-chargers = "tran_charger"`,
+  `cm-fuel-gauge = "sc27xx-fgu"`, `cm-name = "battery"`, `cm-thermal-zone = "board-thmzone"`,
+  `extcon = <&pmic_typec &pmic_pd>`, `monitored-battery = <&battery>`, `cm-poll-interval = <15000>`,
+  `cm-charging-max = <43200000>`, `cm-discharging-max = <2700000>`, `cm-shutdown-voltage = <3100000>`,
+  `cm-charge-voltage-max = <6200000>`, `cm-fullbatt-capacity = <100>`,
+  `sprd,customized-fchg-psy = "tran_charger"`. It is what publishes the ac/battery/usb/wireless
+  supplies.
+- `sc27xx-fgu` is the fuel gauge (mainline driver), `extcon-gpio` is `linux,extcon-usb-gpio` with
+  `vbus-gpio = <&pmic_eic 0 GPIO_ACTIVE_HIGH>`, and `sc27xx_typec` / `sc27xx_pd` / `sprd_tcpm` carry
+  the PD path.
+- loaded modules: `tran_charger aw32257_charger sc27xx_fuel_gauge sprd_charger_manager
+  sprd_battery_info sc27xx_pd sc27xx_typec sprd_tcpm extcon_usb_gpio`.
+
+## Battery (`/battery`, `compatible = "simple-battery"`)
+
+- 4950000 uAh design, 200000 uA charge term, 4400000 uV max, 3450000 uV min design, 140000 uOhm
+  factory resistance, fast-charge threshold 4100000 uV.
+- `ocv-capacity-table-0` (uV, %):
+  `(4380000 100) (4312000 95) (4248000 90) (4191000 85) (4135000 80) (4081000 75) (4029000 70)
+  (3977000 65) (3937000 60) (3875000 55) (3839000 50) (3813000 45) (3795000 40) (3780000 35)
+  (3772000 30) (3762000 25) (3746000 20) (3722000 15) (3683000 10) (3623000 5) (3400000 0)`
+- `resistance-temp-table` (C, mOhm): `(50 80) (25 100) (10 168) (0 421) (-10 688)`;
+  `capacity-temp-table` (C, %): `(50 100) (25 100) (10 96) (0 60) (-10 50)`.
+- it also carries `voltage-temp-table`, `first-calib-*`, `fullbatt-*` and six `*-jeita-temp-table`
+  properties (sdp/cdp/dcp/pd/unknown/fchg-pd). Those are downstream extras, not `simple-battery`.
+
+## Memory
+
+`/memory@80000000` is `reg = <0x0 0x80000000 0x0 0xfffff000>` - a **4 GiB** window from `0x80000000` to
+`0x17ff00000`, matching `androidboot.ddrsize=4096M` (`androidboot.ddrsize.range=[4096,5120)`).
+
+This is where the U-Boot board is wrong: it copied the reeder's `0x1 0xfffff000` (8 GiB). U-Boot sizes
+its RAM from that node, and `board/unisoc/ums9230/board.c` only fixes up WiFi/Bluetooth MAC addresses -
+nothing corrects memory at runtime - so relocation and the stack would land above the end of DRAM.
+
+## U-Boot board, reverified against the fork
+
+- the board DTB needs **no** `arch/arm/dts/Makefile` entry: `scripts/Makefile.dts` puts
+  `$(CONFIG_DEFAULT_DEVICE_TREE).dtb` into `dtb-y` itself.
+- `configs/infinix-x6525_defconfig` differs from `reeder-s19mps_defconfig` only by dropping the UFS
+  stack (`CMD_UFS`, `SCSI`, `UFS`, `UFS_SPRD_UMS9230`) - verified by diffing the two files.
+- `arch/arm/mach-sprd/Kconfig` selects ARM64 for `TARGET_UMS9230` (hence `ARCH=arm` on the command
+  line), and its defaults (`TEXT_BASE` 0x9f000000, `SYS_LOAD_ADDR` 0x90000000) are overridden in the
+  defconfig.
+- open: whether the packaged `u-boot.bin` actually carries the DTB. The pmaports package installs
+  `u-boot.bin` as the boot.img payload, so it has to be self-contained - check by building and looking
+  for the FDT magic in the artifact (or the size jump between `u-boot.bin` and `u-boot-dtb.bin`).
+
+# Working from the phone shell
+
+- this shell runs **on the phone** (Debian trixie in a container, the stock 5.4 kernel underneath), so
+  `/proc/device-tree`, `/sys/class/power_supply/*` and `/proc/config.gz` are live data rather than dumps.
+- `/vendor` is not mounted here, so the stock kernel modules cannot be read or disassembled from here.
+- the Codeberg **u-boot** archive downloads fine (~44 MB); the **kernel** archive does not - it
+  truncated every time (200 MB in, gzip "unexpected end of file"). Fetch kernel files one at a time
+  instead: `https://codeberg.org/ums9230-mainline/linux/raw/tag/<tag>/<path>`. `gh`/`api.github.com`
+  was unreachable from here too.
+- `/proc/config.gz` (the running config) does **not** match `linux-infinix-x6525/config-helix-stock.aarch64`:
+  the live one says `CONFIG_CHARGER_AW32257 is not set` and `CONFIG_CHARGER_MANAGER is not set`, yet
+  `aw32257_charger` and `sprd_charger_manager` are both loaded - so those modules were built from a tree
+  that is not the one that config file came from. (Downstream path only; the mainline port ignores both.)
+
+# Next steps
+
+U-Boot board, smallest first:
+1. **Fix the memory node** in `uboot/dts/ums9230-infinix-x6525.dts` to
+   `reg = <0x0 0x80000000 0x0 0xfffff000>` (4 GiB - see Memory above). This is the one change that
+   decides whether the board boots at all.
+2. Finish the battery node: add `ocv-capacity-table-0`, `resistance-temp-table` and
+   `voltage-max-design-microvolt` from the tables above, the way the reeder's board DTS does - the
+   fuel gauge needs the OCV table for its capacity estimate and the charging animation.
+3. Confirm the DTB is inside the artifact the pmaports package installs (see the open item above).
+4. Then upstream the two `patches/upstream-uboot/` patches and drop the `WIP:` prefixes.
+
+Charger:
+1. Confirm the register map against `drivers/power/supply/bq2415x_charger.c` (register names, bitfields
+   and the vendor/revision decoding that produced "bq24158"). Everything else below depends on it.
+2. Decide the driver: either add a DT front-end to `bq2415x_charger.c` (it is platform-data only today,
+   and the chip really is that family's register layout), or ship a separate `aw32257` driver in
+   `drivers/` next to the panel and touch ones. The separate driver is the safer of the two for
+   upstream - it does not rewrite an existing driver - and gives a clean binding for the Awinic extras
+   (`otg-vbus` regulator, `charge,chg-pd-gpio`, stat pin, high-impedance mode).
+3. DTS glue, all values already read off the device: `&i2c3 { charger@6a { ... } }`, the `bat: battery`
+   node with the real profile, `&sc2730_fgu { monitored-battery = <&bat>; power-supplies = <&charger>; }`,
+   `extcon-gpio` with `vbus-gpio = <&pmic_eic 0 GPIO_ACTIVE_HIGH>`, and - if we want the vendor's charge
+   policy - `charger-manager` with `cm-fuel-gauge`/`cm-chargers`.
+4. Still unknown, needs a look: what provides the `board-thmzone` thermal zone that both `tran_charger`
+   and `charger-manager` point at (mainline would need the sprd tsensor/ADC path), what
+   `charge,chg-pd-gpio` (ap_gpio 115) actually gates, and whether mainline's
+   `sc27xx_fuel_gauge.c` understands the vendor's `*-jeita-temp-table` properties at all.
+
+Missing from before, still open:
+- publish the touch firmware tarball somewhere fetchable and put the URL in the
+  `firmware-infinix-x6525` APKBUILD `source=` (the tarball and its sha512 are already final).
+- `firmware-infinix-x6525-wcn` (WiFi/BT) does not exist yet.
+- touch under unl0kr needs the touch module and the HDL image in `modules-initfs`.
+- the wiki device page, which pmaports CI checks at MR time.
+- physical first boot, watching the list in "First boot" plus the panel reset polarity, the DCS
+  brightness curve, eMMC on sdio3 in U-Boot and the SD card-detect line (`eic_sync` vs `eic_async`).
 
 # First boot (SSH over USB)
 1. On GitHub: Actions → kernel → Run workflow. Mode `config` is the olddefconfig gate and does not need clang. Mode `image` also builds Image and modules with kernel.org LLVM 14 and `gcc-aarch64-linux-gnu`. The kernel ref defaults to `bpf-a17-selinux-test`.
