@@ -1,6 +1,6 @@
-From 4e43be5d1e5bf1c6ac532689466d1ee0d88b03fc Mon Sep 17 00:00:00 2001
+From 23bfcceebb321e2212ebd688131682406b5aea4b Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Wed, 14 Oct 2026 11:57:21 +0000
+Date: Wed, 14 Oct 2026 12:08:28 +0000
 Subject: [PATCH] WIP: arm64: dts: sprd: add device tree for Infinix X6525
 
 The Infinix X6525 is a Unisoc UMS9230 (Tiger T606) phone, sold as the
@@ -30,8 +30,8 @@ timings' blanking looks unusual (vfront 1020) and the panel reset polarity
 Signed-off-by: Seuj09 <jeus110310@gmail.com>
 ---
  arch/arm64/boot/dts/sprd/Makefile             |   1 +
- .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 595 ++++++++++++++++++
- 2 files changed, 596 insertions(+)
+ .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 600 ++++++++++++++++++
+ 2 files changed, 601 insertions(+)
  create mode 100644 arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 
 diff --git a/arch/arm64/boot/dts/sprd/Makefile b/arch/arm64/boot/dts/sprd/Makefile
@@ -46,38 +46,33 @@ index 0af83bf..2bb8086 100644
  			ums9620-2h10.dtb
 diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 new file mode 100644
-index 0000000..fa79365
+index 0000000..5e349e7
 --- /dev/null
 +++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
-@@ -0,0 +1,595 @@
+@@ -0,0 +1,600 @@
 +// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 +/*
 + * Infinix X6525 ("Infinix Smart 8") - Unisoc UMS9230 (Tiger T606)
 + *
-+ * DRAFT SKELETON. Nothing here has been tested on the device.
++ * Board support for the UMS9230-1H10-GO reference design variant. It builds,
++ * but nothing here has run on the hardware yet.
 + *
 + * Every value is either:
 + *   [T]  traced to a named source, or
-+ *   TODO must be read off the device before it can be trusted.
++ *   TODO still to be read off the device or confirmed on hardware.
 + *
-+ * Sources:
++ * Sources, in the order they were used:
 + *   - Structure: ums9230-reeder-s19mps.dts (Jolla C2, same SoC, mainline).
-+ *   - Board data: the stock 5.4 tree, arch/arm64/boot/dts/sprd/
-+ *     (ums9230-1h10_go-overlay.dts, ums9230-mach.dtsi, ums9230.dts, qogirl6.dtsi).
-+ *   - Hardware present: config-helix-stock.aarch64 (this repo).
++ *   - The running stock system's own expanded device tree (/proc/device-tree
++ *     on the stock ROM) - the authority for the panel, touch, charger,
++ *     storage, thermistors and the battery profile.
++ *   - The vendor dtbo (entry 18, "UMS9230-1H10-GO Board") and the stock 5.4
++ *     tree, for what the live tree does not carry.
++ *   - Hardware present: config-helix-stock.aarch64.
 + *
-+ * The device reports (from the stock images in this repo):
-+ *   model "Spreadtrum UMS9230-1H10-GO Board", compatible "sprd,ums9230-1h10-go",
-+ *   panel 720x1612, boot console ttyS1.
-+ *
-+ * HOW TO FILL IN THE TODOs
-+ *   1. Ground truth for panel/touch - read the live cmdline on the stock device:
-+ *        adb shell cat /proc/cmdline      # lcd_name=..., tp_vendor_id=...
-+ *        adb shell cat /proc/modules | grep -iE 'focal|tcm|himax|chipone|fts'
-+ *   2. Ground truth for storage/GPIOs - decompile what the bootloader hands over:
-+ *        dtc -I dtb -O dts <vendor_boot dtb>     # base: ums9230.dts + 1h10
-+ *        dtc -I dtb -O dts <dtbo entry 18>       # board: UMS9230-1H10-GO
-+ *   3. Storage: exactly one of &ufs / &sdio1 is internal. Pick from (2).
++ * The device reports: model "Spreadtrum UMS9230-1H10-GO Board", compatible
++ * "sprd,ums9230-1h10-go", panel TD4160 HX at 720x1612, console ttyS1, eMMC on
++ * sdio3 as the boot device, microSD on sdio0.
 + *
 + * Upstreaming checklist - see dts/README.md for the full list.
 + */
@@ -229,7 +224,10 @@ index 0000000..fa79365
 + * its storage nodes cannot be copied.
 + */
 +&sdio0 {
-+	/* microSD slot */
++	/* microSD slot, the rescue boot path. The timing values are the running
++	 * device's own (sdio@201a0000); the vendor's sd-detect-pol-syscon and
++	 * sd-hotplug-* properties are its own and are not in the binding.
++	 */
 +	cd-gpios = <&eic_sync 35 GPIO_ACTIVE_LOW>;	/* eic_sync confirmed: the running system */
 +							/* has gpio-355 "cd" on the eic-sync chip; the */
 +							/* reeder's eic_async is not this board. It read */
@@ -237,8 +235,15 @@ index 0000000..fa79365
 +	vmmc-supply = <&vddsdcore>;
 +	vqmmc-supply = <&vddsdio>;
 +	bus-width = <4>;
++	sd-uhs-sdr104;
++	sd-uhs-sdr50;
 +	no-sdio;
 +	no-mmc;
++
++	sprd,phy-delay-legacy = <0x7f 0x1a 0x9a 0x9a>;
++	sprd,phy-delay-sd-highspeed = <0x7f 0x1a 0x9a 0x9a>;
++	sprd,phy-delay-sd-uhs-sdr50 = <0x6e 0x7f 0x1 0x1>;
++	sprd,phy-delay-sd-uhs-sdr104 = <0x7f 0x73 0x72 0x72>;
 +	status = "okay";
 +};
 +
