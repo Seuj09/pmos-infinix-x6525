@@ -291,5 +291,6 @@ If the phone reboots into Android first-stage init, the bootloader ignored the b
 
 board (`tboard`), pa and chg are `generic-adc-thermal` on SC2730 ADC channels 1, 2 and 4, all with
 one NTC table (-40 C at 1131 mV down to 125 C at 43 mV). The stock zones have no trips and no
-polling, so the DTS only exposes the temperatures. chg reads about 4 C (probably unpopulated).
+polling, so the DTS only exposes the temperatures. The zones are named `board-thermal`, `pa-thermal` and `chg-thermal` (stock: `*-thmzone`);
+the thermal-zones schema only accepts `<name>-thermal`. chg reads about 4 C (probably unpopulated).
 The SD card-detect line `eic_sync` 35 read high with the slot empty (confirmed), so the DTS uses GPIO_ACTIVE_LOW.

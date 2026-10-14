@@ -12,10 +12,11 @@ depends="
 	linux-postmarketos-unisoc-ums9230
 	postmarketos-base
 	soc-unisoc-ums9230
+	u-boot-infinix-x6525
 "
-# TODO: u-boot-infinix-x6525, once that board exists in the U-Boot fork. It is
-# not optional: U-Boot is chainloaded from boot_a, so without it there is no way
-# to boot the device at all.
+# u-boot-infinix-x6525 is not optional: U-Boot is chainloaded from boot_a, so
+# without it there is no way to boot the device at all (its u-boot.bin and the
+# dummy initramfs below make up the boot image).
 #
 # The touch controller has no flash, so its HDL image has to be on the rootfs
 # for the touchscreen to work at all - hence the recommendation rather than an
