@@ -61,9 +61,18 @@ sha512  a8ae389d7479ad8b3226cfb3a0d153f5306cdbe6a9b85e31584c5e6c7c34232a06562134
 If a different gzip produces different bytes, upload the tarball you built and update the checksum in
 the APKBUILD to match.
 
-## Still to do
+## Where the package fetches it from
 
-Publish that tarball somewhere fetchable and put the URL in the APKBUILD's `source=`. A release asset
-on a *public* repository works (this port's repository is private, so a release here would not be
-fetchable by pmaports CI); `firmware-jolla-c2` in pmaports uses the maintainer's own storage. The file
-is `proprietary`, which is why the device package only recommends this package.
+This repository is public, so the package takes the tarball straight out of it, pinned to the commit
+that added it — the URL is immutable and the port's own CI fetches it and compares it against the
+APKBUILD's sha512 on every push, so a changed file cannot pass unnoticed:
+
+```
+https://raw.githubusercontent.com/Seuj09/pmos-infinix-x6525/186e3e0f21e12ffa194ca4a740053fc977b9c5ff/firmware/firmware-infinix-x6525-1.tar.gz
+```
+
+`.github/workflows/firmware-release.yml` can also put a versioned copy on this repository's releases,
+for a stable link to quote; nothing depends on it.
+
+The image is `proprietary` vendor firmware, which is why the device package only *recommends* this
+package: a ROM built without it boots and simply has no touchscreen.

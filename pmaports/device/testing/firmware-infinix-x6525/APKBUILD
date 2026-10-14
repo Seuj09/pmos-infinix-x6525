@@ -15,19 +15,14 @@ options="!check !archcheck !strip !spdx !tracedeps pmb:cross-native"
 #
 # The file comes off the device itself (/vendor/firmware/hdl_firmware_01.img on
 # the stock system - the image its running module asks for, and the one with the
-# DISPLAY area for this panel). It is published by the port repository's own
-# workflow, .github/workflows/firmware-release.yml, which runs only when someone
-# presses "Run workflow" - the upload is the owner's act, not something that
-# happens on a push. It publishes to the public fork of the kernel tree because a
-# release on *this* repository would not do: it is private, and pmaports CI has
-# to be able to fetch it.
-#
-# Until that has run, the URL below 404s, so anything fetching this package
-# fails - the port's CI reports that as a warning rather than a failure. The
-# upload is the tarball already committed in ../../../firmware/, so the sha512
-# below does not change when it goes out.
+# DISPLAY area for this panel). It is served straight out of the port repository,
+# pinned to the commit that added it, so the bytes fetched here are the bytes the
+# port's CI checks against the sha512 below on every push:
+#   firmware/firmware-infinix-x6525-1.tar.gz in Seuj09/pmos-infinix-x6525
+# .github/workflows/firmware-release.yml can also put a versioned copy on that
+# repository's releases; nothing depends on it.
 _tarball="firmware-infinix-x6525-$pkgver.tar.gz"
-source="$_tarball::https://github.com/Seuj09/ums9230-mainline-linux/releases/download/firmware-v1/$_tarball"
+source="$_tarball::https://raw.githubusercontent.com/Seuj09/pmos-infinix-x6525/186e3e0f21e12ffa194ca4a740053fc977b9c5ff/firmware/$_tarball"
 
 package() {
 	install -Dm644 "$srcdir"/hdl_firmware_01.img \

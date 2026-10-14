@@ -283,15 +283,17 @@ The ROM, and the first boot:
   and the four symbols its config was missing. That config is pmaports' own and is what the ROM's
   kernel actually uses, so CI now checks those four survive `olddefconfig` in it, last in the job
   because the check replaces `.config`.
-- **the firmware URL is wired, the release is not published**: `source=` points at a release on the
-  public fork of the kernel tree, and `.github/workflows/firmware-release.yml` puts it there - on
-  **Run workflow** only, never on a push, because publishing is the owner's act (I tried to publish
-  it directly once and the permission prompt stopped me, correctly: nothing in the instructions
-  named that public destination). It needs a `RELEASE_TOKEN` secret with Contents: write on that
-  repository, checks the tarball three ways before uploading, and uploads the file already committed
-  in `firmware/`, so the hash does not change. Until it runs, the package cannot be fetched: copy the
-  device package *without* `firmware-infinix-x6525` (it is in `_pmb_recommends`, so `install` would
-  otherwise fail on it) and the phone comes up without a touchscreen.
+- **the firmware needs nothing pressed**: this repository was made public on 2026-10-14 for exactly
+  this reason, so `firmware-infinix-x6525`'s `source=` is the tarball in `firmware/` served straight
+  from it, pinned to the commit that added it (`186e3e0f`), and the build workflow fetches that URL
+  and checks it against the package's sha512 on every push. Verified by hand as well: 124,616 bytes,
+  the hash in the APKBUILD. (Use `raw.githubusercontent.com/<owner>/<repo>/<commit>/<path>` for this
+  sort of thing - `github.com/<owner>/<repo>/raw/<branch>/<path>` answers with an HTML page, which
+  would have been a package that downloads a web page.) `.github/workflows/firmware-release.yml` can
+  still put a versioned copy on this repository's releases, on a button press, with no token beyond
+  the workflow's own; nothing depends on it. The earlier advice to copy the device package without
+  the firmware package is obsolete. The image is `proprietary`, which is why the device package only
+  recommends it: without it a ROM boots and has no touchscreen.
 - **then it is the phone**: `pmbootstrap` build and flash per `FIRST_BOOT.md`, and the hardware list
   there - panel reset polarity, the DCS brightness curve, the eMMC/SD phy timing, and the touch
   firmware download, which is the likeliest first failure.

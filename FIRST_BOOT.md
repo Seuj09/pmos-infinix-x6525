@@ -13,7 +13,7 @@ ends with where to look if it fails.
 Everything the ROM needs is in this repository, and none of it waits on a merge:
 
 ```sh
-cp -r pmaports/device/testing/{device-infinix-x6525,linux-postmarketos-unisoc-ums9230,u-boot-infinix-x6525} \
+cp -r pmaports/device/testing/{device-infinix-x6525,linux-postmarketos-unisoc-ums9230,u-boot-infinix-x6525,firmware-infinix-x6525} \
     <pmaports>/device/testing/
 pmbootstrap init          # the device is offered under "infinix" once it is in the tree
 pmbootstrap install
@@ -26,10 +26,10 @@ pmbootstrap flasher flash_rootfs
 u-boot package builds from the port's fork, so the payload `flash_kernel` puts in `boot` is already
 this board's.
 
-`firmware-infinix-x6525` (the touch firmware) is deliberately **not** in that copy: it sits in
-`_pmb_recommends` and its release is not published yet, so leaving it out is what lets `install`
-finish with a package it can actually fetch. Touch comes later and takes one upload - the command is
-in `pmaports/README.md`.
+`firmware-infinix-x6525` is the touch firmware, and it belongs in that copy too: the package fetches
+its tarball out of this repository, which is public, so `install` gets it and the controller has what
+it needs. If it ever fails to fetch, the same file sits in `firmware/` and can be dropped into
+`/lib/firmware/postmarketos/sprd/` by hand.
 
 ## 0. Before flashing anything
 
@@ -126,7 +126,7 @@ and then `touch ready: <w>x<h>, <n> objects`. Check `/proc/bus/input/devices` fo
 `omnivision_tcm_touch` and `evtest` for events.
 
 - **"cannot load postmarketos/sprd/hdl_firmware_01.img":** the `firmware-infinix-x6525` package is not
-  installed, or the tarball it fetches is not published yet. Put the file under
+  installed. Put `firmware/hdl_firmware_01.img` from this repository under
   `/lib/firmware/postmarketos/sprd/` by hand to test.
 - **"no identify report after reset":** the reset line or the interrupt. The reset is active-low
   (`ap_gpio 145`); the interrupt is level-low (`ap_gpio 16`). Probe with `cat /proc/interrupts` - the

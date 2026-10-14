@@ -1,18 +1,17 @@
 name: firmware release
 
-# Publishing the touch firmware is the owner's act, so this runs only when a
-# person presses "Run workflow" - never on a push. It publishes to the public
-# repository the release has to live on (this one is private, and pmaports CI
-# cannot fetch from it).
+# Puts a versioned copy of the touch firmware on this repository's releases, so
+# there is an immutable thing to point at besides the file in firmware/ that the
+# package already fetches (pinned to a commit, so that one is immutable too).
 #
-# That means it needs a token which can write there: create a fine-grained
-# personal access token with Contents: write on
-# github.com/Seuj09/ums9230-mainline-linux, and store it in this repository as
-# the secret RELEASE_TOKEN. Then run this workflow.
+# Nothing depends on this running: the firmware APKBUILD fetches the committed
+# file, and the build workflow checks its hash against the package on every push.
+# It runs only when a person presses "Run workflow" - never on a push - because
+# creating a release is the owner's act, not a side effect of committing.
 #
 # Before publishing it checks the tarball three ways, so a bad one cannot go out:
-# it must rebuild byte for byte from the image, match the sha512 in the firmware
-# APKBUILD, and pass tools/check-hdl-image.py.
+# it must rebuild byte for byte from hdl_firmware_01.img, match the sha512 in the
+# firmware APKBUILD, and pass tools/check-hdl-image.py.
 
 on:
   workflow_dispatch:
@@ -23,14 +22,11 @@ on:
         default: "firmware-v1"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   release:
     runs-on: ubuntu-24.04
-    env:
-      REPO: Seuj09/ums9230-mainline-linux
-      TARGET: x6525          # the branch the tag should point at
     steps:
       - uses: actions/checkout@v4
 
@@ -55,24 +51,20 @@ jobs:
 
       - name: Publish it
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "RELEASE_TOKEN is not set: see the comment at the top of this file"
-            exit 1
-          fi
-          if gh release view "${{ inputs.tag }}" --repo "$REPO" >/dev/null 2>&1; then
-            echo "release ${{ inputs.tag }} already exists on $REPO, nothing to do"
+          tag="${{ inputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release $tag already exists here, nothing to do"
             exit 0
           fi
-          gh release create "${{ inputs.tag }}" --repo "$REPO" --target "$TARGET" \
+          gh release create "$tag" --target "$GITHUB_REF_NAME" \
             --title "X6525 touch firmware (hdl_firmware_01.img)" \
             --notes "The OmniVision TCM HDL image the Infinix X6525's touch controller needs. The controller has no flash, so the driver downloads this after every reset.
 
           This is the image from the device itself (/vendor/firmware/hdl_firmware_01.img on the stock ROM): it is the one the stock module asks for, and it carries the DISPLAY area for this panel, which the images in the stock kernel tree do not.
 
-          Packaged for pmaports as firmware-infinix-x6525. Hash and provenance: firmware/README.md in the port repository." \
+          Packaged for pmaports as firmware-infinix-x6525. Hash and provenance: firmware/README.md." \
             firmware/firmware-infinix-x6525-1.tar.gz
-          echo "published. The asset the package wants is:"
-          gh release view "${{ inputs.tag }}" --repo "$REPO" \
-            --json assets -q '.assets[] | "  \(.url)"'
+          echo "published:"
+          gh release view "$tag" --json assets -q '.assets[] | "  \(.url)"'
