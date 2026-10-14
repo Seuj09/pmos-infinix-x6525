@@ -24,7 +24,13 @@ marks `fate = "obsolete"`.
    CONFIG_FUEL_GAUGE_SC27XX=y
    CONFIG_CHARGER_EXTCON_DETECT=y
    CONFIG_EXTCON_USB_GPIO=y
+   CONFIG_SC27XX_ADC=y
+   CONFIG_GENERIC_ADC_THERMAL=m
    ```
+
+   The last two are for the board thermistor zones (`board-thmzone`, `pa-thmzone`, `chg-thmzone`).
+   The pinned tree's `defconfig` already has `GENERIC_ADC_THERMAL=m` but not `SC27XX_ADC`; without
+   it the zones never register (the fuel gauge's ADC channels need it too).
 
    The panel's dependencies (`DRM_MIPI_DSI`, `BACKLIGHT_CLASS_DEVICE`, `DRM_SPRD`) are already `=y`
    there. The charger four are what the DTS nodes bind to and **nothing enables them today**: the
