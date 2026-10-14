@@ -56,9 +56,14 @@ jobs:
                 "bindings/infinix,td4160-hx-panel.yaml"
           check "kernel/Documentation/devicetree/bindings/input/touchscreen/omnivision,tcm-spi.yaml" \
                 "bindings/omnivision,tcm-spi.yaml"
+          check kernel/drivers/power/supply/extcon-charger-detect.c drivers/extcon-charger-detect.c
+          check "kernel/Documentation/devicetree/bindings/power/supply/linux,extcon-charger-detect.yaml" \
+                "bindings/linux,extcon-charger-detect.yaml"
           for e in "drivers/gpu/drm/panel/Kconfig DRM_PANEL_TD4160_HX" \
                    "drivers/input/touchscreen/Kconfig TOUCHSCREEN_OVT_TCM_SPI" \
                    "drivers/input/touchscreen/Makefile TOUCHSCREEN_OVT_TCM_SPI" \
+                   "drivers/power/supply/Kconfig CHARGER_EXTCON_DETECT" \
+                   "drivers/power/supply/Makefile CHARGER_EXTCON_DETECT" \
                    "Documentation/devicetree/bindings/arm/sprd/sprd.yaml infinix,x6525" \
                    "Documentation/devicetree/bindings/vendor-prefixes.yaml infinix"; do
             set -- $e
@@ -95,10 +100,13 @@ jobs:
           ./scripts/config --enable BACKLIGHT_CLASS_DEVICE
           ./scripts/config --module DRM_PANEL_TD4160_HX
           ./scripts/config --module TOUCHSCREEN_OVT_TCM_SPI
+          ./scripts/config --module CHARGER_BQ2415X
+          ./scripts/config --module CHARGER_EXTCON_DETECT
           make ARCH=arm64 olddefconfig
           for sym in CONFIG_DRM_SPRD CONFIG_DRM_MIPI_DSI \
                      CONFIG_BACKLIGHT_CLASS_DEVICE CONFIG_DRM_PANEL_TD4160_HX \
-                     CONFIG_TOUCHSCREEN_OVT_TCM_SPI; do
+                     CONFIG_TOUCHSCREEN_OVT_TCM_SPI CONFIG_CHARGER_BQ2415X \
+                     CONFIG_CHARGER_EXTCON_DETECT; do
             grep -qE "^${sym}=(y|m)$" .config || {
               echo "$sym did not survive olddefconfig"
               exit 1
@@ -114,8 +122,12 @@ jobs:
           make -C kernel ARCH=arm64 LLVM=1 -j"$(nproc)" \
             drivers/input/touchscreen/ovt-tcm-spi.o ||
           make -C kernel ARCH=arm64 LLVM=1 -j"$(nproc)" M=drivers/input/touchscreen modules
+          make -C kernel ARCH=arm64 LLVM=1 -j"$(nproc)" \
+            drivers/power/supply/extcon-charger-detect.o drivers/power/supply/bq2415x_charger.o ||
+          make -C kernel ARCH=arm64 LLVM=1 -j"$(nproc)" M=drivers/power/supply modules
           ls -l kernel/drivers/gpu/drm/panel/panel-td4160-hx.o \
-                kernel/drivers/input/touchscreen/ovt-tcm-spi.o
+                kernel/drivers/input/touchscreen/ovt-tcm-spi.o \
+                kernel/drivers/power/supply/extcon-charger-detect.o
 
       - name: Upload what was built
         if: always()
@@ -126,6 +138,7 @@ jobs:
             kernel/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dtb
             kernel/drivers/gpu/drm/panel/panel-td4160-hx.o
             kernel/drivers/input/touchscreen/ovt-tcm-spi.o
+            kernel/drivers/power/supply/extcon-charger-detect.o
             kernel/.config
           if-no-files-found: warn
 

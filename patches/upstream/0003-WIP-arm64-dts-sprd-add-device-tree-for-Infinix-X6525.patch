@@ -50,7 +50,7 @@ new file mode 100644
 index 0000000..bfb11b2
 --- /dev/null
 +++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
-@@ -0,0 +1,433 @@
+@@ -0,0 +1,449 @@
 +// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 +/*
 + * Infinix X6525 ("Infinix Smart 8") - Unisoc UMS9230 (Tiger T606)
@@ -274,6 +274,18 @@ index 0000000..bfb11b2
 +	};
 +};
 +
++/ {
++	vbus_extcon: extcon-vbus {
++		compatible = "linux,extcon-usb-gpio";
++		vbus-gpio = <&pmic_eic 0 GPIO_ACTIVE_HIGH>;	/* stock: extcon-gpio */
++	};
++
++	usb_detect: usb-charger-detect {
++		compatible = "linux,extcon-charger-detect";
++		extcon = <&vbus_extcon>;
++	};
++};
++
 +/* ---- PMIC / charging ----------------------------------------------------
 + * The bq2560x/bq2597x parts in the stock config (and the downstream generic
 + * 1h10-go overlay) are for *other* 1h10 variants. This board instead uses a
@@ -293,8 +305,11 @@ index 0000000..bfb11b2
 + *
 + * Not carried over: charge,chg-pd-gpio (ap_gpio 115, polarity and meaning
 + * unknown), the otg-vbus regulator, tran_charger and charger-manager.
-+ * Without ti,usb-charger-detection the driver starts in mode "off"; charging
-+ * is switched on from userspace (sysfs "mode") until a USB detector exists.
++ * The driver learns what is plugged in from a power supply: usb_detect below
++ * (drivers/extcon-charger-detect.c) turns the VBUS pin that the stock
++ * extcon-gpio node reads (pmic_eic 0) into one. A plain VBUS pin cannot tell a
++ * wall charger from a PC, so everything is limited to 500 mA for now; BC1.2
++ * detection in the SC2730 would raise that and has no mainline driver.
 + * PMIC is still SC2730 (androidboot.pmic.chipid=2730).
 + */
 +&i2c3 {
@@ -311,6 +326,7 @@ index 0000000..bfb11b2
 +		ti,charge-current = <650>;		/* mA, vendor 650000 uA */
 +		ti,termination-current = <60>;		/* mA, vendor 60000 uA */
 +		ti,resistor-sense = <56>;		/* mohm */
++		ti,usb-charger-detection = <&usb_detect>;
 +	};
 +};
 +

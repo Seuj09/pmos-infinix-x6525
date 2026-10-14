@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Wed, 14 Oct 2026 04:30:00 +0000
+Subject: [PATCH] charger: add the CHARGER_EXTCON_DETECT Kconfig and Makefile
+ entries
+
+Build glue only, so that tools/apply-overlay.sh can put the extcon charger
+detection driver in the tree and CI can compile it. The submission copy of
+these hunks is patches/upstream/0008-*.patch, which pairs them with the driver.
+---
+diff --git a/drivers/power/supply/Kconfig b/drivers/power/supply/Kconfig
+index 83392ed6a..bc32722fe 100644
+--- a/drivers/power/supply/Kconfig
++++ b/drivers/power/supply/Kconfig
+@@ -768,6 +768,15 @@ config CHARGER_PM8916_LBC
+ 	  To compile this driver as module, choose M here: the
+ 	  module will be called pm8916_lbc.
+ 
++config CHARGER_EXTCON_DETECT
++	tristate "USB charger power supply backed by an extcon"
++	depends on EXTCON
++	help
++	  Say Y here to expose what an extcon device reports (VBUS, or the
++	  BC1.2 charger types) as a USB power supply with a current limit,
++	  for chargers such as the bq2415x that follow such a supply through
++	  "ti,usb-charger-detection".
++
+ config CHARGER_BQ2415X
+ 	tristate "TI BQ2415x battery charger driver"
+ 	depends on I2C
+diff --git a/drivers/power/supply/Makefile b/drivers/power/supply/Makefile
+index 7ee839dca..21e82aec1 100644
+--- a/drivers/power/supply/Makefile
++++ b/drivers/power/supply/Makefile
+@@ -97,6 +97,7 @@ obj-$(CONFIG_CHARGER_MT6370)	+= mt6370-charger.o
+ obj-$(CONFIG_CHARGER_QCOM_SMBB)	+= qcom_smbb.o
+ obj-$(CONFIG_BATTERY_PM8916_BMS_VM)	+= pm8916_bms_vm.o
+ obj-$(CONFIG_CHARGER_PM8916_LBC)	+= pm8916_lbc.o
++obj-$(CONFIG_CHARGER_EXTCON_DETECT)	+= extcon-charger-detect.o
+ obj-$(CONFIG_CHARGER_BQ2415X)	+= bq2415x_charger.o
+ obj-$(CONFIG_CHARGER_BQ24190)	+= bq24190_charger.o
+ obj-$(CONFIG_CHARGER_BQ24257)	+= bq24257_charger.o

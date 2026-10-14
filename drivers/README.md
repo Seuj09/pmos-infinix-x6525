@@ -61,3 +61,16 @@ Open points, in order of what would bite first:
    double-tap wake, the stock sysfs and watchdog. Suspend only sends deep sleep / exit deep sleep.
 4. The IRQ is now level-low in the DTS (the stock driver also reads only while the line is low); the
    previous edge-falling setting could miss the first IDENTIFY report.
+
+## `extcon-charger-detect.c` - USB charger detection (new, untested on hardware)
+
+The bq2415x charger chooses its input mode from a power supply that reports `CURRENT_MAX`
+(`ti,usb-charger-detection`). Nothing in mainline provides one for this SoC, so this small driver turns
+an extcon (here `linux,extcon-usb-gpio` on the VBUS pin, `pmic_eic 0`) into that supply: DCP/CDP/SDP
+map to configurable limits, and a plain VBUS pin - which cannot tell a wall charger from a PC - gets
+500 mA. It is conservative on purpose. Patches 7 and 8 in `../patches/upstream/`, glue in
+`../patches/0003-x6525-charger-glue.patch`, binding `../bindings/linux,extcon-charger-detect.yaml`. It
+compiles clean with clang and `W=1`.
+
+Open: the VBUS pin's polarity and whether `extcon-usb-gpio` (written for USB role detection) is happy
+with only a VBUS line on this PMIC GPIO; the 500 mA ceiling until real BC1.2 detection exists.

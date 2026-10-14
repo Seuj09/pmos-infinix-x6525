@@ -169,8 +169,12 @@ Charger (resolved - no new driver):
 2. Units differ: mainline wants mA / mV / mohm, the vendor node has uA for three of them
    (650000 -> 650, 100000 -> 100, 60000 -> 60). The DTS now has `charger@6a` on `&i2c3` and
    `&sc2730_fgu { power-supplies = <&charger>; }`; the dtb builds.
-3. Still open: without `ti,usb-charger-detection` the driver starts in mode "off" (switch it on through
-   sysfs until a USB detector exists); what `charge,chg-pd-gpio` (ap_gpio 115) gates and its polarity;
+3. USB detection (drafted, untested): the bq2415x only auto-selects its mode from a power supply that
+   reports `CURRENT_MAX`, and mainline has none for this SoC (`sc2731_charger` needs a usb_phy with
+   charger detection). `drivers/extcon-charger-detect.c` (patches 7/8, glue 0003) turns the extcon
+   VBUS pin the stock tree reads (`pmic_eic 0`, via `linux,extcon-usb-gpio`) into that supply,
+   `ti,usb-charger-detection` points at it. A VBUS pin cannot tell a wall charger from a PC, so input
+   is limited to 500 mA until BC1.2 detection in the SC2730 has a driver. Still open: what `charge,chg-pd-gpio` (ap_gpio 115) gates and its polarity;
    the `board-thmzone` thermal zone; and whether mainline's `sc27xx_fuel_gauge.c` understands the
    vendor's JEITA tables. The bq2415x driver has no OTG regulator, so the Type-C source path has no
    VBUS regulator yet. `tran_charger` and `charger-manager` are not carried over.
