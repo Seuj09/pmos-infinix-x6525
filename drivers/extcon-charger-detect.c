@@ -2,7 +2,7 @@
 /*
  * Power supply that reports a USB charger as seen on an extcon device.
  *
- * DRAFT, UNTESTED ON HARDWARE.
+ * Not yet run on hardware.
  *
  * Some chargers (bq2415x is one) learn what is plugged in from a power
  * supply that reports POWER_SUPPLY_PROP_CURRENT_MAX and sends a change event

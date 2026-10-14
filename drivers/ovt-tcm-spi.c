@@ -2,7 +2,7 @@
 /*
  * OmniVision TCM touchscreen driver (SPI, ROM-boot "host download" parts)
  *
- * DRAFT, UNTESTED ON HARDWARE.
+ * Not yet run on hardware.
  *
  * Written from the behaviour of the stock 5.4 driver
  * (drivers/input/touchscreen/omnivision_tcm/ in the Helix kernel) for the

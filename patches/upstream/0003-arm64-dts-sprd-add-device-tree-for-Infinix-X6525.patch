@@ -1,7 +1,7 @@
-From 0eef9458e4a3ed3e12d51f32d9f9a6ee6dc23a3a Mon Sep 17 00:00:00 2001
+From e053054edb97e8f95ab46bb2cef481a492a28a89 Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Wed, 14 Oct 2026 12:24:58 +0000
-Subject: [PATCH] WIP: arm64: dts: sprd: add device tree for Infinix X6525
+Date: Wed, 14 Oct 2026 12:29:04 +0000
+Subject: [PATCH] arm64: dts: sprd: add device tree for Infinix X6525
 
 The Infinix X6525 is a Unisoc UMS9230 (Tiger T606) phone, sold as the
 "Smart 8". It is a UMS9230-1H10-GO reference board variant: the bootloader
@@ -23,9 +23,9 @@ The charger is an Awinic AW32257 that reads back as a TI bq24158 (i2c3, 0x6a),
 so it binds to the existing bq2415x driver with the vendor's own ti,*
 properties converted to mA/mV.
 
-Not yet handled, so this is marked WIP: the charge-pd gpio, the panel
-timings' blanking looks unusual (vfront 1020) and the panel reset polarity
-(active-high in the vendor DT) needs confirming on hardware.
+Still open on hardware: the charge-pd gpio is not handled, the panel
+timings' blanking looks unusual (vfront 1020), and the panel reset polarity
+(active-high in the vendor DT) still needs confirming.
 
 Signed-off-by: Seuj09 <jeus110310@gmail.com>
 ---

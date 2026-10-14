@@ -1,6 +1,6 @@
-From bbc250c545e83956aba0fdd028a36da64097b246 Mon Sep 17 00:00:00 2001
+From 6adb052108fd05e85b00e30bd245378fe5da44fc Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Wed, 14 Oct 2026 12:28:18 +0800
+Date: Wed, 14 Oct 2026 12:29:05 +0000
 Subject: [PATCH 2/2] power: supply: add extcon-backed USB charger detection
 
 Report a USB charger and its current limit from an extcon device so that
@@ -17,7 +17,7 @@ Signed-off-by: Seuj09 <jeus110310@gmail.com>
  create mode 100644 drivers/power/supply/extcon-charger-detect.c
 
 diff --git a/drivers/power/supply/Kconfig b/drivers/power/supply/Kconfig
-index 83392ed6a..bc32722fe 100644
+index f0ede1c..defa52b 100644
 --- a/drivers/power/supply/Kconfig
 +++ b/drivers/power/supply/Kconfig
 @@ -768,6 +768,15 @@ config CHARGER_PM8916_LBC
@@ -37,7 +37,7 @@ index 83392ed6a..bc32722fe 100644
  	tristate "TI BQ2415x battery charger driver"
  	depends on I2C
 diff --git a/drivers/power/supply/Makefile b/drivers/power/supply/Makefile
-index 7ee839dca..21e82aec1 100644
+index 31fe4a1..f77c02f 100644
 --- a/drivers/power/supply/Makefile
 +++ b/drivers/power/supply/Makefile
 @@ -97,6 +97,7 @@ obj-$(CONFIG_CHARGER_MT6370)	+= mt6370-charger.o
@@ -50,7 +50,7 @@ index 7ee839dca..21e82aec1 100644
  obj-$(CONFIG_CHARGER_BQ24257)	+= bq24257_charger.o
 diff --git a/drivers/power/supply/extcon-charger-detect.c b/drivers/power/supply/extcon-charger-detect.c
 new file mode 100644
-index 000000000..b39d23fad
+index 0000000..8239047
 --- /dev/null
 +++ b/drivers/power/supply/extcon-charger-detect.c
 @@ -0,0 +1,144 @@
@@ -58,7 +58,7 @@ index 000000000..b39d23fad
 +/*
 + * Power supply that reports a USB charger as seen on an extcon device.
 + *
-+ * DRAFT, UNTESTED ON HARDWARE.
++ * Not yet run on hardware.
 + *
 + * Some chargers (bq2415x is one) learn what is plugged in from a power
 + * supply that reports POWER_SUPPLY_PROP_CURRENT_MAX and sends a change event
@@ -199,5 +199,5 @@ index 000000000..b39d23fad
 +MODULE_DESCRIPTION("USB charger power supply backed by an extcon - X6525 draft");
 +MODULE_LICENSE("GPL");
 -- 
-2.43.0
+2.47.3
 

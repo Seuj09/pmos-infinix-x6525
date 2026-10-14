@@ -1,7 +1,7 @@
-From 425602527501074da007494cdddca5bcd345438d Mon Sep 17 00:00:00 2001
+From ec3394ddd60dba85fe9f2ff0771694536fb0e625 Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Wed, 14 Oct 2026 12:24:58 +0000
-Subject: [PATCH] WIP: drm/panel: add driver for the TD4160 HX 720x1612  panel
+Date: Wed, 14 Oct 2026 12:29:05 +0000
+Subject: [PATCH] drm/panel: add driver for the TD4160 HX 720x1612 panel
 
 Panel driver for the TD4160 HX used in the Infinix X6525
 (lcd_name=lcd_td4160_hx_mipi_hdp_x6525, sprd,lcm_ic_vendor="HX", 6.56").
@@ -132,7 +132,7 @@ index 27fdbba..6295dfb 100644
  obj-$(CONFIG_DRM_PANEL_LVDS) += panel-lvds.o
 diff --git a/drivers/gpu/drm/panel/panel-td4160-hx.c b/drivers/gpu/drm/panel/panel-td4160-hx.c
 new file mode 100644
-index 0000000..466150c
+index 0000000..896ccb4
 --- /dev/null
 +++ b/drivers/gpu/drm/panel/panel-td4160-hx.c
 @@ -0,0 +1,626 @@
@@ -141,7 +141,7 @@ index 0000000..466150c
 + * Panel driver for the 720x1612 TD4160 panel in the Infinix X6525
 + * (lcd_name=lcd_td4160_hx_mipi_hdp_x6525, sprd,lcm_ic_vendor="HX", 6.56").
 + *
-+ * DRAFT, UNTESTED.
++ * Not yet run on hardware.
 + *
 + * Everything panel-specific here now comes from this device's own board device
 + * tree (dtbo entry 18) rather than from a sibling panel: the init sequence, the

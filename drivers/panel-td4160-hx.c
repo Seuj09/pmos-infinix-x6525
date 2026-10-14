@@ -3,7 +3,7 @@
  * Panel driver for the 720x1612 TD4160 panel in the Infinix X6525
  * (lcd_name=lcd_td4160_hx_mipi_hdp_x6525, sprd,lcm_ic_vendor="HX", 6.56").
  *
- * DRAFT, UNTESTED.
+ * Not yet run on hardware.
  *
  * Everything panel-specific here now comes from this device's own board device
  * tree (dtbo entry 18) rather than from a sibling panel: the init sequence, the

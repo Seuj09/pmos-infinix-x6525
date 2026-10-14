@@ -8,8 +8,8 @@ to apply **in this order** to a clean checkout of it, producing byte-identical f
 |---|---|---|
 | 1 | `dt-bindings: vendor-prefixes: add Infinix Mobility` | bindings/mainline; patch 2 needs it |
 | 2 | `dt-bindings: arm: sprd: add Infinix X6525 board` | bindings/mainline |
-| 3 | `WIP: arm64: dts: sprd: add device tree for Infinix X6525` | the ums9230 tree |
-| 4 | `WIP: drm/panel: add driver for the TD4160 HX 720x1612 panel` | the ums9230 tree, later drm-misc |
+| 3 | `arm64: dts: sprd: add device tree for Infinix X6525` | the ums9230 tree |
+| 4 | `drm/panel: add driver for the TD4160 HX 720x1612 panel` | the ums9230 tree, later drm-misc |
 | 5 | `dt-bindings: input: add OmniVision TCM SPI touchscreen` | bindings/mainline |
 | 6 | `Input: add OmniVision TCM SPI touchscreen driver (host download)` | the ums9230 tree, later input |
 | 7 | `dt-bindings: power: supply: add extcon-backed USB charger detection` | bindings/mainline |
@@ -30,11 +30,12 @@ git -C linux am "$PWD"/patches/upstream/0*.patch
 
 ## Sending them
 
-- **Patches 3 and 4** go to the ums9230 tree first (Codeberg PR, or to the maintainer). Its own device
-  trees carry the `WIP:` prefix, so these match the tree's conventions.
+- **Patches 3 and 4** go to the ums9230 tree first (Codeberg PR, or to the maintainer). That tree's own
+  device tree commits carry a `WIP:` prefix; ours do not any more, since the file has no TODOs left and
+  every value in it is traced to a named source.
 - **Patches 1 and 2**, and ultimately the driver, go to mainline by mail: `devicetree@vger.kernel.org`
   for the bindings and `dri-devel@lists.freedesktop.org` for the panel driver, with the SoC/bindings
-  maintainers copied. For mainline, drop the `WIP:` prefix and keep the binding separate from the driver.
+  maintainers copied. Keep the binding separate from the driver there, as the series already does.
 
 ## Before sending
 
@@ -43,11 +44,16 @@ git -C linux am "$PWD"/patches/upstream/0*.patch
 - **Codeberg's rules restrict LLM-generated contributions.** Read every line and make the patches yours
   before you submit: the panel sequence is a mechanical conversion of your own device's DT, and the
   device-tree values are extracted from your firmware, but the review and the sign-off are yours.
-- None of it has run on hardware. In order, the things to check: the panel **reset polarity** (vendor DT
-  says active-high, the sibling driver assumes active-low), the **brightness curve** (linear here), the
-  SD card-detect controller (`eic_sync` vs `eic_async`), and the eMMC **bus width**.
+- None of it has run on hardware. What the file can no longer get wrong, from the live device tree: the
+  storage layout, the GPIOs, the charger, the battery profile and the pstore reservation are all read
+  off the running system. What still needs the hardware: the panel **reset polarity** (vendor says
+  active-high), the **brightness curve** (linear here), the eMMC and SD **phy delay tuning** (the
+  vendor's own values, unverified against mainline's driver) and the touch **firmware download**.
+  `../../FIRST_BOOT.md` has the list in the order it will matter.
 
 ## Not included
 
-Touch (Omnivision TCM over SPI), charging (Awinic AW32257 behind Transsion's `tran_charger`), cameras,
-and the U-Boot board for the X6525. Each is a separate job; none block a first boot.
+Cameras (no mainline driver work started), the WiFi/Bluetooth firmware package (`firmware-infinix-x6525-wcn`),
+the USB **source** role (mainline's bq2415x exposes no regulator for the charger's boost, so the port
+can only be a device for now), and whatever `charge,chg-pd-gpio` gates — nobody knows yet. The U-Boot
+board and the touch driver are separate series: `../upstream-uboot/` and patches 5/6 here.

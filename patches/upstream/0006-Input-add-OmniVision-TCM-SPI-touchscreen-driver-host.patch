@@ -1,6 +1,6 @@
-From 350a0d9ae4477a7b7e0ade1b5b54c51133daeb52 Mon Sep 17 00:00:00 2001
+From 8ac65382dc86482c7c1bbbea9d00a964d38a85c8 Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Tue, 13 Oct 2026 21:51:12 +0000
+Date: Wed, 14 Oct 2026 12:29:05 +0000
 Subject: [PATCH 2/2] Input: add OmniVision TCM SPI touchscreen driver (host
  download)
 
@@ -62,7 +62,7 @@ index b46b874..563237f 100644
  obj-$(CONFIG_TOUCHSCREEN_MTOUCH)	+= mtouch.o
 diff --git a/drivers/input/touchscreen/ovt-tcm-spi.c b/drivers/input/touchscreen/ovt-tcm-spi.c
 new file mode 100644
-index 0000000..f4d5d97
+index 0000000..872b64b
 --- /dev/null
 +++ b/drivers/input/touchscreen/ovt-tcm-spi.c
 @@ -0,0 +1,1163 @@
@@ -70,7 +70,7 @@ index 0000000..f4d5d97
 +/*
 + * OmniVision TCM touchscreen driver (SPI, ROM-boot "host download" parts)
 + *
-+ * DRAFT, UNTESTED ON HARDWARE.
++ * Not yet run on hardware.
 + *
 + * Written from the behaviour of the stock 5.4 driver
 + * (drivers/input/touchscreen/omnivision_tcm/ in the Helix kernel) for the

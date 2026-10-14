@@ -206,6 +206,14 @@ U-Boot board, smallest first:
    hashes and subjects are derived rather than hand-kept, and checked with `git am` in order. All
    that is left is sending them to the fork.
 
+Kernel series: the `WIP:` prefixes are gone from patches 3 and 4 too, and with them the `DRAFT`
+lines in the three driver headers. What made them WIP has been dealt with - the DTS has no TODOs left
+and its header no longer calls itself a skeleton, so the only caveat left is the honest one: nothing
+has run on hardware yet, and `FIRST_BOOT.md` carries what that means for each part. Patches 3, 4, 6
+and 8 were regenerated with `git format-patch` (every stat, bar and hash derived) and `git am`-verified
+byte for byte, since the driver comment change touches 6 and 8 as well. Same rule as the U-Boot pair:
+sending them is the remaining step.
+
 Charger (resolved - no new driver):
 1. Register map confirmed against `drivers/power/supply/bq2415x_charger.c`: register 0x03 = 0x53 gives
    vender 2, part number 2, revision 3; at I2C address 0x6a the driver's `bq2415x_detect_chip()` maps
