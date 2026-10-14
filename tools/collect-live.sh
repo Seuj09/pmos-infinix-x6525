@@ -19,7 +19,10 @@
 #   power_supply      - every attribute of every supply, the reference for the charger work
 OUT=${1:-x6525-live.txt}
 HERE=$(cd "$(dirname "$0")" && pwd)
-DT=/proc/device-tree
+# /proc/device-tree is a symlink; find does not descend into a symlinked start point, which is
+# why an earlier run of this script came back with an empty compatible list.
+DT=$(readlink -f /proc/device-tree 2>/dev/null)
+[ -d "$DT" ] || DT=/proc/device-tree
 : > "$OUT"
 
 sec() { printf '\n===== %s =====\n' "$1" >> "$OUT"; }
@@ -41,7 +44,7 @@ cat_if /proc/cmdline
 
 # every compatible string with its node path: the one list that shows all described hardware
 sec "device tree: every node's compatible"
-find "$DT" -name compatible 2>/dev/null | sort | while read -r f; do
+find "$DT/" -name compatible 2>/dev/null | sort | while read -r f; do
 	printf '%s: ' "${f#$DT}" >> "$OUT"
 	tr '\0' ' ' < "$f" >> "$OUT" 2>/dev/null
 	echo >> "$OUT"
@@ -65,8 +68,25 @@ dump_node charger-manager
 dump_node tran_charger
 dump_node regulators
 
+# each zone's thermal-sensors points at a sensor node by phandle: resolve every distinct one
+sec "device tree: thermal sensors behind the zones (resolved by phandle)"
+seen=" "
+for z in "$DT"/thermal-zones/*/thermal-sensors; do
+	[ -f "$z" ] || continue
+	ph=$(od -An -tx1 -N4 "$z" | tr -d ' \n')
+	case "$seen" in *" $ph "*) continue ;; esac
+	seen="$seen$ph "
+	find "$DT/" -name phandle 2>/dev/null | while read -r f; do
+		[ "$(od -An -tx1 -N4 "$f" | tr -d ' \n')" = "$ph" ] || continue
+		n=$(dirname "$f"); n=${n#$DT/}
+		echo "phandle 0x$ph = /$n" >> "$OUT"
+		dump_node "$n"
+		break
+	done
+done
+
 # thermistors and the PMIC ADC wherever the stock tree puts them
-for n in $(find "$DT" -name 'thermal-sensor*' -o -name '*thermistor*' 2>/dev/null | sed "s|^$DT/||"); do
+for n in $(find "$DT/" -name 'thermal-sensor*' -o -name '*thermistor*' 2>/dev/null | sed "s|^$DT/||"); do
 	dump_node "$n"
 done
 
@@ -141,7 +161,7 @@ for s in /sys/class/power_supply/*; do
 done
 
 sec "dmesg: the parts that matter for the port"
-dmesg 2>/dev/null | grep -iE 'success to request|hdl_firmware|bq24|aw32257|tcm|omnivision|lcd_name|panel|uwe|wcn|sc27|fgu|charger|thermal' | tail -200 >> "$OUT" 2>&1
+dmesg 2>/dev/null | grep -iE 'success to request|hdl_firmware|bq24|aw32257|lcd_name|panel|sc27|thermal|merlion|audio.*codec|fingerprint|nfc' | grep -viE 'WCN BASE|WCN SDIO|beacon|sprdwl|touch_report|charger-manager|fgu@' | tail -200 >> "$OUT" 2>&1
 
 sec "pstore / ramoops"
 ls -l /sys/fs/pstore >> "$OUT" 2>&1

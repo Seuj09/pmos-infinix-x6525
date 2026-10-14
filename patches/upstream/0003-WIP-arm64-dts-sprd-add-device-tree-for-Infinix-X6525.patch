@@ -50,7 +50,7 @@ new file mode 100644
 index 0000000..e2ca8f0
 --- /dev/null
 +++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
-@@ -0,0 +1,452 @@
+@@ -0,0 +1,469 @@
 +// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 +/*
 + * Infinix X6525 ("Infinix Smart 8") - Unisoc UMS9230 (Tiger T606)
@@ -228,8 +228,10 @@ index 0000000..e2ca8f0
 + */
 +&sdio0 {
 +	/* microSD slot */
-+	cd-gpios = <&eic_sync 35 GPIO_ACTIVE_HIGH>;	/* downstream says eic_sync, */
-+							/* the reeder uses eic_async - verify */
++	cd-gpios = <&eic_sync 35 GPIO_ACTIVE_HIGH>;	/* eic_sync confirmed: the running system */
++							/* has gpio-355 "cd" on the eic-sync chip; the */
++							/* reeder's eic_async is not this board. Polarity */
++							/* is unchecked - it read high in the dump. */
 +	vmmc-supply = <&vddsdcore>;
 +	vqmmc-supply = <&vddsdio>;
 +	bus-width = <4>;
@@ -303,8 +305,11 @@ index 0000000..e2ca8f0
 + * Units: mainline wants mA / mV / mohm, the vendor node mixes uA and mV
 + * (650000 uA -> 650 mA, 100000 -> 100, 60000 -> 60).
 + *
-+ * Not carried over: charge,chg-pd-gpio (ap_gpio 115, polarity and meaning
-+ * unknown), the otg-vbus regulator, tran_charger and charger-manager.
++ * charge,chg-pd-gpio is ap_gpio 115, which the running system names
++ * "charger_en" and holds LOW while the battery charges (debugfs gpio, phone on
++ * a charger, status Charging). Driven low it is the bq24158's active-low CE
++ * pin, so it is hogged low below to keep charging enabled. Not carried over:
++ * the otg-vbus regulator, tran_charger and charger-manager.
 + * The driver learns what is plugged in from a power supply: usb_detect below
 + * (drivers/extcon-charger-detect.c) turns the VBUS pin that the stock
 + * extcon-gpio node reads (pmic_eic 0) into one. A plain VBUS pin cannot tell a
@@ -312,6 +317,16 @@ index 0000000..e2ca8f0
 + * detection in the SC2730 would raise that and has no mainline driver.
 + * PMIC is still SC2730 (androidboot.pmic.chipid=2730).
 + */
++&ap_gpio {
++	/* "charger_en", low = charging enabled - see the comment above */
++	charger-en-hog {
++		gpio-hog;
++		gpios = <115 GPIO_ACTIVE_HIGH>;
++		output-low;
++		line-name = "charger_en";
++	};
++};
++
 +&i2c3 {
 +	status = "okay";
 +	#address-cells = <1>;
@@ -487,9 +502,11 @@ index 0000000..e2ca8f0
 +
 +&wcn {
 +	/*
-+	 * TODO: enable/reset GPIOs and supplies differ per board.
-+	 * The reeder uses ap_gpio 118 (enable) and ap_gpio 117 (reset) -
-+	 * take the real ones from the board DTB.
++	 * The running system holds "merlion-chip-en" (ap_gpio 118) and
++	 * "merlion-rst" (ap_gpio 117) high, the same lines the reeder uses, so the
++	 * dtsi defaults stand. The stock WiFi/Bluetooth is Unisoc's own
++	 * sprd_wlan_combo/wcn_bsp stack (87000000.cpwcn-btwf); I know of no
++	 * mainline driver for it, so this node only powers the block.
 +	 */
 +	status = "okay";
 +};

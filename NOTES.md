@@ -155,7 +155,12 @@ nothing corrects memory at runtime - so relocation and the stack would land abov
 writes one text file with the `board-thmzone` and thermistor tables, the state of `ap_gpio 115`
 (`charge,chg-pd-gpio`), regulator names and voltages, every I2C/SPI device and its driver, the
 WiFi/Bluetooth/audio/camera hardware, every power-supply attribute and the relevant `dmesg` lines.
-It only reads. The thermal zone, the charge-pd GPIO, the WiFi/BT firmware package and the sensors
+A first run (`x6525-live.txt`) settled the GPIO numbering (ap_gpio N = debugfs number minus 64 for
+gpiochip4; eic_sync base 320, eic_async 368, pmic_eic 48), the panel/touch/key lines and the charger
+enable. It still lacks the thermistor tables and the compatible list (the script followed a symlink
+badly; fixed since), so run it once more. The stock system shows a Unisoc `sprd_wlan_combo`/`wcn_bsp`
+WiFi/BT stack (no known mainline driver), an `sprdphone-sc2730` audio card with several amplifiers,
+and a sensorhub. The thermal zone, the charge-pd GPIO, the WiFi/BT firmware package and the sensors
 below all need that data and cannot be written from the vendor tree alone (the vendor's generic
 1h10 overlay has a `board-thmzone`, but this board's own values are only on the device).
 
@@ -185,8 +190,10 @@ Charger (resolved - no new driver):
    charger detection). `drivers/extcon-charger-detect.c` (patches 7/8, glue 0003) turns the extcon
    VBUS pin the stock tree reads (`pmic_eic 0`, via `linux,extcon-usb-gpio`) into that supply,
    `ti,usb-charger-detection` points at it. A VBUS pin cannot tell a wall charger from a PC, so input
-   is limited to 500 mA until BC1.2 detection in the SC2730 has a driver. Still open: what `charge,chg-pd-gpio` (ap_gpio 115) gates and its polarity;
-   the `board-thmzone` thermal zone; and whether mainline's `sc27xx_fuel_gauge.c` understands the
+   is limited to 500 mA until BC1.2 detection in the SC2730 has a driver (the stock system does it with
+   its `sprd_bc1p2` module, a possible model for a mainline port). `charge,chg-pd-gpio` (ap_gpio 115)
+   is named `charger_en` on the stock system and sits low while charging, so the DTS hogs it
+   output-low. Still open: the `board-thmzone` thermal zone; and whether mainline's `sc27xx_fuel_gauge.c` understands the
    vendor's JEITA tables. The bq2415x driver has no OTG regulator, so the Type-C source path has no
    VBUS regulator yet. `tran_charger` and `charger-manager` are not carried over.
 

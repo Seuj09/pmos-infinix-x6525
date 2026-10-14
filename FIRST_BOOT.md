@@ -49,8 +49,8 @@ Expect the stock partition table with `super` and the `pmOS_boot` / `pmOS_root` 
 - **eMMC not found or I/O errors:** bus width and timing. The DTS says 8-bit, HS400es/HS200 values from the
   vendor tree. Try forcing a lower mode first (`bus-width = <4>` or dropping `mmc-hs400-enhanced-strobe`
   and `mmc-hs200-1_8v`) - if that fixes it, the delay values are the suspect.
-- **SD card not seen:** card-detect. The DTS uses `eic_sync 35`; the stock tree says `eic_sync`, the
-  reeder uses `eic_async`. `CONFIG_MMC_BROKEN_CD` is set in U-Boot, so U-Boot itself does not care; the
+- **SD card not seen:** card-detect. The DTS uses `eic_sync 35` (confirmed on the stock system; polarity
+  not yet checked against a card). `CONFIG_MMC_BROKEN_CD` is set in U-Boot, so U-Boot itself does not care; the
   kernel does. Test with a card in and out and read `cat /sys/kernel/debug/gpio`.
 
 ## 3. Kernel starts, and how to see it
@@ -126,9 +126,8 @@ cat /sys/class/power_supply/bq24158-*/status
   not enabled in the kernel config.
 - **`online` never becomes 1:** the VBUS pin (`pmic_eic 0`), its polarity, or `extcon-usb-gpio`
   not liking a VBUS-only configuration.
-- **Detected but the battery does not charge:** the `charge,chg-pd-gpio` (`ap_gpio 115`) is
-  not handled, and I do not know what it gates. Read it on the stock system
-  (`cat /sys/kernel/debug/gpio | grep 115`) while charging and tell me the level.
+- **Detected but the battery does not charge:** `ap_gpio 115` (`charger_en`) is hogged low in the DTS,
+  the level the stock system shows while charging. Check `grep 115 /sys/kernel/debug/gpio` reads `out lo`.
 - The 500 mA ceiling is deliberate; raise `default-microamp` in the `usb_detect` node only after this
   works.
 
