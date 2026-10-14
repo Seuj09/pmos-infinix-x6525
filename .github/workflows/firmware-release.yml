@@ -1,0 +1,78 @@
+name: firmware release
+
+# Publishing the touch firmware is the owner's act, so this runs only when a
+# person presses "Run workflow" - never on a push. It publishes to the public
+# repository the release has to live on (this one is private, and pmaports CI
+# cannot fetch from it).
+#
+# That means it needs a token which can write there: create a fine-grained
+# personal access token with Contents: write on
+# github.com/Seuj09/ums9230-mainline-linux, and store it in this repository as
+# the secret RELEASE_TOKEN. Then run this workflow.
+#
+# Before publishing it checks the tarball three ways, so a bad one cannot go out:
+# it must rebuild byte for byte from the image, match the sha512 in the firmware
+# APKBUILD, and pass tools/check-hdl-image.py.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "release tag to create"
+        required: true
+        default: "firmware-v1"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      REPO: Seuj09/ums9230-mainline-linux
+      TARGET: x6525          # the branch the tag should point at
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tarball is the image the package expects
+        run: |
+          cd firmware
+          tar --sort=name --owner=0 --group=0 --numeric-owner --mtime='@0' \
+            -cf - hdl_firmware_01.img | gzip -n -9 > /tmp/rebuilt.tar.gz
+          cmp /tmp/rebuilt.tar.gz firmware-infinix-x6525-1.tar.gz
+          echo "tarball rebuilds byte for byte from hdl_firmware_01.img"
+
+          want=$(sed -n 's/^\([0-9a-f]\{128\}\)  .*/\1/p' \
+            ../pmaports/device/testing/firmware-infinix-x6525/APKBUILD)
+          got=$(sha512sum firmware-infinix-x6525-1.tar.gz | cut -d' ' -f1)
+          [ "$want" = "$got" ] || {
+            echo "tarball sha512 $got does not match the APKBUILD's $want"
+            exit 1
+          }
+          echo "and matches the firmware APKBUILD sha512"
+
+          python3 -I ../tools/check-hdl-image.py hdl_firmware_01.img | tail -1
+
+      - name: Publish it
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "RELEASE_TOKEN is not set: see the comment at the top of this file"
+            exit 1
+          fi
+          if gh release view "${{ inputs.tag }}" --repo "$REPO" >/dev/null 2>&1; then
+            echo "release ${{ inputs.tag }} already exists on $REPO, nothing to do"
+            exit 0
+          fi
+          gh release create "${{ inputs.tag }}" --repo "$REPO" --target "$TARGET" \
+            --title "X6525 touch firmware (hdl_firmware_01.img)" \
+            --notes "The OmniVision TCM HDL image the Infinix X6525's touch controller needs. The controller has no flash, so the driver downloads this after every reset.
+
+          This is the image from the device itself (/vendor/firmware/hdl_firmware_01.img on the stock ROM): it is the one the stock module asks for, and it carries the DISPLAY area for this panel, which the images in the stock kernel tree do not.
+
+          Packaged for pmaports as firmware-infinix-x6525. Hash and provenance: firmware/README.md in the port repository." \
+            firmware/firmware-infinix-x6525-1.tar.gz
+          echo "published. The asset the package wants is:"
+          gh release view "${{ inputs.tag }}" --repo "$REPO" \
+            --json assets -q '.assets[] | "  \(.url)"'

@@ -283,11 +283,15 @@ The ROM, and the first boot:
   and the four symbols its config was missing. That config is pmaports' own and is what the ROM's
   kernel actually uses, so CI now checks those four survive `olddefconfig` in it, last in the job
   because the check replaces `.config`.
-- **the firmware URL is waiting on a decision, not on work**: publishing the tarball in `firmware/`
-  is a public act on a public repository, so it needs a go-ahead (the command is in
-  `pmaports/README.md`). Until it runs, copy the device package *without* `firmware-infinix-x6525` -
-  it is in `_pmb_recommends`, so `install` would otherwise fail fetching a URL that does not exist -
-  and the phone comes up without a touchscreen.
+- **the firmware URL is wired, the release is not published**: `source=` points at a release on the
+  public fork of the kernel tree, and `.github/workflows/firmware-release.yml` puts it there - on
+  **Run workflow** only, never on a push, because publishing is the owner's act (I tried to publish
+  it directly once and the permission prompt stopped me, correctly: nothing in the instructions
+  named that public destination). It needs a `RELEASE_TOKEN` secret with Contents: write on that
+  repository, checks the tarball three ways before uploading, and uploads the file already committed
+  in `firmware/`, so the hash does not change. Until it runs, the package cannot be fetched: copy the
+  device package *without* `firmware-infinix-x6525` (it is in `_pmb_recommends`, so `install` would
+  otherwise fail on it) and the phone comes up without a touchscreen.
 - **then it is the phone**: `pmbootstrap` build and flash per `FIRST_BOOT.md`, and the hardware list
   there - panel reset polarity, the DCS brightness curve, the eMMC/SD phy timing, and the touch
   firmware download, which is the likeliest first failure.

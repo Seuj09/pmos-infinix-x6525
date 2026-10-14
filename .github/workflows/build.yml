@@ -199,10 +199,15 @@ jobs:
 
           P="$GITHUB_WORKSPACE/pmaports/device/testing/firmware-infinix-x6525/APKBUILD"
           url=$(sed -n 's/^source="[^:]*::\(.*\)"$/\1/p' "$P")
-          case "$url" in
-            http*) check "$url" "$(sha "$P")" ;;
-            *)     echo "firmware: not published yet ($url)" ;;
-          esac
+          if curl -sSLf -o /tmp/firmware.tar.gz "$url"; then
+            check "$url" "$(sha "$P")"
+          else
+            # Its URL is settled, the release workflow has simply not run yet.
+            # Warn rather than fail: a package build would fail on this loudly
+            # enough, and this is the one step in the repository that cannot be
+            # finished without someone pressing a button.
+            echo "firmware: $url is not published yet - run the firmware release workflow"
+          fi
 
       - name: Check the ROM's own kernel config takes our symbols
         run: |

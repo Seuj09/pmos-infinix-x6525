@@ -57,22 +57,26 @@ marks `fate = "obsolete"`.
 
 ## Publishing the touch firmware
 
-`firmware-infinix-x6525` is complete except for its URL: the tarball in `../firmware/` is what gets
-uploaded and its sha512 is already in the APKBUILD, so one upload settles the package. That is a
-public act on a public repository, so it needs the owner to say go rather than an agent deciding it;
-the command is
+`firmware-infinix-x6525` is complete, URL and all: it fetches `firmware-infinix-x6525-1.tar.gz` from
+a release on the public fork of the kernel tree, and that release does not exist yet. The port
+repository's own workflow does the upload — `.github/workflows/firmware-release.yml` — and it runs
+only when someone presses **Run workflow**, because publishing is the owner's act and not something a
+push should do. It checks the tarball three ways first (it must rebuild byte for byte from
+`hdl_firmware_01.img`, match the APKBUILD's sha512, and pass `tools/check-hdl-image.py`), so a bad one
+cannot go out, and it uploads the file already committed in `../firmware/`, so the hash does not
+change.
 
-```sh
-gh release create firmware-v1 --repo Seuj09/ums9230-mainline-linux --target x6525 \
-  --title "X6525 touch firmware (hdl_firmware_01.img)" \
-  --notes "The Omnivision TCM HDL image the Infinix X6525's touch controller needs." \
-  ../firmware/firmware-infinix-x6525-1.tar.gz
-```
+One thing must be set up before it will run: a fine-grained personal access token with
+**Contents: write** on `github.com/Seuj09/ums9230-mainline-linux`, stored in this repository as the
+`RELEASE_TOKEN` secret (`gh secret set RELEASE_TOKEN`). A token is needed because this repository is
+private and the release has to be fetchable by pmaports CI. Making *this* repository public instead
+would remove the need for one — and the release could then live here — but that is a bigger change
+than uploading a file, so it stays the owner's call.
 
-after which `source=` in that APKBUILD becomes the release URL it prints, and the hash does not
-change. Until then, copy the device package **without** `firmware-infinix-x6525` — it is in
-`_pmb_recommends`, so `pmbootstrap install` would otherwise fail fetching a URL that does not exist
-yet — and accept a phone with no touchscreen for the first boot.
+Until the workflow has run, the package cannot be fetched: `pmbootstrap install` fails on it, so copy
+the device package **without** `firmware-infinix-x6525` — it is in `_pmb_recommends`, so it would
+otherwise be installed by default — and accept a phone with no touchscreen for the first boot. The
+port's CI reports the missing release as a warning rather than a failure, for the same reason.
 
 Then, before opening the MR:
 

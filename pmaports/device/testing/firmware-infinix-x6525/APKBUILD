@@ -15,17 +15,19 @@ options="!check !archcheck !strip !spdx !tracedeps pmb:cross-native"
 #
 # The file comes off the device itself (/vendor/firmware/hdl_firmware_01.img on
 # the stock system - the image its running module asks for, and the one with the
-# DISPLAY area for this panel). The tarball, its checksum and where it will live
-# are all settled; the release has not been published yet, because that is a
-# public act on a public repository. One command does it - see ../README.md -
-# after which source= becomes:
-#   source="$_tarball::https://github.com/Seuj09/ums9230-mainline-linux/releases/download/firmware-v1/$_tarball"
-# and the copy of the tarball that is already in ../../../firmware/ is what gets
-# uploaded, so the checksum below does not change.
-# Note a release asset on *this* repository would not do: it is private, and
-# pmaports CI has to be able to fetch it.
+# DISPLAY area for this panel). It is published by the port repository's own
+# workflow, .github/workflows/firmware-release.yml, which runs only when someone
+# presses "Run workflow" - the upload is the owner's act, not something that
+# happens on a push. It publishes to the public fork of the kernel tree because a
+# release on *this* repository would not do: it is private, and pmaports CI has
+# to be able to fetch it.
+#
+# Until that has run, the URL below 404s, so anything fetching this package
+# fails - the port's CI reports that as a warning rather than a failure. The
+# upload is the tarball already committed in ../../../firmware/, so the sha512
+# below does not change when it goes out.
 _tarball="firmware-infinix-x6525-$pkgver.tar.gz"
-source="$_tarball::TODO-publish-and-put-the-url-here"
+source="$_tarball::https://github.com/Seuj09/ums9230-mainline-linux/releases/download/firmware-v1/$_tarball"
 
 package() {
 	install -Dm644 "$srcdir"/hdl_firmware_01.img \
