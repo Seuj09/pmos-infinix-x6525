@@ -23,7 +23,7 @@ vendor_boot without the DTB, so boot had to be flashed alone with `repack.sh`. T
 
 ## Building the mainline port
 
-The device tree, the panel driver and the binding glue live here and are applied to a checkout of the
+The device tree, the three drivers and the binding glue live here and are applied to a checkout of the
 ums9230-mainline kernel with one script:
 
 ```sh
@@ -32,24 +32,27 @@ git clone --depth 1 --branch v7.2-rc6-ums9230-0 \
 ./tools/apply-overlay.sh kernel
 ```
 
-That copies `dts/`, `drivers/panel-td4160-hx.c` and `bindings/` into the tree and applies
-`patches/0001-x6525-build-glue.patch` (dtb-y entry, panel Kconfig/Makefile, board compatible, vendor
-prefix). The script is idempotent and refuses to half-apply a patch that no longer fits — refresh
-`patches/` when you bump the pinned tag.
+That installs `dts/`, the three drivers (`panel-td4160-hx.c`, `ovt-tcm-spi.c`,
+`extcon-charger-detect.c`) and the three bindings, then applies `patches/*.patch`: the dtb-y entry, the
+board compatible and vendor prefix, and the panel, touchscreen and charger Kconfig/Makefile glue. The
+script is idempotent and refuses to half-apply a patch that no longer fits — refresh `patches/` when
+you bump the pinned tag.
 
 `.github/workflows/build.yml` does the same on every push that touches those directories: it clones the
-pinned tag, applies the overlay, builds `ums9230-infinix-x6525.dtb`, enables `DRM_SPRD` +
-`DRM_PANEL_TD4160_HX` behind an olddefconfig gate, and compiles the panel driver. Artifacts are
-uploaded as `x6525-build`.
+pinned tag, checks that the submission series applies to it and reproduces `dts/`, `drivers/` and
+`bindings/`, applies the overlay, builds `ums9230-infinix-x6525.dtb`, enables `DRM_SPRD`,
+`DRM_PANEL_TD4160_HX`, `TOUCHSCREEN_OVT_TCM_SPI`, `CHARGER_BQ2415X` and `CHARGER_EXTCON_DETECT`
+behind an olddefconfig gate, and compiles the three drivers. The `uboot` job builds the board and
+uploads `x6525-uboot`; the kernel job uploads `x6525-build`.
 
 ## What is where
 
 | Path | What |
 |---|---|
-| `dts/`, `drivers/` | the device tree and panel driver to send upstream |
+| `dts/`, `drivers/` | the device tree and the three drivers (panel, touch, charger) to send upstream |
 | `bindings/` | new DT bindings (the board/vendor entries are in `patches/`) |
-| `patches/` | build glue for the pinned kernel tag: kernel tree entries and touchscreen Kconfig/Makefile |
-| `patches/upstream/` | the six `git am`-able patches for submission, plus notes on where each goes |
+| `patches/` | build glue for the pinned kernel tag: kernel tree entries, and the panel, touchscreen and charger Kconfig/Makefile |
+| `patches/upstream/` | the eight `git am`-able patches for submission, plus notes on where each goes |
 | `uboot/` | the X6525 U-Boot board: a defconfig and a device tree, no board directory |
 | `patches/upstream-uboot/` | the two U-Boot board patches for submission |
 | `pmaports/` | the `device-infinix-x6525` package, mirroring the pmaports path |

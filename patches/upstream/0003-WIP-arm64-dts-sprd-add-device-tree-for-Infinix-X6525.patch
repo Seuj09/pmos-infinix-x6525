@@ -47,10 +47,10 @@ index 0af83bf..2bb8086 100644
  			ums9620-2h10.dtb
 diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 new file mode 100644
-index 0000000..bfb11b2
+index 0000000..e2ca8f0
 --- /dev/null
 +++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
-@@ -0,0 +1,449 @@
+@@ -0,0 +1,452 @@
 +// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 +/*
 + * Infinix X6525 ("Infinix Smart 8") - Unisoc UMS9230 (Tiger T606)
@@ -355,7 +355,10 @@ index 0000000..bfb11b2
 +
 +&sc2730_fgu {
 +	monitored-battery = <&bat>;
-+	sprd,calib-resistance-micro-ohms = <4850>;	/* TODO: verify */
++	/* Read off the running device (fgu@c00 in its own tree), not the
++	 * reeder's value: this is the coulomb counter's sense resistance and
++	 * the driver requires it, so it has to be this board's number. */
++	sprd,calib-resistance-micro-ohms = <10000>;
 +	power-supplies = <&charger>;
 +	status = "okay";
 +};

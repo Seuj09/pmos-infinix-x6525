@@ -129,9 +129,11 @@ nothing corrects memory at runtime - so relocation and the stack would land abov
 - `arch/arm/mach-sprd/Kconfig` selects ARM64 for `TARGET_UMS9230` (hence `ARCH=arm` on the command
   line), and its defaults (`TEXT_BASE` 0x9f000000, `SYS_LOAD_ADDR` 0x90000000) are overridden in the
   defconfig.
-- open: whether the packaged `u-boot.bin` actually carries the DTB. The pmaports package installs
-  `u-boot.bin` as the boot.img payload, so it has to be self-contained - check by building and looking
-  for the FDT magic in the artifact (or the size jump between `u-boot.bin` and `u-boot-dtb.bin`).
+- **`u-boot.bin` does carry the DTB** (was an open question): the artifact CI built for `72b25da`
+  (452,736 bytes) has the FDT magic at `0x6ae38`, 14,920 bytes, and that blob holds `Infinix`,
+  `ums9230` and `simple-framebuffer` but not `reeder` - a fresh board tree, not a leftover. Dumped out
+  of the artifact, its `/memory@80000000` is the 4 GiB window above. So installing `u-boot.bin` as the
+  boot.img payload, the way `u-boot-jolla-c2` does, is correct.
 
 # Working from the phone shell
 
@@ -156,7 +158,8 @@ U-Boot board, smallest first:
 2. ~~Finish the battery node: add `ocv-capacity-table-0`, `resistance-temp-table` and
    `voltage-max-design-microvolt` from the tables above, the way the reeder's board DTS does - the
    fuel gauge needs the OCV table for its capacity estimate and the charging animation. Done (OCV, resistance-temp and fast-charge threshold; `voltage-max-design-microvolt` not added - not read off the device).~~
-3. Confirm the DTB is inside the artifact the pmaports package installs (see the open item above).
+3. ~~Confirm the DTB is inside the artifact the pmaports package installs.~~ Done - the CI artifact
+   carries it, see "U-Boot board, reverified against the fork" above.
 4. Then upstream the two `patches/upstream-uboot/` patches and drop the `WIP:` prefixes.
 
 Charger (resolved - no new driver):

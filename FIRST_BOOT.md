@@ -31,8 +31,9 @@ If nothing at all appears (stays on the vendor logo, or reboots into Android):
   (`--header_version 4`, `u-boot.bin` as payload); compare with what `unpackbootimg` says about the
   stock image;
 - **the memory node.** It must be the 4 GiB window (`0x0 0x80000000 0x0 0xfffff000`); the earlier 8 GiB
-  value would relocate U-Boot above the end of DRAM. That is fixed in `uboot/dts`, but check the DTB is
-  actually inside `u-boot.bin` (the open item in `NOTES.md` - look for the FDT magic `d0 0d fe ed`).
+  value would relocate U-Boot above the end of DRAM. That is fixed in `uboot/dts` and confirmed in the
+  built artifact: `u-boot.bin` from CI carries the DTB (FDT magic at `0x6ae38`) and that DTB's memory
+  node is the 4 GiB one, so this is only worth re-checking if you build U-Boot yourself.
 
 ## 2. Storage
 

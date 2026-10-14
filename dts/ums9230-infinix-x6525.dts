@@ -302,7 +302,10 @@
 
 &sc2730_fgu {
 	monitored-battery = <&bat>;
-	sprd,calib-resistance-micro-ohms = <4850>;	/* TODO: verify */
+	/* Read off the running device (fgu@c00 in its own tree), not the
+	 * reeder's value: this is the coulomb counter's sense resistance and
+	 * the driver requires it, so it has to be this board's number. */
+	sprd,calib-resistance-micro-ohms = <10000>;
 	power-supplies = <&charger>;
 	status = "okay";
 };

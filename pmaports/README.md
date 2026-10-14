@@ -13,15 +13,26 @@ marks `fate = "obsolete"`.
    `../patches/upstream/`, then bump `KERNEL_TAG` in `../.github/workflows/build.yml` and the `_tag`
    in the pmaports kernel APKBUILD to a tag that includes it.
 
-2. **The panel driver must be enabled in that package's config.** The ums9230 config has
+2. **The port's drivers must be enabled in that package's config.** The ums9230 config has
    `CONFIG_DRM_PANEL_CHIPONE_ICNL9916_720_1600=y` (built-in, not a module — the display has to work in
-   the initramfs for unl0kr). Add the same for ours:
+   the initramfs for unl0kr). Add ours:
 
    ```
    CONFIG_DRM_PANEL_TD4160_HX=y
+   CONFIG_TOUCHSCREEN_OVT_TCM_SPI=m
+   CONFIG_CHARGER_BQ2415X=y
+   CONFIG_FUEL_GAUGE_SC27XX=y
+   CONFIG_CHARGER_EXTCON_DETECT=y
+   CONFIG_EXTCON_USB_GPIO=y
    ```
 
-   Its dependencies (`DRM_MIPI_DSI`, `BACKLIGHT_CLASS_DEVICE`, `DRM_SPRD`) are already `=y` there.
+   The panel's dependencies (`DRM_MIPI_DSI`, `BACKLIGHT_CLASS_DEVICE`, `DRM_SPRD`) are already `=y`
+   there. The charger four are what the DTS nodes bind to and **nothing enables them today**: the
+   pinned tree's own `defconfig` has none of `CHARGER_BQ2415X`, `CHARGER_EXTCON_DETECT`,
+   `FUEL_GAUGE_SC27XX` or `CHARGER_MANAGER`, and CI turns them on only for its own build (the
+   `olddefconfig` gate in the workflow). They can be modules, but then charging and the battery
+   indicator only come up after the rootfs mounts. Touch can be a module too — for touch *in* the
+   initramfs (unl0kr) that module and the HDL image both have to go in a `modules-initfs` file.
 
 3. **A `u-boot-infinix-x6525` package.** The deviceinfo chainloads U-Boot from `boot_a`, so without it
    nothing boots. The board itself is drafted in `../uboot/` and `../patches/upstream-uboot/`; the
@@ -38,6 +49,9 @@ Then, before opening the MR:
 - keep it in `device/testing/` initially, like `device-jolla-c2`.
 
 Later (not boot-blocking): a `firmware-infinix-x6525-wcn` package for WiFi/Bluetooth, the touch
-driver's module in a `modules-initfs` file, and the Awinic AW32257 charger. The touch driver and its
-firmware package draft exist now - note that touch in the initramfs (unl0kr) would need both the
-module and the HDL image there, not just the module.
+driver's module in a `modules-initfs` file, and what charging is still missing. The touch driver and
+its firmware package draft exist now - note that touch in the initramfs (unl0kr) would need both the
+module and the HDL image there, not just the module. Charging itself is wired up (mainline's bq2415x
+drives the AW32257, which is a bq24158); what is left is BC1.2 detection so it can tell a wall charger
+from a PC and go above the 500 mA ceiling, the `board-thmzone` thermal zone the vendor nodes point at,
+and an `otg-vbus` regulator, which the bq2415x driver does not provide.
