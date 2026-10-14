@@ -59,8 +59,14 @@ jobs:
 
       - name: Build kernel, U-Boot, rootfs and image
         run: |
-          # init normally creates the work dir; nothing else does
+          # init creates the work dir and its version marker; nothing else does,
+          # and pmbootstrap refuses a work dir without one. Write what init
+          # writes, taking the number from pmbootstrap itself so this does not
+          # rot when it moves.
           mkdir -p /tmp/pmbwork
+          python3 -c "import pmb.config; open('/tmp/pmbwork/version', 'w').write(f'{pmb.config.work_version}\n')"
+          cat /tmp/pmbwork/version
+
           pmbootstrap -c /tmp/pmb.cfg --aports /tmp/pmaports -y --details-to-stdout \
             install --password x6525pmos
 
