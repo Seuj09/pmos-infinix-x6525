@@ -151,6 +151,14 @@ nothing corrects memory at runtime - so relocation and the stack would land abov
 
 # Next steps
 
+**Gathering what is still unknown:** `sh tools/collect-live.sh` (root shell on the phone, stock system)
+writes one text file with the `board-thmzone` and thermistor tables, the state of `ap_gpio 115`
+(`charge,chg-pd-gpio`), regulator names and voltages, every I2C/SPI device and its driver, the
+WiFi/Bluetooth/audio/camera hardware, every power-supply attribute and the relevant `dmesg` lines.
+It only reads. The thermal zone, the charge-pd GPIO, the WiFi/BT firmware package and the sensors
+below all need that data and cannot be written from the vendor tree alone (the vendor's generic
+1h10 overlay has a `board-thmzone`, but this board's own values are only on the device).
+
 U-Boot board, smallest first:
 1. ~~**Fix the memory node** in `uboot/dts/ums9230-infinix-x6525.dts` to
    `reg = <0x0 0x80000000 0x0 0xfffff000>` (4 GiB - see Memory above). This is the one change that

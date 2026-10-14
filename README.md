@@ -62,3 +62,5 @@ uploads `x6525-uboot`; the kernel job uploads `x6525-build`.
 
 
 First boot of the mainline port, stage by stage with what to send back: [FIRST_BOOT.md](FIRST_BOOT.md).
+
+To collect the remaining hardware facts from the stock system in one go: `sh tools/collect-live.sh` (see `NOTES.md`, "Next steps").
