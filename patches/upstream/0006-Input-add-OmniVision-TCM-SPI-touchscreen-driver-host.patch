@@ -1,6 +1,6 @@
-From 8ac65382dc86482c7c1bbbea9d00a964d38a85c8 Mon Sep 17 00:00:00 2001
+From f83e54bd90b59634efd6fd5c9a4f6cd1fb644de8 Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Wed, 14 Oct 2026 12:29:05 +0000
+Date: Wed, 14 Oct 2026 12:58:07 +0000
 Subject: [PATCH 2/2] Input: add OmniVision TCM SPI touchscreen driver (host
  download)
 

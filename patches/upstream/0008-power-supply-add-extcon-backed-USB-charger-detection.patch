@@ -1,6 +1,6 @@
-From 6adb052108fd05e85b00e30bd245378fe5da44fc Mon Sep 17 00:00:00 2001
+From b9cb5c3ccf7a3c3f232df1070f8f5927b7d4ec0d Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
-Date: Wed, 14 Oct 2026 12:29:05 +0000
+Date: Wed, 14 Oct 2026 12:58:07 +0000
 Subject: [PATCH 2/2] power: supply: add extcon-backed USB charger detection
 
 Report a USB charger and its current limit from an extcon device so that

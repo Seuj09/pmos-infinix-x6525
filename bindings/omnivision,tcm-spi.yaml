@@ -9,7 +9,7 @@ title: OmniVision TCM touchscreen controller (SPI, host firmware download)
 maintainers:
   - Seuj09 <jeus110310@gmail.com>
 
-description:
+description: |
   Touch controller of the TD4160 touch/display IC. It has no flash: after each
   reset the host downloads the application firmware and its configuration from
   an image file.
@@ -24,12 +24,17 @@ properties:
   reg:
     maxItems: 1
 
+  # SPI mode 3. spi-peripheral-props.yaml does not cover these two, so a
+  # peripheral that needs them declares them, as e.g. samsung,ld9040.yaml does.
+  spi-cpha: true
+  spi-cpol: true
+
   interrupts:
     maxItems: 1
 
   reset-gpios:
     maxItems: 1
-    description:
+    description: |
       Reset line. The controller is held in reset while it is asserted: the
       vendor device tree drives it low for 20 ms and then releases it, so the
       line is active-low.
@@ -61,7 +66,7 @@ examples:
             spi-cpol;
             interrupts-extended = <&gpio 16 IRQ_TYPE_LEVEL_LOW>;
             reset-gpios = <&gpio 145 GPIO_ACTIVE_LOW>;
-            firmware-name = "hdl_firmware_1.img";
+            firmware-name = "postmarketos/sprd/hdl_firmware_01.img";
         };
     };
 ...

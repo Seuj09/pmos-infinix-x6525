@@ -93,6 +93,35 @@ jobs:
           make -C kernel ARCH=arm64 -j"$(nproc)" dtbs
           ls -l kernel/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dtb
 
+      - name: Validate the bindings and the board's own nodes
+        run: |
+          # --break-system-packages for PEP 668 images; the PATH export covers a
+          # user install, which puts the tools in ~/.local/bin.
+          python3 -m pip install --quiet --break-system-packages dtschema \
+            || python3 -m pip install --quiet dtschema
+          export PATH="$HOME/.local/bin:$PATH"
+          dt-doc-validate --version
+          cd kernel
+          # Our three bindings must pass the documentation checks that
+          # dt_binding_check runs upstream.
+          dt-doc-validate \
+            Documentation/devicetree/bindings/display/panel/infinix,td4160-hx-panel.yaml \
+            Documentation/devicetree/bindings/input/touchscreen/omnivision,tcm-spi.yaml \
+            Documentation/devicetree/bindings/power/supply/linux,extcon-charger-detect.yaml
+          # dt-validate over the whole DTB reports the tree's own dtsi as well,
+          # which is not schema-clean (undeclared sprd,* properties in nodes
+          # that belong to the SoC, not to this board). So gate on the board's
+          # own nodes: every name below is one of ours, and a match is a real
+          # problem in dts/ or bindings/.
+          dt-validate -s Documentation/devicetree/bindings \
+            arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dtb > /tmp/dt-validate.txt 2>&1 || true
+          if grep -qE "touchscreen@0|charger@6a|panel@0|speaker-amp|usb-charger-detect|thermistor|bq24158|td4160|omnivision,|infinix," /tmp/dt-validate.txt; then
+            echo "the board's own nodes did not validate:"
+            grep -E "touchscreen@0|charger@6a|panel@0|speaker-amp|usb-charger-detect|thermistor|bq24158|td4160|omnivision,|infinix," /tmp/dt-validate.txt
+            exit 1
+          fi
+          echo "board nodes clean; $(grep -c . /tmp/dt-validate.txt) line(s) are the tree's own dtsi"
+
       - name: Enable the drivers, and check they survive olddefconfig
         run: |
           cd kernel
