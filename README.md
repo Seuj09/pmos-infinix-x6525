@@ -51,8 +51,8 @@ uploads `x6525-uboot`; the kernel job uploads `x6525-build`.
 |---|---|
 | `dts/`, `drivers/` | the device tree and the three drivers (panel, touch, charger) to send upstream |
 | `bindings/` | new DT bindings (the board/vendor entries are in `patches/`) |
-| `patches/` | build glue for the pinned kernel tag: kernel tree entries, and the panel, touchscreen and charger Kconfig/Makefile |
-| `patches/upstream/` | the eight `git am`-able patches for submission, plus notes on where each goes |
+| `patches/` | build glue for the pinned kernel tag: kernel tree entries, the panel/touchscreen/charger Kconfig and Makefile entries, and the gpio binding fix |
+| `patches/upstream/` | the nine `git am`-able patches for submission, plus notes on where each goes |
 | `uboot/` | the X6525 U-Boot board: a defconfig and a device tree, no board directory |
 | `patches/upstream-uboot/` | the two U-Boot board patches for submission |
 | `pmaports/` | the `device-infinix-x6525` package, mirroring the pmaports path |

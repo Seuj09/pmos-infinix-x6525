@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Wed, 14 Oct 2026 22:00:00 +0000
+Subject: [PATCH] gpio: sprd: allow hog nodes, as build glue
+
+Build glue only, so that tools/apply-overlay.sh puts the fixed binding in the
+tree and the dt-validate step in CI can see it. The submission copy of this
+hunk is patches/upstream/0009-*.patch.
+---
+diff --git a/Documentation/devicetree/bindings/gpio/sprd,gpio.yaml b/Documentation/devicetree/bindings/gpio/sprd,gpio.yaml
+index d3e65ee..f1ceb8b 100644
+--- a/Documentation/devicetree/bindings/gpio/sprd,gpio.yaml
++++ b/Documentation/devicetree/bindings/gpio/sprd,gpio.yaml
+@@ -53,6 +53,12 @@ required:
+   - "#interrupt-cells"
+   - interrupts
+ 
++patternProperties:
++  "-hog(-[0-9]+)?$":
++    type: object
++    required:
++      - gpio-hog
++
+ additionalProperties: false
+ 
+ examples:
+-- 
+2.47.3
+

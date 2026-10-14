@@ -116,9 +116,17 @@ jobs:
           # problem in dts/ or bindings/.
           dt-validate -s Documentation/devicetree/bindings \
             arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dtb > /tmp/dt-validate.txt 2>&1 || true
-          if grep -qE "touchscreen@0|charger@6a|panel@0|speaker-amp|usb-charger-detect|thermistor|-thermal|bq24158|td4160|omnivision,|infinix," /tmp/dt-validate.txt; then
+          # Every name below is one of this board's nodes: a match means dts/ or
+          # bindings/ has a problem, not the tree's own dtsi. The thermal zone
+          # names are listed one by one rather than as "-thermal" so that the
+          # tree's zones cannot trip this.
+          BOARD="touchscreen@0|charger@6a|panel@0|speaker-amp|usb-charger-detect"
+          BOARD="$BOARD|charger-en-hog|board-thermal|pa-thermal|chg-thermal"
+          BOARD="$BOARD|tboard-thermistor|pa-thermistor|chg-thermistor"
+          BOARD="$BOARD|bq24158|td4160|omnivision,|infinix,"
+          if grep -qE "$BOARD" /tmp/dt-validate.txt; then
             echo "the board's own nodes did not validate:"
-            grep -E "touchscreen@0|charger@6a|panel@0|speaker-amp|usb-charger-detect|thermistor|-thermal|bq24158|td4160|omnivision,|infinix," /tmp/dt-validate.txt
+            grep -E "$BOARD" /tmp/dt-validate.txt
             exit 1
           fi
           echo "board nodes clean; $(grep -c . /tmp/dt-validate.txt) line(s) are the tree's own dtsi"

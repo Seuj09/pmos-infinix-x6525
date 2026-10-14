@@ -170,14 +170,19 @@ branch that is the upstream base plus this port's commits and nothing else:
 
 | Tree | Fork and branch | Tip |
 |---|---|---|
-| kernel | `github.com/Seuj09/ums9230-mainline-linux`, branch `x6525` | `7d111ea95922b01c3d5b1ee7760cb1e769705f0a` |
+| kernel | `github.com/Seuj09/ums9230-mainline-linux`, branch `x6525` | `5c860479bbe57d16055ac9594eeb36f1fc0ab98b` |
 | U-Boot | `github.com/Seuj09/ums9230-mainline-u-boot`, branch `x6525` | `d169d38cab37a39282c96a1bfa0d32aff5d326df` |
 
-The kernel branch is the tag `v7.2-rc6-ums9230-0` plus the eight patches in `patches/upstream/`, one
+The kernel branch is the tag `v7.2-rc6-ums9230-0` plus the nine patches in `patches/upstream/`, one
 commit each (verified: the subjects match the patch files one for one and the tree's files are
 byte-identical to `dts/`, `drivers/` and `bindings/`). The U-Boot branch is the fork's `ums9230` plus
 its two board patches. Both were made by `git am`-ing the series, so `git format-patch` from either
 branch regenerates the patches - the branches are the source of truth now, not the patch files.
+The kernel branch is force-updated whenever the series changes (it was, to pick up the renamed
+thermal zones and the ninth patch): patch 9 lets the sprd GPIO binding accept hog nodes, which
+`charger-en-hog` in our DTS needs - the binding is `additionalProperties: false` without the
+`patternProperties` block that other GPIO bindings carry, so the board failed `dtbs_check` on a
+binding it could not satisfy. That fix is independent of this board and can go upstream on its own.
 `pmaports/device/testing/u-boot-infinix-x6525/APKBUILD` already builds from the U-Boot branch's tip
 (sha512 in place); the kernel side needs nothing until either a staging package is wanted or the
 series lands upstream.
