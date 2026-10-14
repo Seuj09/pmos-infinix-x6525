@@ -53,11 +53,14 @@ jobs:
           locale = en_US.UTF-8
           ssh_keys = false
           jobs = 4
+          work = /tmp/pmbwork
           EOF
           cat /tmp/pmb.cfg
 
       - name: Build kernel, U-Boot, rootfs and image
         run: |
+          # init normally creates the work dir; nothing else does
+          mkdir -p /tmp/pmbwork
           pmbootstrap -c /tmp/pmb.cfg --aports /tmp/pmaports -y --details-to-stdout \
             install --password x6525pmos
 
