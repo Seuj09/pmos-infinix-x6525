@@ -73,12 +73,20 @@ jobs:
       - name: Export what to flash
         run: |
           pmbootstrap -c /tmp/pmb.cfg --aports /tmp/pmaports --details-to-stdout export
-          ls -la /tmp/postmarketOS-export/
 
+          # The export folder is convenience symlinks into the work directory,
+          # which is not what should come out of an artifact: materialise them.
+          # cp's default --sparse=auto keeps the rootfs image's holes, so this
+          # does not write out four gigabytes of zeroes.
+          mkdir -p /tmp/rom-out
+          cp -rL /tmp/postmarketOS-export/. /tmp/rom-out/
+          ls -la /tmp/rom-out/
+
+      # No `if: always()`: on a failed build there is nothing to flash, and a
+      # green upload step on a red run is how an empty artifact goes unnoticed.
       - name: Upload it
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: x6525-rom
-          path: /tmp/postmarketOS-export/
-          if-no-files-found: warn
+          path: /tmp/rom-out/
+          if-no-files-found: error
