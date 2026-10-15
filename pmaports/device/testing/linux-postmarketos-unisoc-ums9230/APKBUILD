@@ -17,7 +17,6 @@ options="!strip !check !tracedeps
 	pmb:cross-native
 	pmb:kconfigcheck-nftables
 	pmb:kconfigcheck-community
-c8d4c9191516a0bff476855d8e63dec3fb284142ee27f766d3440c0cc8d4703530dd43680a3d91146d46333bbbb52c686e44fe5865fa4707a3ed0d97323e694c  0010-dt-bindings-power-supply-sc27xx-fg-allow-power-suppl.patch
 "
 makedepends="
 	bison
@@ -34,7 +33,6 @@ makedepends="
 	postmarketos-installkernel
 	python3
 	zstd
-c8d4c9191516a0bff476855d8e63dec3fb284142ee27f766d3440c0cc8d4703530dd43680a3d91146d46333bbbb52c686e44fe5865fa4707a3ed0d97323e694c  0010-dt-bindings-power-supply-sc27xx-fg-allow-power-suppl.patch
 "
 
 _tag="v7.2-rc6-ums9230-0"
@@ -52,7 +50,6 @@ source="
 	0008-power-supply-add-extcon-backed-USB-charger-detection.patch
 	0009-dt-bindings-gpio-sprd-allow-gpio-hog-nodes.patch
 	0010-dt-bindings-power-supply-sc27xx-fg-allow-power-suppl.patch
-c8d4c9191516a0bff476855d8e63dec3fb284142ee27f766d3440c0cc8d4703530dd43680a3d91146d46333bbbb52c686e44fe5865fa4707a3ed0d97323e694c  0010-dt-bindings-power-supply-sc27xx-fg-allow-power-suppl.patch
 "
 builddir="$srcdir/linux"
 

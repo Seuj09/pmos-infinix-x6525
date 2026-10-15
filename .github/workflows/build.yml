@@ -61,6 +61,27 @@ jobs:
           [ "$fail" = 0 ] || exit 1
           echo "kernel package matches patches/upstream"
 
+      # A checksum line pasted into options=/makedepends=/source= is invisible
+      # to everything above and fatal to the ROM build, where pmbootstrap reads
+      # it as a package name ("dependency not found: 0010-....patch") - after
+      # the forty minutes it takes to get there. Everything else about these
+      # packages is checked; these variables were not.
+      - name: No package's variables carry a checksum line
+        run: |
+          var() { ( . "$1"; eval "printf '%s\n' \"\${$2}\"" ); }
+          fail=0
+          for P in pmaports/device/testing/*/APKBUILD; do
+            for v in depends makedepends options; do
+              bad=$(var "$P" "$v" | tr ' ' '\n' | grep -E '^[0-9a-f]{128}$|\.patch$' || true)
+              [ -z "$bad" ] || { echo "$P: $v carries: $(echo $bad)"; fail=1; }
+            done
+            # source= names files on purpose; only a bare checksum is wrong.
+            bad=$(var "$P" source | tr ' ' '\n' | grep -E '^[0-9a-f]{128}$' || true)
+            [ -z "$bad" ] || { echo "$P: source carries a checksum line"; fail=1; }
+          done
+          [ "$fail" = 0 ] || exit 1
+          echo "no checksum lines among the packages' variables"
+
       - name: Verify the submission patches
         run: |
           base=$(git -C kernel rev-parse HEAD)
