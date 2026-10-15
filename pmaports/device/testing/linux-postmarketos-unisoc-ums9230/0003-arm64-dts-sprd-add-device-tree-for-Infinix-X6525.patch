@@ -1,4 +1,4 @@
-From ebb4f0ba4df606f49a36393cbd152932445c9d96 Mon Sep 17 00:00:00 2001
+From 70b1f14c81ea282291ab462af3cfcb6f4fe141aa Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
 Date: Wed, 14 Oct 2026 12:58:06 +0000
 Subject: [PATCH] arm64: dts: sprd: add device tree for Infinix X6525
@@ -7,17 +7,25 @@ The Infinix X6525 is a Unisoc UMS9230 (Tiger T606) phone, sold as the
 "Smart 8". It is a UMS9230-1H10-GO reference board variant: the bootloader
 reports androidboot.dtbo_idx=18 and lcd_name=lcd_td4160_hx_mipi_hdp_x6525.
 
-Everything here comes from the device's own firmware (the vendor dtbo, entry
-18) rather than from a sibling board:
+Everything here comes from the device's own firmware rather than from a
+sibling board: the vendor dtbo (entry 18) and, where the two disagree, the
+running system's own expanded device tree (/proc/device-tree), which is what
+the vendor kernel was actually handed:
 
 - panel: display-timings/timing0 is the native mode, 153.6 MHz, 959x2668,
   which is 60.03 Hz
 - storage: eMMC on sdio3 (sprdboot.flash=emmc,
-  androidboot.boot_devices=.../201d0000.sdio), sdio0 is the microSD slot
-- touch: Omnivision TCM on SPI3, irq gpio 16, reset gpio 145 (the board DT's
-  supplier table pairs it with the TD4160 panel), and its HDL image. Its
-  binding and driver follow later in this series.
-- keys, battery scalars and the charger layout from the same source
+  androidboot.boot_devices=.../201d0000.sdio), sdio0 is the microSD slot;
+  the eMMC carries no vqmmc-supply, as vddsdio is the card slot's IO rail
+- touch: Omnivision TCM on SPI3, irq on eic_async 16 (not the overlay's
+  ap_gpio 16), reset gpio 145, and its HDL image. Its binding and driver
+  follow later in this series.
+- keys, battery scalars and the charger layout from the same sources;
+  volume-up is on the PMIC EIC (pin 4), which is where the running tree
+  has it
+- wcn: the block's driver in this tree asks for three supplies and two
+  GPIOs, and the dtsi carries none of them, so the node names the same
+  resources the reeder's does
 
 The charger is an Awinic AW32257 that reads back as a TI bq24158 (i2c3, 0x6a),
 so it binds to the existing bq2415x driver with the vendor's own ti,*
@@ -29,27 +37,16 @@ timings' blanking looks unusual (vfront 1020), and the panel reset polarity
 
 Signed-off-by: Seuj09 <jeus110310@gmail.com>
 ---
- arch/arm64/boot/dts/sprd/Makefile             |   1 +
- .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 666 ++++++++++++++++++
- 2 files changed, 667 insertions(+)
+ .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 689 ++++++++++++++++++
+ 1 file changed, 689 insertions(+)
  create mode 100644 arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 
-diff --git a/arch/arm64/boot/dts/sprd/Makefile b/arch/arm64/boot/dts/sprd/Makefile
-index 0af83bf..2bb8086 100644
---- a/arch/arm64/boot/dts/sprd/Makefile
-+++ b/arch/arm64/boot/dts/sprd/Makefile
-@@ -4,4 +4,5 @@ dtb-$(CONFIG_ARCH_SPRD) += sc9836-openphone.dtb 	\
- 			sp9863a-1h10.dtb		\
- 			ums512-1h10.dtb			\
- 			ums9230-reeder-s19mps.dtb	\
-+			ums9230-infinix-x6525.dtb	\
- 			ums9620-2h10.dtb
 diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 new file mode 100644
-index 0000000..e2dd08d
+index 000000000..7ffd885f0
 --- /dev/null
 +++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
-@@ -0,0 +1,667 @@
+@@ -0,0 +1,689 @@
 +// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 +/*
 + * Infinix X6525 ("Infinix Smart 8") - Unisoc UMS9230 (Tiger T606)
@@ -176,7 +173,10 @@ index 0000000..e2dd08d
 +		key-volumeup {
 +			wakeup-source;
 +			debounce-interval = <2>;
-+			gpios = <&ap_gpio 4 GPIO_ACTIVE_HIGH>;	/* board DT: gpio 0x4, flag 0 */
++			/* The running system's own tree has volume-up on the PMIC
++			 * EIC (pin 4), not on the AP GPIO the board overlay names;
++			 * the vendor flag is 0, so active-high. */
++			gpios = <&pmic_eic 4 GPIO_ACTIVE_HIGH>;
 +			linux,code = <KEY_VOLUMEUP>;
 +		};
 +
@@ -288,7 +288,9 @@ index 0000000..e2dd08d
 +	sprd,phy-delay-mmc-hs400es = <0x40 0x80 0x3d 0x3d>;
 +
 +	vmmc-supply = <&vddemmccore>;
-+	vqmmc-supply = <&vddsdio>;
++	/* No vqmmc-supply: vddsdio is the microSD slot's IO rail (it is
++	 * &sdio0's vqmmc above), and the running system's eMMC node names no
++	 * IO supply of its own - the port had the card slot's rail here. */
 +	status = "okay";
 +};
 +
@@ -532,10 +534,11 @@ index 0000000..e2dd08d
 +/* ---- display ------------------------------------------------------------
 + * Confirmed on the device's own cmdline: lcd_name=lcd_td4160_hx_mipi_hdp_x6525,
 + * i.e. the TD4160 HX variant at 720x1612. No mainline driver exists for it yet;
-+ * one is drafted in this repo at drivers/panel-td4160-hx.c, modelled on the
-+ * reeder's panel-chipone-icnl9916-720x1600.c. Its DCS sequence and mode timings
-+ * still have to come from this device - dtbo entry 18 and the lcd_* cmdline
-+ * parameters respectively.
++ * one is drafted in this repo at drivers/panel-td4160-hx.c. Only the driver's
++ * structure follows the reeder's panel-chipone-icnl9916-720x1600.c: its DCS
++ * sequence, its reset sequence and the mode timings are this device's own,
++ * read off the board's own dtbo entry 18 (the panel node the bootloader
++ * selects) - display-timings/timing0 is the native mode, 959x2668 at 153.6 MHz.
 + */
 +&disp {
 +	status = "okay";
@@ -597,10 +600,13 @@ index 0000000..e2dd08d
 +		spi-max-frequency = <8000000>;	/* board DT: ubl-max-freq 0x7a1200 */
 +		spi-cpha;			/* SPI mode 3, as the vendor sets it */
 +		spi-cpol;
-+		/* board DT: irq-gpio 0x10. The chip holds the line low until
++		/* The running system's own tree carries the interrupt on
++		 * eic_async 16, not on the AP GPIO 16 the board overlay names
++		 * (irq-gpio 0x10) - on the AP GPIO the controller never sees
++		 * the first IDENTIFY report. The chip holds the line low until
 +		 * the report has been read, so level-low is safer than an edge
 +		 * (no missed first report). */
-+		interrupts-extended = <&ap_gpio 16 IRQ_TYPE_LEVEL_LOW>;
++		interrupts-extended = <&eic_async 16 IRQ_TYPE_LEVEL_LOW>;
 +		/* board DT: reset-gpio 0x91. The vendor's reset_on_state = 0, so
 +		 * reset is asserted low (they drive it low for 20 ms and release
 +		 * it), which makes the line active-low. */
@@ -655,12 +661,25 @@ index 0000000..e2dd08d
 +
 +&wcn {
 +	/*
-+	 * The running system holds "merlion-chip-en" (ap_gpio 118) and
-+	 * "merlion-rst" (ap_gpio 117) high, the same lines the reeder uses, so the
-+	 * dtsi defaults stand. The stock WiFi/Bluetooth is Unisoc's own
-+	 * sprd_wlan_combo/wcn_bsp stack (87000000.cpwcn-btwf); I know of no
-+	 * mainline driver for it, so this node only powers the block.
++	 * The dtsi names none of the supplies or GPIOs the block's driver asks
++	 * for: drivers/remoteproc/sprd_wcn.c requires three regulators, an
++	 * enable line and a reset line, and the dtsi has none of them. The
++	 * supplies are the SoC rails the reeder's board node names (and the
++	 * driver's own regulator list: vdd, vddwifipa, dcxo1v8); the enable and
++	 * reset lines are the ones the running system holds high as
++	 * "merlion-chip-en" (ap_gpio 118) and "merlion-rst" (ap_gpio 117) - the
++	 * same lines the reeder uses.
++	 *
++	 * The stock WiFi/Bluetooth is Unisoc's own sprd_wlan_combo/wcn_bsp stack
++	 * (87000000.cpwcn-btwf) and there is no mainline stack for it, so
++	 * enabling this only satisfies the remoteproc driver above; the firmware
++	 * it would load is "sprd/wcnmodem.bin", named in the dtsi's btwf child.
 +	 */
++	enable-gpios = <&ap_gpio 118 GPIO_ACTIVE_HIGH>;
++	reset-gpios = <&ap_gpio 117 GPIO_ACTIVE_LOW>;
++	vdd-supply = <&vddwcn>;
++	vddwifipa-supply = <&vddwifipa>;
++	dcxo1v8-supply = <&vddsim2>;
 +	status = "okay";
 +};
 +
@@ -718,5 +737,5 @@ index 0000000..e2dd08d
 +	};
 +};
 -- 
-2.47.3
+2.43.0
 

@@ -19,7 +19,7 @@ the path each value came from.
 | `compatible`, `aliases`, `chosen` | device's own stock images (see `../NOTES.md`) | traced |
 | `reserved-memory` | reeder DTS; framebuffer base confirmed from `lcd_base` | size and `ramoops` values still to check |
 | backlight | none: the panel takes DCS brightness, the board has no PWM backlight | traced (12-bit, max 0xfff) |
-| `gpio-keys` | live tree: vol-down `ap_gpio 124`, vol-up `ap_gpio 4`, power `pmic_eic 1` | traced |
+| `gpio-keys` | live tree: vol-down `ap_gpio 124`, vol-up `pmic_eic 4`, power `pmic_eic 1` | traced |
 | storage | live tree: eMMC on `sdio3` (`sprdboot.flash=emmc`), microSD on `sdio0` | traced, with the device's own timing values |
 | USB (`hsphy`, `usb`) | reeder (MUSB is the same controller) | structure traced; role-switch provider TODO |
 | charger | live tree: Awinic AW32257 (reads back as a bq24158) on `i2c3` at `0x6a` | traced; `charge,chg-pd-gpio` not handled |

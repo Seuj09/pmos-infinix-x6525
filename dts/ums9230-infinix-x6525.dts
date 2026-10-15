@@ -124,7 +124,10 @@
 		key-volumeup {
 			wakeup-source;
 			debounce-interval = <2>;
-			gpios = <&ap_gpio 4 GPIO_ACTIVE_HIGH>;	/* board DT: gpio 0x4, flag 0 */
+			/* The running system's own tree has volume-up on the PMIC
+			 * EIC (pin 4), not on the AP GPIO the board overlay names;
+			 * the vendor flag is 0, so active-high. */
+			gpios = <&pmic_eic 4 GPIO_ACTIVE_HIGH>;
 			linux,code = <KEY_VOLUMEUP>;
 		};
 
@@ -236,7 +239,9 @@
 	sprd,phy-delay-mmc-hs400es = <0x40 0x80 0x3d 0x3d>;
 
 	vmmc-supply = <&vddemmccore>;
-	vqmmc-supply = <&vddsdio>;
+	/* No vqmmc-supply: vddsdio is the microSD slot's IO rail (it is
+	 * &sdio0's vqmmc above), and the running system's eMMC node names no
+	 * IO supply of its own - the port had the card slot's rail here. */
 	status = "okay";
 };
 
@@ -480,10 +485,11 @@
 /* ---- display ------------------------------------------------------------
  * Confirmed on the device's own cmdline: lcd_name=lcd_td4160_hx_mipi_hdp_x6525,
  * i.e. the TD4160 HX variant at 720x1612. No mainline driver exists for it yet;
- * one is drafted in this repo at drivers/panel-td4160-hx.c, modelled on the
- * reeder's panel-chipone-icnl9916-720x1600.c. Its DCS sequence and mode timings
- * still have to come from this device - dtbo entry 18 and the lcd_* cmdline
- * parameters respectively.
+ * one is drafted in this repo at drivers/panel-td4160-hx.c. Only the driver's
+ * structure follows the reeder's panel-chipone-icnl9916-720x1600.c: its DCS
+ * sequence, its reset sequence and the mode timings are this device's own,
+ * read off the board's own dtbo entry 18 (the panel node the bootloader
+ * selects) - display-timings/timing0 is the native mode, 959x2668 at 153.6 MHz.
  */
 &disp {
 	status = "okay";
@@ -545,10 +551,13 @@
 		spi-max-frequency = <8000000>;	/* board DT: ubl-max-freq 0x7a1200 */
 		spi-cpha;			/* SPI mode 3, as the vendor sets it */
 		spi-cpol;
-		/* board DT: irq-gpio 0x10. The chip holds the line low until
+		/* The running system's own tree carries the interrupt on
+		 * eic_async 16, not on the AP GPIO 16 the board overlay names
+		 * (irq-gpio 0x10) - on the AP GPIO the controller never sees
+		 * the first IDENTIFY report. The chip holds the line low until
 		 * the report has been read, so level-low is safer than an edge
 		 * (no missed first report). */
-		interrupts-extended = <&ap_gpio 16 IRQ_TYPE_LEVEL_LOW>;
+		interrupts-extended = <&eic_async 16 IRQ_TYPE_LEVEL_LOW>;
 		/* board DT: reset-gpio 0x91. The vendor's reset_on_state = 0, so
 		 * reset is asserted low (they drive it low for 20 ms and release
 		 * it), which makes the line active-low. */
@@ -603,12 +612,25 @@
 
 &wcn {
 	/*
-	 * The running system holds "merlion-chip-en" (ap_gpio 118) and
-	 * "merlion-rst" (ap_gpio 117) high, the same lines the reeder uses, so the
-	 * dtsi defaults stand. The stock WiFi/Bluetooth is Unisoc's own
-	 * sprd_wlan_combo/wcn_bsp stack (87000000.cpwcn-btwf); I know of no
-	 * mainline driver for it, so this node only powers the block.
+	 * The dtsi names none of the supplies or GPIOs the block's driver asks
+	 * for: drivers/remoteproc/sprd_wcn.c requires three regulators, an
+	 * enable line and a reset line, and the dtsi has none of them. The
+	 * supplies are the SoC rails the reeder's board node names (and the
+	 * driver's own regulator list: vdd, vddwifipa, dcxo1v8); the enable and
+	 * reset lines are the ones the running system holds high as
+	 * "merlion-chip-en" (ap_gpio 118) and "merlion-rst" (ap_gpio 117) - the
+	 * same lines the reeder uses.
+	 *
+	 * The stock WiFi/Bluetooth is Unisoc's own sprd_wlan_combo/wcn_bsp stack
+	 * (87000000.cpwcn-btwf) and there is no mainline stack for it, so
+	 * enabling this only satisfies the remoteproc driver above; the firmware
+	 * it would load is "sprd/wcnmodem.bin", named in the dtsi's btwf child.
 	 */
+	enable-gpios = <&ap_gpio 118 GPIO_ACTIVE_HIGH>;
+	reset-gpios = <&ap_gpio 117 GPIO_ACTIVE_LOW>;
+	vdd-supply = <&vddwcn>;
+	vddwifipa-supply = <&vddwifipa>;
+	dcxo1v8-supply = <&vddsim2>;
 	status = "okay";
 };
 
