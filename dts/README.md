@@ -21,7 +21,7 @@ the path each value came from.
 | backlight | none: the panel takes DCS brightness, the board has no PWM backlight | traced (12-bit, max 0xfff) |
 | `gpio-keys` | live tree: vol-down `ap_gpio 124`, vol-up `pmic_eic 4`, power `pmic_eic 1` | traced |
 | storage | live tree: eMMC on `sdio3` (`sprdboot.flash=emmc`), microSD on `sdio0` | traced, with the device's own timing values |
-| USB (`hsphy`, `usb`) | reeder (MUSB is the same controller) | structure traced; role-switch provider TODO |
+| USB (`hsphy`, `usb`) | reeder (MUSB is the same controller); role switch settled from the live tree (`&pmic_typec_pd`) | traced |
 | charger | live tree: Awinic AW32257 (reads back as a bq24158) on `i2c3` at `0x6a` | traced; `charge,chg-pd-gpio` not handled |
 | panel | device cmdline: `lcd_td4160_hx_mipi_hdp_x6525` | confirmed TD4160 HX, 720x1612; driver in this repo |
 | touchscreen | device: bound driver `omnivision_tcm_spi` on `spi3.0` | confirmed Omnivision TCM; driver in this repo |

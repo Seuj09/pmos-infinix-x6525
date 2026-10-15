@@ -13,17 +13,17 @@ marks `fate = "obsolete"`.
    works today: `device/testing/linux-postmarketos-unisoc-ums9230/` here is that package with the
    ten patches from `../patches/upstream/` added to `source=` - `default_prepare`, which the package
    already calls, applies them with `patch -p1`, verified against the same tag it builds from - plus
-   the four config symbols below. Copy it in beside the device package and the ROM builds. Once the
+   the five config symbols below. Copy it in beside the device package and the ROM builds. Once the
    series is merged instead, drop that directory, bump `KERNEL_TAG` in
    `../.github/workflows/build.yml` and the `_tag` in the kernel APKBUILD to a tag containing it, and
    the patches come back out.
 
-2. **Four config symbols in that package's config.** Its config
+2. **Five config symbols in that package's config.** Its config
    (`config-postmarketos-unisoc-ums9230.aarch64`) is what the ROM's kernel actually uses, and it
    already carries everything else this port needs: the PMIC chain (`SPI_SPRD_ADI`,
    `MFD_SC27XX_PMIC`, `REGULATOR_SC2730`), `SC27XX_ADC`, `GENERIC_ADC_THERMAL`, `FUEL_GAUGE_SC27XX`,
    `EXTCON_USB_GPIO`, `CHARGER_MANAGER`, `DRM_SPRD`, and MUSB (`USB_MUSB_HDRC`/`USB_MUSB_SPRD` — the
-   blocker from the old downstream plan). Only these four are missing, and the staging package above
+   blocker from the old downstream plan). Only these five are missing, and the staging package above
    has them:
 
    ```
@@ -31,6 +31,7 @@ marks `fate = "obsolete"`.
    CONFIG_TOUCHSCREEN_OVT_TCM_SPI=m   # as is the sibling touch driver
    CONFIG_CHARGER_EXTCON_DETECT=m
    CONFIG_CHARGER_BQ2415X=m           # the file had this one explicitly "is not set"
+   CONFIG_SERIAL_SPRD=y               # the UART in stdout-path, inert without it
    ```
 
    Three things learned the hard way, worth keeping: a symbol whose dependency is off is a no-op, so

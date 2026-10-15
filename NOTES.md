@@ -280,8 +280,8 @@ The ROM, and the first boot:
 - **the kernel package is drafted** in `pmaports/device/testing/linux-postmarketos-unisoc-ums9230/`:
   pmaports' own package with the ten patches added to `source=` (verified to apply with `patch -p1`,
   which is what `default_prepare` uses, reproducing `dts/`, `drivers/` and `bindings/` byte for byte)
-  and the four symbols its config was missing. That config is pmaports' own and is what the ROM's
-  kernel actually uses, so CI now checks those four survive `olddefconfig` in it, last in the job
+  and the five symbols its config was missing. That config is pmaports' own and is what the ROM's
+  kernel actually uses, so CI now checks those five survive `olddefconfig` in it, last in the job
   because the check replaces `.config`.
 - **the firmware needs nothing pressed**: this repository was made public on 2026-10-14 for exactly
   this reason, so `firmware-infinix-x6525`'s `source=` is the tarball in `firmware/` served straight
@@ -345,6 +345,21 @@ The ROM, and the first boot:
   `CONFIG_SERIAL_SPRD=y` in the kernel package's config (the UART in `stdout-path` was inert without
   it) and `kernel-cmdline.conf` with `loglevel=7` in the device package (the distro cmdline ships
   `quiet`).
+- **which copy of U-Boot the ROM ships**: the u-boot package builds from the *fork's* tarball at
+  `_commit` (branch `x6525`), while `uboot/` here is what CI builds; the two are byte-identical today
+  (checked against the fork), so a change to `uboot/` needs a push to the fork and a `_commit`/sha512
+  bump before the ROM can carry it. The kernel is the other way round: its package builds from the
+  codeberg tag plus `patches/upstream/`, so `dts/` reaches the ROM through patch 0003 - which is why
+  CI checks that one against the other.
+- **what the built U-Boot can actually do** (from its own `.config`, built locally with the board
+  overlay): `FS_EXT4`/`CMD_EXT4`/`BOOTMETH_EXTLINUX`/`BOOTSTD_FULL` are all `=y`, so the extlinux
+  bootflow on an ext4 card partition is exactly the path it was configured for, and `SPRD_SERIAL`,
+  `VIDEO`+`VIDEO_SIMPLE` give it both consoles. `ENV_IS_NOWHERE=y` means the `bootcmd` in
+  `board/unisoc/ums9230/ums9230.env` (`bootflow scan -lb mmc`) is compiled in and always used. It has
+  no regulator driver for the PMIC and `sdhci-sprd.c` touches no rails, so the card slot is powered
+  by whatever the stock bootloader left on - the same situation as the reeder's board, whose U-Boot
+  DTS enables `&sdio0` exactly the way this one does. `CONFIG_FASTBOOT_FLASH` is **off**: it
+  enumerates as a fastboot device but cannot write a partition.
 - **which runner does what, and why**: `rom.yml` runs on GitHub's arm64 runner because building the
   image means attaching it to a loop device, and the Namespace profile's runner is a container whose
   device cgroup refuses the block device - the nodes can be made and `losetup -f` answers, but

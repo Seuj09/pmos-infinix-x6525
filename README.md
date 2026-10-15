@@ -62,7 +62,7 @@ some: it clones the pinned tag, checks that the submission series applies to it 
 bindings and this board's nodes, enables `DRM_SPRD`, `DRM_PANEL_TD4160_HX`, `TOUCHSCREEN_OVT_TCM_SPI`,
 `CHARGER_BQ2415X`, `CHARGER_EXTCON_DETECT` and the PMIC chain the thermistors need behind an
 `olddefconfig` gate, compiles the three drivers, refetches the U-Boot archive and the firmware tarball
-and compares them against the sha512s in their APKBUILDs, and checks this port's four symbols survive
+and compares them against the sha512s in their APKBUILDs, and checks this port's five symbols survive
 in the **pmaports** kernel config — the one the ROM is actually built with. The `build` job uploads
 `x6525-build`; the `uboot` job builds the board and uploads `x6525-uboot`.
 

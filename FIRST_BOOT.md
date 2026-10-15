@@ -53,11 +53,15 @@ writes the config file init would have written and points pmbootstrap at it with
 - Know the way back **before** you need it: `fastboot flash boot_a <backup boot.img>` restores Android.
   If the phone no longer reaches fastboot at all, the Spreadtrum download mode with `spd_dump` is the
   fallback (your Termux setup).
-- U-Boot gets the screen as a console (`CONFIG_VIDEO`, simple framebuffer at `0x9e000000`) and speaks
-  **fastboot over USB** (`CONFIG_USB_FUNCTION_FASTBOOT`), so a USB cable is enough for the first
-  stages - a UART is nice to have (`serial1`, 115200 8N1, the stock console) but not required, and it
-  works now: `CONFIG_SERIAL_SPRD` is on in the ROM's kernel config, where it used to be off and
-  left `stdout-path` inert.
+- U-Boot gets the screen as a console (`CONFIG_VIDEO` with the simple framebuffer at `0x9e000000`)
+  and a UART one (`CONFIG_SPRD_SERIAL`, `serial1`, 115200 8N1), so a USB cable is enough for the
+  first stages and a UART is optional - and now also works in the kernel: `CONFIG_SERIAL_SPRD` is on
+  in the ROM's kernel config, where it used to be off and left `stdout-path` inert.
+- U-Boot enumerates as a **USB fastboot device** (`CONFIG_USB_FUNCTION_FASTBOOT`), but it cannot
+  flash: `CONFIG_FASTBOOT_FLASH` is off in the board defconfig (checked in the built `.config`), so
+  it answers `getvar`/`reboot` and not `fastboot flash`. The way back from a U-Boot that will not
+  boot is the stock bootloader's own fastboot (volume keys at power-on) or, if the phone reaches
+  neither, the Spreadtrum download mode with `spd_dump`.
 
 ## Flashing
 
@@ -130,6 +134,11 @@ U-Boot looks on both and boots the card.
 - **SD card not seen:** card-detect. The DTS uses `eic_sync 35` (confirmed on the stock system; the empty slot
   reads high, so the flag is ACTIVE_LOW - check with a card in). `CONFIG_MMC_BROKEN_CD` is set in U-Boot, so U-Boot itself does not care; the
   kernel does. Test with a card in and out and read `cat /sys/kernel/debug/gpio`.
+  If *U-Boot* does not list the card at all in `mmc list`, the slot's rails are the suspect: U-Boot has no
+  driver for this PMIC's regulators and `sdhci-sprd.c` touches no supplies, so it can only use what the stock
+  bootloader left powered - the reeder's board is in exactly the same position, so this is the design, not a
+  fault in the board files. The kernel powers the slot itself, but a bootflow cannot start from a card U-Boot
+  cannot read: report it. The eMMC does not share this risk (Android boots from it; its rails are already on).
 
 ## 3. Kernel starts, and how to see it
 
