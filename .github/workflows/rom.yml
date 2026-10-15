@@ -24,6 +24,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Host packages
+        run: |
+          # pmbootstrap checks the programs it needs on the host before it does
+          # anything, and names whatever is missing: kpartx is what it stopped
+          # on, on an image that carries git and python3 and little else.
+          # modprobe and losetup (kmod, util-linux) are the loop-device work
+          # install does, and ps (procps) is on pmbootstrap's own list.
+          #
+          # GitHub's ubuntu images have all of this preinstalled, which is why
+          # this step did not exist until the runners changed.
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            kpartx kmod util-linux procps
+
       - name: Get pmbootstrap and pmaports, and add this port's packages
         run: |
           git clone -q --depth 1 \

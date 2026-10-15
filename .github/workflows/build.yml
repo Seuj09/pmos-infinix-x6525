@@ -78,8 +78,11 @@ jobs:
       - name: Host packages
         run: |
           sudo apt-get update
+          # python3-pip is for the dtschema install further down: GitHub's
+          # images carry it, the profile's image is not guaranteed to.
           sudo apt-get install -y --no-install-recommends \
-            bc bison build-essential clang flex libelf-dev libssl-dev llvm lld
+            bc bison build-essential clang flex libelf-dev libssl-dev llvm lld \
+            python3-pip
 
       - name: Apply the overlay
         run: ./tools/apply-overlay.sh kernel

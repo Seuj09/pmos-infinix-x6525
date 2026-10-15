@@ -30,6 +30,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: The GitHub CLI
+        run: |
+          # The publish step needs gh. GitHub's images have it; the profile's
+          # image is not guaranteed to, and a release is the wrong place to
+          # find out. It is in Ubuntu's universe repository.
+          command -v gh || { sudo apt-get update && sudo apt-get install -y gh; }
+          gh --version
+
       - name: Check the tarball is the image the package expects
         run: |
           cd firmware
