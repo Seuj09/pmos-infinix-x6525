@@ -31,8 +31,13 @@ depends="
 # only recommended.
 _pmb_recommends="firmware-infinix-x6525"
 makedepends="devicepkg-dev"
+# kernel-cmdline.conf goes to /usr/lib/kernel-cmdline.d/50-$pkgname.conf
+# (devicepkg-dev installs it; boot-deploy reads it via generate-kernel-cmdline).
+# It carries loglevel=7 for the first boot: the distro config ships `quiet`, and
+# a later loglevel= is what wins, so the kernel prints its messages anyway.
 source="
 	deviceinfo
+	kernel-cmdline.conf
 "
 
 build() {
@@ -50,5 +55,6 @@ package() {
 }
 
 sha512sums="
-23c92ca8a71870ed48602320b2a13f5989a5e441120d1e8f096cb57ee0e644448a48d3d007317a956442eec6c31ed6d0e3124dbbc2b8ec5dfc94fb200b39ae77  deviceinfo
+ec06cee676200b6901690acfbd767dd1a57fa3a21fa8fc890bba09c253cefcd1266de1d8ad1807b584cbf721f3829ff9c8b9c830e8e6d1042089540e5a9a3907  deviceinfo
+1656b9152c06a37091b3b94c5a80c90de73b87428b6bc7d95584ff3fb6f511a4ac6e72b09263ff6c9347835f436d013490226a0224ad3ea9a84569c67672b35b  kernel-cmdline.conf
 "

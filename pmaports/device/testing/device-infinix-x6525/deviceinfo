@@ -18,7 +18,10 @@ deviceinfo_chassis="handset"
 
 # The primary bootloader cannot be replaced, so U-Boot is chainloaded from an
 # Android boot image, as on the Reeder S19 Max Pro S (Jolla C2). U-Boot's
-# extlinux config then supplies kernel, DTB and initramfs from /boot.
+# extlinux config then supplies kernel, DTB and initramfs from the first
+# partition of the exported image, and the initramfs finds the root partition
+# by its filesystem UUID (pmos_root_uuid on the kernel command line, put there
+# by boot-deploy from the image's own fstab).
 deviceinfo_generate_bootimg="true"
 deviceinfo_generate_extlinux_config="true"
 deviceinfo_bootimg_override_payload="u-boot.bin"
@@ -34,5 +37,17 @@ deviceinfo_flash_offset_second="0x00000000"
 deviceinfo_flash_offset_tags="0x00000000"
 deviceinfo_flash_pagesize="4096"
 deviceinfo_flash_method="fastboot"
+# boot_a takes U-Boot: `pmbootstrap flasher flash_kernel`, or `fastboot flash
+# boot_a boot.img` with the exported image. The rootfs is NOT flashed into an
+# eMMC partition. `install` builds it as a full MBR+GPT disk image whose first
+# partition carries /extlinux, /vmlinuz, /initramfs and the DTB, and U-Boot
+# cannot see a partition table nested inside a partition - blk-uclass.c's
+# part_create_block_devices() returns unless the device is UCLASS_BLK, and a
+# partition is UCLASS_PARTITION - so `flasher flash_rootfs`, which would write
+# that whole image into `super` (1.36 GB, no length check), leaves the phone at
+# the U-Boot prompt. Write the disk image to a microSD card instead, whole, and
+# boot from the card; only boot_a is touched on the eMMC. FIRST_BOOT.md has the
+# exact steps. The rootfs partition variable stays for the case the rootfs is
+# flashed as a filesystem image by hand; the documented procedure never uses it.
 deviceinfo_flash_fastboot_partition_kernel="boot_a"
 deviceinfo_flash_fastboot_partition_rootfs="super"
