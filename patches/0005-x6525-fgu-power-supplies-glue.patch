@@ -1,0 +1,25 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Thu, 15 Oct 2026 06:15:00 +0000
+Subject: [PATCH] sc27xx-fg: allow power-supplies, as build glue
+
+Build glue only, so that tools/apply-overlay.sh puts the fixed binding in the
+tree and the dt-validate step in CI can see it. The submission copy of this
+hunk is patches/upstream/0010-*.patch.
+---
+diff --git a/Documentation/devicetree/bindings/power/supply/sc27xx-fg.yaml b/Documentation/devicetree/bindings/power/supply/sc27xx-fg.yaml
+index c1de2c802..6ec99f379 100644
+--- a/Documentation/devicetree/bindings/power/supply/sc27xx-fg.yaml
++++ b/Documentation/devicetree/bindings/power/supply/sc27xx-fg.yaml
+@@ -57,6 +57,8 @@ properties:
+ 
+   monitored-battery: true
+ 
++  power-supplies: true
++
+ required:
+   - compatible
+   - reg
+-- 
+2.43.0
+

@@ -125,6 +125,7 @@ jobs:
           # tree's zones cannot trip this.
           BOARD="touchscreen@0|charger@6a|panel@0|speaker-amp|usb-charger-detect"
           BOARD="$BOARD|charger-en-hog|board-thermal|pa-thermal|chg-thermal"
+          BOARD="$BOARD|fuel-gauge@c00|battery \(simple-battery\)"
           BOARD="$BOARD|tboard-thermistor|pa-thermistor|chg-thermistor"
           BOARD="$BOARD|bq24158|td4160|omnivision,|infinix,"
           if grep -qE "$BOARD" /tmp/dt-validate.txt; then

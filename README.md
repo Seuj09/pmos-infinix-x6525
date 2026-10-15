@@ -69,7 +69,7 @@ in the **pmaports** kernel config — the one the ROM is actually built with. Th
 | `dts/`, `drivers/` | the device tree and the three drivers (panel, touch, charger) to send upstream |
 | `bindings/` | new DT bindings (the board/vendor entries are in `patches/`) |
 | `patches/` | build glue for the pinned kernel tag: kernel tree entries, the panel/touchscreen/charger Kconfig and Makefile entries, and the gpio binding fix |
-| `patches/upstream/` | the nine `git am`-able patches for submission, plus notes on where each goes |
+| `patches/upstream/` | the ten `git am`-able patches for submission, plus notes on where each goes |
 | `uboot/` | the X6525 U-Boot board: a defconfig and a device tree, no board directory |
 | `patches/upstream-uboot/` | the two U-Boot board patches for submission |
 | `pmaports/` | the four packages to copy into pmaports: the device, the kernel (this port's nine patches and its config), U-Boot, and the touch firmware |

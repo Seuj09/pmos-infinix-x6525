@@ -1,6 +1,6 @@
 # Kernel patches for the ums9230-mainline tree
 
-Nine patches, cut against `v7.2-rc6-ums9230-0` (the tag the pmaports kernel package pins) and verified
+Ten patches, cut against `v7.2-rc6-ums9230-0` (the tag the pmaports kernel package pins) and verified
 to apply **in this order** to a clean checkout of it, producing byte-identical files to `dts/`,
 `drivers/` and `bindings/` — i.e. to what CI compiles.
 
@@ -15,9 +15,10 @@ to apply **in this order** to a clean checkout of it, producing byte-identical f
 | 7 | `dt-bindings: power: supply: add extcon-backed USB charger detection` | bindings/mainline |
 | 8 | `power: supply: add extcon-backed USB charger detection` | the ums9230 tree, later power-supply |
 | 9 | `dt-bindings: gpio: sprd: allow gpio-hog nodes` | bindings/mainline; independent of this board |
+| 10 | `dt-bindings: power: supply: sc27xx-fg: allow power-supplies` | bindings/mainline; independent of this board |
 
 Patch 3 adds the touch node together with the rest of the board, and 5 and 6 document and drive it;
-the series is only consistent once all nine are applied, which is what the verification below checks.
+the series is only consistent once all ten are applied, which is what the verification below checks.
 The build inputs CI applies are separate: `../0001-x6525-build-glue.patch` and
 `../0002-x6525-touch-glue.patch`, `../0003-x6525-charger-glue.patch` and `../0004-x6525-gpio-hog-glue.patch` (the same hunks as 1, 2, 4, 5/6's Kconfig and Makefile entries, so a
 local build and CI put the same thing in the tree).

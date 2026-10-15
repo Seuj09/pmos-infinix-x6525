@@ -1159,5 +1159,5 @@ static struct spi_driver ovt_tcm_driver = {
 };
 module_spi_driver(ovt_tcm_driver);
 
-MODULE_DESCRIPTION("OmniVision TCM touchscreen (SPI, host download) - X6525 draft");
+MODULE_DESCRIPTION("OmniVision TCM touchscreen (SPI, host download)");
 MODULE_LICENSE("GPL");

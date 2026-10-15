@@ -140,5 +140,5 @@ static struct platform_driver ecd_driver = {
 };
 module_platform_driver(ecd_driver);
 
-MODULE_DESCRIPTION("USB charger power supply backed by an extcon - X6525 draft");
+MODULE_DESCRIPTION("USB charger power supply backed by an extcon");
 MODULE_LICENSE("GPL");

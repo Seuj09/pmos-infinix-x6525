@@ -170,10 +170,10 @@
 				       <3746000 20>, <3722000 15>,
 				       <3683000 10>, <3623000 5>,
 				       <3400000 0>;
-		/* charge-sdp/dcp/cdp-current-microamp from the board DT */
-		charge-sdp-current-microamp = <500000>;
-		charge-dcp-current-microamp = <2000000>;
-		charge-cdp-current-microamp = <1500000>;
+		/* The board DT also carries charge-sdp/dcp/cdp-current-microamp
+		 * (500/2000/1500 mA). Nothing in mainline reads them and the battery
+		 * schema rejects them; the same limits live in usb_detect's
+		 * default/dedicated-charger/cdp-microamp, which does act on them. */
 	};
 };
 

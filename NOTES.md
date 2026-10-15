@@ -181,7 +181,7 @@ branch that is the upstream base plus this port's commits and nothing else:
 | kernel | `github.com/Seuj09/ums9230-mainline-linux`, branch `x6525` | `2f0f93b0cb27358ee3238eca1c8fd6a212b38a63` |
 | U-Boot | `github.com/Seuj09/ums9230-mainline-u-boot`, branch `x6525` | `d169d38cab37a39282c96a1bfa0d32aff5d326df` |
 
-The kernel branch is the tag `v7.2-rc6-ums9230-0` plus the nine patches in `patches/upstream/`, one
+The kernel branch is the tag `v7.2-rc6-ums9230-0` plus the ten patches in `patches/upstream/`, one
 commit each (verified: the subjects match the patch files one for one and the tree's files are
 byte-identical to `dts/`, `drivers/` and `bindings/`). The U-Boot branch is the fork's `ums9230` plus
 its two board patches. Both were made by `git am`-ing the series, so `git format-patch` from either
