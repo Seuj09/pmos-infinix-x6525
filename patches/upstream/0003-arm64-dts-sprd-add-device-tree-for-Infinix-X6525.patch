@@ -161,13 +161,13 @@ index 000000000..a6f5d2796
 +		};
 +
 +		/*
-+		 * The stock tree reserves this 32 KiB no-map region next to the
-+		 * TrustZone ones the dtsi already carries (0xb0000000-0xb6100000);
-+		 * it is the one stock region outside them. Leaving it mapped lets the
-+		 * kernel speculate into secure memory.
++		 * The overlay names this at 0xb7200000; reg carries 0x9f727000,
++		 * because the bootloader places this TEE-adjacent region itself
++		 * and patches reg to suit. Left mapped, the kernel could speculate
++		 * into it; re-read the live tree if the bootloader ever moves it.
 +		 */
-+		tkv-mem@b7200000 {
-+			reg = <0x0 0xb7200000 0x0 0x8000>;
++		tkv-mem@9f727000 {
++			reg = <0x0 0x9f727000 0x0 0x8000>;
 +			no-map;
 +		};
 +
