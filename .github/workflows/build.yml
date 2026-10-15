@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: namespace-profile-1
     timeout-minutes: 60
 
     steps:
@@ -255,7 +255,7 @@ jobs:
           if-no-files-found: warn
 
   uboot:
-    runs-on: ubuntu-24.04
+    runs-on: namespace-profile-1
     timeout-minutes: 30
     env:
       UBOOT_REPO: https://codeberg.org/ums9230-mainline/u-boot
