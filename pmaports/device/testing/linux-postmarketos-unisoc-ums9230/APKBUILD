@@ -7,7 +7,7 @@ maintainer="Affe Null <affenull2345@gmail.com>"
 _flavor="postmarketos-unisoc-ums9230"
 pkgname=linux-$_flavor
 pkgver=7.2.0_rc6_git20260807
-pkgrel=4
+pkgrel=5
 pkgdesc="Linux kernel with patches for Unisoc UMS9230 devices"
 arch="aarch64"
 _carch="arm64"
@@ -83,7 +83,7 @@ sha512sums="
 89897a81c4e3901ec418898c55b3796149f899af3b28cf77278832948d285736f8e5704017920541bd8a31503ede8550cc8440cd0e3b4534ad1e50c4fa5655b5  config-postmarketos-unisoc-ums9230.aarch64
 7eaff147db4d2dbaadb287ce72f11d4bbfb0abb70af36aff3001331777627a40e573d680d31079946be0234d3af0be9e7db8fabf4d87e5ce4a03ae4d106b23f3  0001-dt-bindings-vendor-prefixes-add-Infinix-Mobility.patch
 3f035560c3dcf79104266c382fe55bdf0a6ae434eb27f5e44b19430573fc6bff1f99248c6d48d04d6c0834722ddf690efed6f8c6791fd8e704f72708dd86f574  0002-dt-bindings-arm-sprd-add-Infinix-X6525-board.patch
-350dfe514f24103366c8de7db579c7c994e8a6c7f1f4dfdb5fceefbee84955a661ec47c828ed3c90e10f20bbf31634b2c891b92cbc227fe7d526340a340ee166  0003-arm64-dts-sprd-add-device-tree-for-Infinix-X6525.patch
+3f0fb3c0fea3979610c4957961aedc77c91b8cc2fd64cae9bbb7e6a8bbf64996e8c464a5059d00dd6cb34ea8d95978ef55091a81054e61387b303f45179ef09d  0003-arm64-dts-sprd-add-device-tree-for-Infinix-X6525.patch
 e36b407a421fa80e0014763102247553eebcdb707ffdab84d528426095190ba30a27c76eaab9d888d786e38a5ee54c007dc293cec5765fcdbd1750a9b904a7ed  0004-drm-panel-add-driver-for-the-TD4160-HX-720x1612-panel.patch
 efeef7f9ed719bd38cc592a4360c0dfd8547aa3af943046db6db61e05432d9fe1f8f0a3fc8b6d3200013dd1ea263a9659269ff15aa88a51d8f7b57e8f45147df  0005-dt-bindings-input-add-OmniVision-TCM-SPI-touchscreen.patch
 c95311c7b30feef0474f0280966a43508c753689d9696b6f09ddae399903b9c91062c706f798a793acc33a0f4396c1a2e1344cd0438fd41b1d65f58abf805ba1  0006-Input-add-OmniVision-TCM-SPI-touchscreen-driver-host.patch

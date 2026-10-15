@@ -1,4 +1,4 @@
-From 52cf8aa647cbd1fd2e86af62d1dc998442771264 Mon Sep 17 00:00:00 2001
+From 5c0fd1502dc515dc3a47308dc97665bf96ff2a05 Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
 Date: Wed, 14 Oct 2026 12:58:06 +0000
 Subject: [PATCH] arm64: dts: sprd: add device tree for Infinix X6525
@@ -38,8 +38,8 @@ timings' blanking looks unusual (vfront 1020), and the panel reset polarity
 Signed-off-by: Seuj09 <jeus110310@gmail.com>
 ---
  arch/arm64/boot/dts/sprd/Makefile             |   1 +
- .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 713 ++++++++++++++++++
- 2 files changed, 714 insertions(+)
+ .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 716 ++++++++++++++++++
+ 2 files changed, 717 insertions(+)
  create mode 100644 arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 
 diff --git a/arch/arm64/boot/dts/sprd/Makefile b/arch/arm64/boot/dts/sprd/Makefile
@@ -54,10 +54,10 @@ index 0af83bf5f..2bb80861a 100644
  			ums9620-2h10.dtb
 diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 new file mode 100644
-index 000000000..f3bef78d0
+index 000000000..c4ada0ca1
 --- /dev/null
 +++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
-@@ -0,0 +1,713 @@
+@@ -0,0 +1,716 @@
 +// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 +/*
 + * Infinix X6525 ("Infinix Smart 8") - Unisoc UMS9230 (Tiger T606)
@@ -398,16 +398,19 @@ index 000000000..f3bef78d0
 +	#size-cells = <0>;
 +
 +	/*
-+	 * The vendor overlay (entry 18) names a "st,stmvl53l0" at 0x52 here, a
-+	 * VL53L0X time-of-flight proximity sensor, which mainline drives as
-+	 * st,vl53l0x. Its XSHUT and interrupt lines are given there as bare
-+	 * numbers (168 and 169) rather than phandles, so which ap_gpio they are
-+	 * is not established and they are left out: the driver then polls.
-+	 * If the sensor does not probe, XSHUT held low is the first suspect.
++	 * The vendor overlay (entry 18) names a "st,stmvl53l0" with reg = <0x52>,
++	 * a VL53L0X time-of-flight proximity sensor, which mainline drives as
++	 * st,vl53l0x. 0x52 is the 8-bit form of the address (ST's API default);
++	 * Linux wants the 7-bit one, and the part powers up at 0x29 (0x52 >> 1).
++	 * The stock kernel registered a client at 7-bit 0x52 and bound no driver.
++	 * Its XSHUT and interrupt lines are given there as bare numbers (168 and
++	 * 169) rather than phandles, so which ap_gpio they are is not established
++	 * and they are left out: the driver then polls. If the sensor does not
++	 * probe, XSHUT held low is the first suspect.
 +	 */
-+	proximity@52 {
++	proximity@29 {
 +		compatible = "st,vl53l0x";
-+		reg = <0x52>;
++		reg = <0x29>;
 +	};
 +};
 +

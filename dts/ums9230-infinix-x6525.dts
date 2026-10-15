@@ -338,16 +338,19 @@
 	#size-cells = <0>;
 
 	/*
-	 * The vendor overlay (entry 18) names a "st,stmvl53l0" at 0x52 here, a
-	 * VL53L0X time-of-flight proximity sensor, which mainline drives as
-	 * st,vl53l0x. Its XSHUT and interrupt lines are given there as bare
-	 * numbers (168 and 169) rather than phandles, so which ap_gpio they are
-	 * is not established and they are left out: the driver then polls.
-	 * If the sensor does not probe, XSHUT held low is the first suspect.
+	 * The vendor overlay (entry 18) names a "st,stmvl53l0" with reg = <0x52>,
+	 * a VL53L0X time-of-flight proximity sensor, which mainline drives as
+	 * st,vl53l0x. 0x52 is the 8-bit form of the address (ST's API default);
+	 * Linux wants the 7-bit one, and the part powers up at 0x29 (0x52 >> 1).
+	 * The stock kernel registered a client at 7-bit 0x52 and bound no driver.
+	 * Its XSHUT and interrupt lines are given there as bare numbers (168 and
+	 * 169) rather than phandles, so which ap_gpio they are is not established
+	 * and they are left out: the driver then polls. If the sensor does not
+	 * probe, XSHUT held low is the first suspect.
 	 */
-	proximity@52 {
+	proximity@29 {
 		compatible = "st,vl53l0x";
-		reg = <0x52>;
+		reg = <0x29>;
 	};
 };
 

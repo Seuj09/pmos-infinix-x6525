@@ -174,7 +174,7 @@ jobs:
           BOARD="$BOARD|charger-en-hog|board-thermal|pa-thermal|chg-thermal"
           BOARD="$BOARD|fuel-gauge@c00|battery \(simple-battery\)"
           BOARD="$BOARD|tboard-thermistor|pa-thermistor|chg-thermistor"
-          BOARD="$BOARD|proximity@52|vl53l0x"
+          BOARD="$BOARD|proximity@29|vl53l0x"
           BOARD="$BOARD|bq24158|td4160|omnivision,|infinix,"
           if grep -qE "$BOARD" /tmp/dt-validate.txt; then
             echo "the board's own nodes did not validate:"
