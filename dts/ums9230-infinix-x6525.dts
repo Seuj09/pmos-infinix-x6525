@@ -332,6 +332,25 @@
 	};
 };
 
+&i2c4 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	/*
+	 * The vendor overlay (entry 18) names a "st,stmvl53l0" at 0x52 here, a
+	 * VL53L0X time-of-flight proximity sensor, which mainline drives as
+	 * st,vl53l0x. Its XSHUT and interrupt lines are given there as bare
+	 * numbers (168 and 169) rather than phandles, so which ap_gpio they are
+	 * is not established and they are left out: the driver then polls.
+	 * If the sensor does not probe, XSHUT held low is the first suspect.
+	 */
+	proximity@52 {
+		compatible = "st,vl53l0x";
+		reg = <0x52>;
+	};
+};
+
 &i2c3 {
 	status = "okay";
 	#address-cells = <1>;

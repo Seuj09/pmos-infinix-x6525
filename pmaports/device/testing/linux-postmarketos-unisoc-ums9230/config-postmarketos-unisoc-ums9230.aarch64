@@ -6812,7 +6812,7 @@ CONFIG_IIO_SPRD_SHUB_PROXIMITY=m
 # CONFIG_SX9500 is not set
 # CONFIG_SRF08 is not set
 # CONFIG_VCNL3020 is not set
-# CONFIG_VL53L0X_I2C is not set
+CONFIG_VL53L0X_I2C=m
 # CONFIG_VL53L1X_I2C is not set
 # CONFIG_AW96103 is not set
 # end of Proximity and distance sensors
