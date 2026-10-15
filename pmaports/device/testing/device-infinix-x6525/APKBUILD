@@ -9,6 +9,7 @@ license="MIT"
 arch="aarch64"
 options="!check !archcheck"
 depends="
+	android-tools
 	linux-postmarketos-unisoc-ums9230
 	postmarketos-base
 	soc-unisoc-ums9230
@@ -17,6 +18,12 @@ depends="
 # u-boot-infinix-x6525 is not optional: U-Boot is chainloaded from boot_a, so
 # without it there is no way to boot the device at all (its u-boot.bin and the
 # dummy initramfs below make up the boot image).
+#
+# android-tools is not optional either, though it looks like it: boot-deploy
+# builds that boot image with mkbootimg, finds it in android-tools, and refuses
+# to run at all - "deviceinfo_generate_bootimg is set, but the package
+# android-tools was not" - which fails mkinitfs, and with it the whole install.
+# device-jolla-c2, the same SoC the same way, depends on it for this reason.
 #
 # The touch controller has no flash, so its HDL image has to be on the rootfs
 # for the touchscreen to work at all - hence the recommendation rather than an

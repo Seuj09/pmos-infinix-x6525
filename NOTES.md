@@ -309,7 +309,11 @@ The ROM, and the first boot:
   and the source check that had been "verifying" the firmware URL never expanded `$_tarball` - it fed
   curl a URL that was not one and read the 404 as "not published yet", so it passed for a file that
   was published and hashing correctly all along. It now sources the APKBUILD and lets the shell
-  expand it. The build has not yet come out the far end.
+  expand it. And `boot-deploy` will not build a boot image without `mkbootimg`, which is in
+  `android-tools`: `deviceinfo_generate_bootimg="true"` therefore obliges the device package to
+  *depend* on it, or `mkinitfs` fails the whole install. That is where the fourth run stopped - with
+  the kernel compiled from the nine patches, U-Boot built, and both packages built, which is as far
+  as this has got. The build has not yet come out the far end.
 - `firmware-infinix-x6525-wcn` (WiFi/Bluetooth) does not exist yet; touch under unl0kr needs the
   touch module and the HDL image in a `modules-initfs` file; the wiki device page is required at MR
   time; and the SD card-detect is settled (`eic_sync` 35, ACTIVE_LOW, empty slot reads high).
