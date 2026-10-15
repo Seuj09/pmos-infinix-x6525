@@ -1,0 +1,8 @@
+# USB gadget stack, for networking in the initramfs (the kernel config builds it as
+# modules). Without these there is no USB network, and so no way in, until the rootfs
+# has mounted - which is exactly when it is needed most.
+libcomposite
+u_ether
+usb_f_rndis
+usb_f_ecm
+usb_f_ncm

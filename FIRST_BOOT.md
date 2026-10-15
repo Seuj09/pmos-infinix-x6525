@@ -145,9 +145,11 @@ U-Boot looks on both and boots the card.
 Expect extlinux to boot the kernel, and the framebuffer to show kernel messages. The kernel command
 line carries `loglevel=7` (the device package's `kernel-cmdline.conf`; the distro config ships
 `quiet`, and the later `loglevel=` is the one that counts), so the console is not filtered.
-- The `simple-framebuffer` node in the DTS is **disabled** (the display driver takes over). To debug
-  without the display driver, set it to `okay` and disable `&dpu` and `&dsi`; you get the bootloader's
-  framebuffer with plain text.
+- The `simple-framebuffer` node in the DTS is **enabled** for the first boot: the bootloader leaves the
+  panel scanning out `0x9e000000`, and `DRM_SIMPLEDRM` + fbcon turn that into a text console, so kernel
+  messages are visible even if the DPU/DSI/panel stack never probes. If the real display stack works,
+  the two coexist (the picture may go stale when the DPU takes over); then set the node to `disabled`.
+  To rule the display driver out entirely, also disable `&dpu` and `&dsi`.
 - Console: `console=ttyS1,115200n8` is in `stdout-path`, and `CONFIG_SERIAL_SPRD=y` in the ROM's
   kernel config (it was off before, which left the property inert) makes it a real console.
 - **Crash or reboot with nothing on screen: read `ramoops`.** The DTS reserves `ramoops@fff80000`; after a

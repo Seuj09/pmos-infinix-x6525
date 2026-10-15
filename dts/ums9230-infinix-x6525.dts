@@ -67,7 +67,12 @@
 			stride = <(720 * 4)>;
 			format = "a8r8g8b8";
 
-			status = "disabled";	/* the display driver takes over */
+			/*
+			 * The bootloader leaves this scanning out, so simpledrm gives a
+			 * console even if the DPU/DSI/panel stack fails to probe. Once
+			 * that stack is known good, disable this so it takes over alone.
+			 */
+			status = "okay";
 		};
 	};
 
