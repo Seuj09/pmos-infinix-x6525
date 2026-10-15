@@ -100,6 +100,17 @@
 			 * ramoops@fff80000 carries exactly these values */
 		};
 
+		/*
+		 * The stock tree reserves this 32 KiB no-map region next to the
+		 * TrustZone ones the dtsi already carries (0xb0000000-0xb6100000);
+		 * it is the one stock region outside them. Leaving it mapped lets the
+		 * kernel speculate into secure memory.
+		 */
+		tkv-mem@b7200000 {
+			reg = <0x0 0xb7200000 0x0 0x8000>;
+			no-map;
+		};
+
 		linux,cma {
 			compatible = "shared-dma-pool";
 			size = <0x0 0x8000000>;
@@ -343,14 +354,20 @@
 	 * st,vl53l0x. 0x52 is the 8-bit form of the address (ST's API default);
 	 * Linux wants the 7-bit one, and the part powers up at 0x29 (0x52 >> 1).
 	 * The stock kernel registered a client at 7-bit 0x52 and bound no driver.
-	 * Its XSHUT and interrupt lines are given there as bare numbers (168 and
-	 * 169) rather than phandles, so which ap_gpio they are is not established
-	 * and they are left out: the driver then polls. If the sensor does not
-	 * probe, XSHUT held low is the first suspect.
+	 *
+	 * The overlay gives XSHUT as 168 and the interrupt as 169, bare numbers.
+	 * They are ap_gpio numbers: its interrupts property is <169 8> with
+	 * ap_gpio as the interrupt parent, and that specifier is chip-local. Not
+	 * confirmed on hardware; if the sensor does not probe, XSHUT is the first
+	 * suspect. The vendor's level-low interrupt becomes an edge here, which is
+	 * what the driver defaults to.
 	 */
 	proximity@29 {
 		compatible = "st,vl53l0x";
 		reg = <0x29>;
+		reset-gpios = <&ap_gpio 168 GPIO_ACTIVE_LOW>;
+		interrupt-parent = <&ap_gpio>;
+		interrupts = <169 IRQ_TYPE_EDGE_FALLING>;
 	};
 };
 

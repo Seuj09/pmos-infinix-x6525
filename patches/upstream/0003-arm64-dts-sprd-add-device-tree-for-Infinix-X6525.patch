@@ -1,4 +1,4 @@
-From 5c0fd1502dc515dc3a47308dc97665bf96ff2a05 Mon Sep 17 00:00:00 2001
+From bc0617a40decf10c1b302e98209e7e798279f440 Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
 Date: Wed, 14 Oct 2026 12:58:06 +0000
 Subject: [PATCH] arm64: dts: sprd: add device tree for Infinix X6525
@@ -38,8 +38,8 @@ timings' blanking looks unusual (vfront 1020), and the panel reset polarity
 Signed-off-by: Seuj09 <jeus110310@gmail.com>
 ---
  arch/arm64/boot/dts/sprd/Makefile             |   1 +
- .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 716 ++++++++++++++++++
- 2 files changed, 717 insertions(+)
+ .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 733 ++++++++++++++++++
+ 2 files changed, 734 insertions(+)
  create mode 100644 arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 
 diff --git a/arch/arm64/boot/dts/sprd/Makefile b/arch/arm64/boot/dts/sprd/Makefile
@@ -54,10 +54,10 @@ index 0af83bf5f..2bb80861a 100644
  			ums9620-2h10.dtb
 diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 new file mode 100644
-index 000000000..c4ada0ca1
+index 000000000..a6f5d2796
 --- /dev/null
 +++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
-@@ -0,0 +1,716 @@
+@@ -0,0 +1,733 @@
 +// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 +/*
 + * Infinix X6525 ("Infinix Smart 8") - Unisoc UMS9230 (Tiger T606)
@@ -158,6 +158,17 @@ index 000000000..c4ada0ca1
 +			pmsg-size = <0x8000>;
 +			/* confirmed against the running device: its own
 +			 * ramoops@fff80000 carries exactly these values */
++		};
++
++		/*
++		 * The stock tree reserves this 32 KiB no-map region next to the
++		 * TrustZone ones the dtsi already carries (0xb0000000-0xb6100000);
++		 * it is the one stock region outside them. Leaving it mapped lets the
++		 * kernel speculate into secure memory.
++		 */
++		tkv-mem@b7200000 {
++			reg = <0x0 0xb7200000 0x0 0x8000>;
++			no-map;
 +		};
 +
 +		linux,cma {
@@ -403,14 +414,20 @@ index 000000000..c4ada0ca1
 +	 * st,vl53l0x. 0x52 is the 8-bit form of the address (ST's API default);
 +	 * Linux wants the 7-bit one, and the part powers up at 0x29 (0x52 >> 1).
 +	 * The stock kernel registered a client at 7-bit 0x52 and bound no driver.
-+	 * Its XSHUT and interrupt lines are given there as bare numbers (168 and
-+	 * 169) rather than phandles, so which ap_gpio they are is not established
-+	 * and they are left out: the driver then polls. If the sensor does not
-+	 * probe, XSHUT held low is the first suspect.
++	 *
++	 * The overlay gives XSHUT as 168 and the interrupt as 169, bare numbers.
++	 * They are ap_gpio numbers: its interrupts property is <169 8> with
++	 * ap_gpio as the interrupt parent, and that specifier is chip-local. Not
++	 * confirmed on hardware; if the sensor does not probe, XSHUT is the first
++	 * suspect. The vendor's level-low interrupt becomes an edge here, which is
++	 * what the driver defaults to.
 +	 */
 +	proximity@29 {
 +		compatible = "st,vl53l0x";
 +		reg = <0x29>;
++		reset-gpios = <&ap_gpio 168 GPIO_ACTIVE_LOW>;
++		interrupt-parent = <&ap_gpio>;
++		interrupts = <169 IRQ_TYPE_EDGE_FALLING>;
 +	};
 +};
 +

@@ -229,10 +229,10 @@ cat /sys/class/power_supply/bq24158-*/status
 
 Expect only the proximity sensor: `dmesg | grep -i vl53` and an IIO device under `/sys/bus/iio/devices/`
 (`cat in_distance_raw` with a hand over the top of the phone). It is the VL53L0X the vendor overlay
-names as `0x52` on `i2c4` (the 8-bit form; the node uses the 7-bit `0x29`). The node has no reset or interrupt line (the vendor gives them as bare
-numbers, 168 and 169, whose `ap_gpio` is unknown), so it polls. If it does not probe, XSHUT is held low:
-find the pin and add `reset-gpios`. The Smart 8 may not even carry the part - the overlay is shared - so a
-probe failure here is not a bug in the port.
+names as `0x52` on `i2c4` (the 8-bit form; the node uses the 7-bit `0x29`). XSHUT and the interrupt are
+`ap_gpio` 168 and 169, taken from the overlay's bare numbers (its `interrupts` property uses 169 with `ap_gpio`
+as parent, which is chip-local) - not confirmed on hardware. If it does not probe, suspect XSHUT first. The
+Smart 8 may not even carry the part - the overlay is shared - so a probe failure here is not a bug in the port.
 
 The accelerometer and ambient-light sensor are not here: the vendor kernel reaches them through
 `sprd,sensor-hub`, a coprocessor with no mainline driver. Auto-rotate and auto-brightness will not work.
