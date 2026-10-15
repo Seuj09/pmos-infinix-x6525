@@ -118,8 +118,22 @@ jobs:
           python3 -c "import pmb.config; open('/tmp/pmbwork/version', 'w').write(f'{pmb.config.work_version}\n')"
           cat /tmp/pmbwork/version
 
-          pmbootstrap -c /tmp/pmb.cfg --aports /tmp/pmaports -y --details-to-stdout \
-            install --password x6525pmos
+          # Two attempts. The fetch of the kernel tarball from codeberg failed
+          # once with "ssl_client: SSL_read" / "wget: error getting response:
+          # Network unreachable" four minutes in, which cost the whole job - and
+          # the work directory is not recreated between attempts, so a retry
+          # begins from what the first attempt left: a fetch failure then costs
+          # the fetch rather than the kernel build that follows it.
+          for attempt in 1 2; do
+            echo "== attempt $attempt =="
+            if pmbootstrap -c /tmp/pmb.cfg --aports /tmp/pmaports -y --details-to-stdout \
+                 install --password x6525pmos; then
+              exit 0
+            fi
+            echo "attempt $attempt failed"
+          done
+          echo "::error::the build failed twice"
+          exit 1
 
       - name: Export what to flash
         run: |
