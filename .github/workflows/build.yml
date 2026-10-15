@@ -248,20 +248,24 @@ jobs:
       - name: Check the ROM's own kernel config takes our symbols
         run: |
           # The ROM builds with pmaports' config, not with the tree's defconfig,
-          # so the four symbols this port adds have to survive olddefconfig
+          # so the five symbols this port adds have to survive olddefconfig
           # there, dependencies and all. Last in the job on purpose: it replaces
           # .config, and the steps above and the upload want the tree's own.
+          # SERIAL_SPRD is the odd one out: not a driver this port adds, but the
+          # UART the board's stdout-path names, without which a boot has no
+          # serial console at all (it depends on ARCH_SPRD, which is =y).
           cd kernel
           cp "$GITHUB_WORKSPACE"/pmaports/device/testing/linux-postmarketos-unisoc-ums9230/config-postmarketos-unisoc-ums9230.aarch64 .config
           make ARCH=arm64 olddefconfig
           for sym in CONFIG_DRM_PANEL_TD4160_HX CONFIG_TOUCHSCREEN_OVT_TCM_SPI \
-                     CONFIG_CHARGER_EXTCON_DETECT CONFIG_CHARGER_BQ2415X; do
+                     CONFIG_CHARGER_EXTCON_DETECT CONFIG_CHARGER_BQ2415X \
+                     CONFIG_SERIAL_SPRD; do
             grep -qE "^${sym}=(y|m)$" .config || {
               echo "$sym did not survive olddefconfig in the ROM's kernel config"
               exit 1
             }
           done
-          echo "the ROM's kernel config takes all four"
+          echo "the ROM's kernel config takes all five"
 
       - name: Upload what was built
         if: always()
