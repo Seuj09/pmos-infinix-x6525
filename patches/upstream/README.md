@@ -19,6 +19,10 @@ to apply **in this order** to a clean checkout of it, producing byte-identical f
 
 Patch 3 adds the touch node together with the rest of the board, and 5 and 6 document and drive it;
 the series is only consistent once all ten are applied, which is what the verification below checks.
+Patch 3 also carries the `dtb-y` entry in `arch/arm64/boot/dts/sprd/Makefile` — the ROM's kernel
+package applies this series with `patch -p1` and then runs `dtbs_install`, so a patch 3 without that
+hunk builds no DTB for this board and the image build fails in boot-deploy looking for
+`sprd/ums9230-infinix-x6525.dtb`. Regenerate it with that hunk in place; CI now greps for it.
 The build inputs CI applies are separate: `../0001-x6525-build-glue.patch` and
 `../0002-x6525-touch-glue.patch`, `../0003-x6525-charger-glue.patch` and `../0004-x6525-gpio-hog-glue.patch` (the same hunks as 1, 2, 4, 5/6's Kconfig and Makefile entries, so a
 local build and CI put the same thing in the tree).
