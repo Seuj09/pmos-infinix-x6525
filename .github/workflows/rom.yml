@@ -5,9 +5,19 @@ name: rom
 #
 # It runs on arm64 on purpose: on x86_64 everything would go through qemu-user,
 # and a kernel build under emulation takes hours rather than the ~45 minutes it
-# takes natively. The Namespace profile this runs on is an arm64 host, which is
-# why every job in this repository can ask for the same one; on an x86_64 host
-# this workflow would still be correct, just far slower.
+# takes natively.
+#
+# It is also the one job that cannot run on the Namespace profile, which is why
+# it asks for GitHub's arm64 runner while everything else asks for
+# namespace-profile-1. Building the image means attaching the rootfs image to a
+# loop device, and that runner is a container whose device cgroup refuses it:
+# the nodes can be created (and losetup -f then answers), the char device
+# /dev/loop-control is usable, but opening the *block* device to attach a file
+# to it is Operation not permitted. That is the runner's decision, not the
+# image's, and 20 minutes of a working build is how it was found. Namespace
+# hands out real VMs (or allows the devices) and this line can go back to
+# namespace-profile-1 - the kernel builds in 10 minutes there against 43 here,
+# so it is worth asking them.
 #
 # `pmbootstrap init` asks its questions on stdin and cannot run unattended, so
 # this writes the config file it would have written (the keys are the Config
@@ -19,7 +29,7 @@ on:
 
 jobs:
   rom:
-    runs-on: namespace-profile-1
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
@@ -40,23 +50,29 @@ jobs:
 
       - name: Loop devices
         run: |
-          # pmbootstrap builds the image by attaching the rootfs .img to a loop
-          # device, from inside its chroot - it bind-mounts the host's
-          # /dev/loop* in to do it. So the capability this step is about is the
-          # *runner's*, not the image's: GitHub's runners are VMs that have it,
-          # and a runner that cannot create loop devices cannot build an image
-          # at all. Worth knowing in ten seconds rather than ten minutes into
-          # the kernel build.
+          # Building the image means attaching the rootfs .img to a loop device,
+          # which pmbootstrap does from inside its chroot with the host's
+          # /dev/loop* bind-mounted in. So the capability this checks is the
+          # *runner's*, and it is worth ten seconds here instead of twenty
+          # minutes into the build.
+          #
+          # losetup -f is not enough of a check. A container can be given the
+          # nodes and answer that - it only needs the char device
+          # /dev/loop-control - and still be refused the *block* device when it
+          # comes to attaching, with Operation not permitted. So attach a file
+          # and detach it again, which is the thing that has to work.
           sudo modprobe loop 2>&1 || echo "modprobe loop: not available"
           [ -e /dev/loop-control ] || sudo mknod -m 660 /dev/loop-control c 10 237 2>/dev/null || true
           for i in $(seq 0 7); do
             [ -e "/dev/loop$i" ] || sudo mknod -m 660 "/dev/loop$i" b 7 "$i" 2>/dev/null || true
           done
-          ls -l /dev/loop* 2>&1 | head -10 || true
-          if ! sudo losetup -f; then
+          truncate -s 1M /tmp/loop-test.img
+          if ! sudo losetup --find --show --partscan /tmp/loop-test.img; then
             echo "::error::this runner cannot attach loop devices, which building the image needs"
             exit 1
           fi
+          sudo losetup -D
+          echo "this runner can attach loop devices"
 
       - name: Get pmbootstrap and pmaports, and add this port's packages
         run: |
