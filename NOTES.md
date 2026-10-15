@@ -315,8 +315,12 @@ The ROM, and the first boot:
   time; and the SD card-detect is settled (`eic_sync` 35, ACTIVE_LOW, empty slot reads high).
 
 # First boot (SSH over USB)
-1. On GitHub: Actions → kernel → Run workflow. Mode `config` is the olddefconfig gate and does not need clang. Mode `image` also builds Image and modules with kernel.org LLVM 14 and `gcc-aarch64-linux-gnu`. The kernel ref defaults to `bpf-a17-selinux-test`.
-   Locally: `PMOS_KERNEL_MODE=config ./build-kernel.sh <kernel tree>`, or `./build-kernel.sh <kernel tree> <clang dir>` for the full build. No `pmos` branch is required.
+
+*This section and "Build notes" below are the **downstream 5.4** path, kept as the record of it. The
+`kernel` workflow that used to run the build on GitHub has been removed; the mainline first boot is
+[FIRST_BOOT.md](FIRST_BOOT.md).*
+
+1. Locally: `PMOS_KERNEL_MODE=config ./build-kernel.sh <kernel tree>` for the olddefconfig gate (it needs no clang), or `./build-kernel.sh <kernel tree> <clang dir>` for the full build with kernel.org LLVM 14 and `gcc-aarch64-linux-gnu`. No `pmos` branch is required. The kernel ref the removed workflow used was `bpf-a17-selinux-test`.
 2. Build a **gzip** postmarketOS initramfs (kernel 5.4 cannot unpack zstd)
 3. Back up boot_a, check `fastboot getvar current-slot`, then `./repack.sh Image initramfs.gz` and `fastboot flash boot_a boot-pmos.img`
 4. Flash the rootfs to **`super`**, not `userdata` (sparse) — that is the partition the UMS9230 port uses (`deviceinfo_flash_fastboot_partition_rootfs="super"`). This erases Android data. The initramfs looks for the `pmOS_root` label
@@ -324,7 +328,7 @@ The ROM, and the first boot:
 If the phone reboots into Android first-stage init, the bootloader ignored the boot ramdisk and the vendor ramdisk must be replaced.
 
 # Build notes
-- No `pmos` branch is needed: build-kernel.sh merges pmos.config onto the stock Helix config in an out directory. The workflow and the local script share that gate: every `=y` and every turned-off symbol in `pmos.config` must survive `olddefconfig`.
+- No `pmos` branch is needed: build-kernel.sh merges pmos.config onto the stock Helix config in an out directory. Its gate, which the removed workflow ran too: every `=y` and every turned-off symbol in `pmos.config` must survive `olddefconfig`.
 - MODULE_SIG and MODULE_SIG_ALL stay on (only MODULE_SIG_FORCE is turned off), so modules are still signed; built-in drivers need no key to boot.
 - The release string is normally `5.4.302-Helix+` (the `+` disappears on an annotated-tag checkout), which is what the kernel APKBUILD expects.
 - Correction to an earlier note here: `deviceinfo_header_version="4"` does **not** drop the DTB. boot-deploy builds a vendor_boot.img for v3/v4 and embeds the DTB from `deviceinfo_dtb` (the kernel package's dtbs) with mkbootimg; `deviceinfo_flash_offset_*` are ignored at v4. Flashing boot alone with `repack.sh` is a fallback, not a requirement. See README.
