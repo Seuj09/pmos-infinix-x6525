@@ -38,6 +38,26 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             kpartx kmod util-linux procps
 
+      - name: Loop devices
+        run: |
+          # pmbootstrap builds the image by attaching the rootfs .img to a loop
+          # device, from inside its chroot - it bind-mounts the host's
+          # /dev/loop* in to do it. So the capability this step is about is the
+          # *runner's*, not the image's: GitHub's runners are VMs that have it,
+          # and a runner that cannot create loop devices cannot build an image
+          # at all. Worth knowing in ten seconds rather than ten minutes into
+          # the kernel build.
+          sudo modprobe loop 2>&1 || echo "modprobe loop: not available"
+          [ -e /dev/loop-control ] || sudo mknod -m 660 /dev/loop-control c 10 237 2>/dev/null || true
+          for i in $(seq 0 7); do
+            [ -e "/dev/loop$i" ] || sudo mknod -m 660 "/dev/loop$i" b 7 "$i" 2>/dev/null || true
+          done
+          ls -l /dev/loop* 2>&1 | head -10 || true
+          if ! sudo losetup -f; then
+            echo "::error::this runner cannot attach loop devices, which building the image needs"
+            exit 1
+          fi
+
       - name: Get pmbootstrap and pmaports, and add this port's packages
         run: |
           git clone -q --depth 1 \
