@@ -5,8 +5,12 @@ Draft postmarketOS port for the Infinix X6525 (Unisoc UMS9230 / T606): the **mai
 repository has run on the hardware yet.
 
 [FIRST_BOOT.md](FIRST_BOOT.md) is the port stage by stage, with what to send back at each one, and
-how to build the image either here or on GitHub. `NOTES.md` is the record behind it: every value
-taken from the stock system or from the running device's own device tree, with its source.
+how to build the image either here or on GitHub. The rootfs boots from a microSD card, not from an
+eMMC partition: `pmbootstrap install` builds a whole disk image and the flash procedure writes it to
+a card, so the only write into the phone is U-Boot, into `boot_a` (`pmbootstrap flasher flash_rootfs`
+must not be run - it would put that disk image into `super`, where U-Boot cannot see it). `NOTES.md`
+is the record behind it: every value taken from the stock system or from the running device's own
+device tree, with its source.
 
 An earlier attempt used the stock 5.4 "Helix" kernel instead. Its files (`linux-infinix-x6525/`,
 `device-infinix-x6525/`, `build-kernel.sh`, `repack.sh`) are kept for reference; nothing in the

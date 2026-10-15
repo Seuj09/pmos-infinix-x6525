@@ -315,9 +315,36 @@ The ROM, and the first boot:
   the kernel compiled from the ten patches, U-Boot built, and both packages built.
 - **the ROM built, 2026-10-15** (run 38668586983, 48 minutes): `x6525-rom` holds the five things
   `export` produces - `boot.img` (U-Boot as the payload, which is the chainload design),
-  `infinix-x6525.img` (the rootfs, for `super`), `initramfs`, `vmlinuz` and
-  `dtbs/ums9230-infinix-x6525.dtb`. Nothing has been flashed: the next step is `FIRST_BOOT.md`, on
-  the phone, with the backups it lists first.
+  `infinix-x6525.img`, `initramfs`, `vmlinuz` and `dtbs/ums9230-infinix-x6525.dtb`. Nothing has been
+  flashed: the next step is `FIRST_BOOT.md`, on the phone, with the backups it lists first.
+- **what that image is, measured from the artifact** (`gh run download 38668586983 -n x6525-rom`)
+  rather than from the sources: `infinix-x6525.img` is a complete MBR+GPT disk, 2,664,448 sectors.
+  Partition 1 (Linux extended boot, LBA 2048, 510,656,512 bytes, label `pmOS_boot`) holds
+  `/extlinux/extlinux.conf`, `/vmlinuz`, `/initramfs`, the DTB and a copy of `boot.img`; partition 2
+  (Linux root, LBA 999424, 851,443,712 bytes, label `pmOS_root`) is the root filesystem. The extlinux
+  append line is `quiet splash plymouth.ignore-serial-consoles plymouth.prefer-fbcon
+  pmos_boot_uuid=65fc212d-2829-4823-924c-e9da2fbd98d0 pmos_root_uuid=
+  bd9271aa-7108-4b4b-9f60-0885c8569403 pmos_rootfsopts=defaults`, and those UUIDs are the two
+  filesystems' own, so the initramfs finds them by `blkid --uuid` wherever the image was written.
+  `boot.img` is header v4, 458,752 bytes: payload = this board's `u-boot.bin` (448,632 bytes, FDT at
+  0x69e30 with `Infinix` and the 4 GiB memory node) plus a 4 KiB dummy ramdisk.
+- **why it cannot be flashed with `flasher flash_rootfs`**: that writes the whole 1.36 GB disk image
+  into `super`, and U-Boot cannot see a partition table nested inside a partition -
+  `drivers/block/blk-uclass.c`'s `part_create_block_devices()` returns early unless the device is
+  `UCLASS_BLK`, while a partition is `UCLASS_PARTITION` - so `bootcmd=bootflow scan -lb mmc`
+  (`board/unisoc/ums9230/ums9230.env`) finds no bootflow and the phone sits at the U-Boot prompt. The
+  image goes onto a microSD card whole instead; `FIRST_BOOT.md` has the steps. The card may be larger
+  than the image - the kernel tolerates a smaller disk's protective MBR on a larger one on purpose
+  ("to support dd'ing an image from a smaller disk to a larger disk", `block/partitions/efi.c`).
+- **the pre-flash audit's corrections (2026-10-15)**, all read off the running system's own tree,
+  which is the authority the DTS header names: the touch interrupt parent is `eic_async` 16, not the
+  board overlay's `ap_gpio` 16 (on the AP GPIO the controller never sees the first IDENTIFY);
+  volume-up is `pmic_eic` 4, not `ap_gpio` 4; the eMMC's `vqmmc-supply = <&vddsdio>` is gone
+  (`vddsdio` is the microSD slot's IO rail); and `&wcn` now carries the three supplies and two GPIOs
+  its driver in this tree requires and the dtsi does not default to. Two diagnostics came with them:
+  `CONFIG_SERIAL_SPRD=y` in the kernel package's config (the UART in `stdout-path` was inert without
+  it) and `kernel-cmdline.conf` with `loglevel=7` in the device package (the distro cmdline ships
+  `quiet`).
 - **which runner does what, and why**: `rom.yml` runs on GitHub's arm64 runner because building the
   image means attaching it to a loop device, and the Namespace profile's runner is a container whose
   device cgroup refuses the block device - the nodes can be made and `losetup -f` answers, but

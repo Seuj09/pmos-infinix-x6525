@@ -1,8 +1,8 @@
 # First boot of the mainline port
 
 This is the checklist for the **mainline route** (U-Boot chainloaded from `boot_a`, then the
-`linux-postmarketos-unisoc-ums9230` kernel with `dts/ums9230-infinix-x6525.dts`). The 5.4 route has its
-own steps at the end of `NOTES.md`. Nothing below has been run on the phone: every "expect" is what the
+`linux-postmarketos-unisoc-ums9230` kernel with `dts/ums9230-infinix-x6525.dts`, root filesystem on a
+microSD card). The 5.4 route has its own steps at the end of `NOTES.md`. Nothing below has been run on the phone: every "expect" is what the
 sources say should happen, so a deviation is information, not necessarily a bug in this list.
 
 The order matters. Each stage is only worth looking at once the one before it passes, and every stage
@@ -17,19 +17,20 @@ cp -r pmaports/device/testing/{device-infinix-x6525,linux-postmarketos-unisoc-um
     <pmaports>/device/testing/
 pmbootstrap init          # the device is offered under "infinix" once it is in the tree
 pmbootstrap install
-pmbootstrap flasher flash_kernel
-pmbootstrap flasher flash_rootfs
+pmbootstrap export        # writes /tmp/postmarketOS-export/
 ```
 
 `linux-postmarketos-unisoc-ums9230/` here is the kernel package with this port's ten patches in
-`source=` and its four config symbols added (the reasoning is in `pmaports/README.md`), and the
-u-boot package builds from the port's fork, so the payload `flash_kernel` puts in `boot` is already
-this board's.
+`source=` and its five config symbols added (the reasoning is in `pmaports/README.md`), and the
+u-boot package builds from the port's fork, so the `boot.img` in the export is already this board's.
 
 `firmware-infinix-x6525` is the touch firmware, and it belongs in that copy too: the package fetches
 its tarball out of this repository, which is public, so `install` gets it and the controller has what
 it needs. If it ever fails to fetch, the same file sits in `firmware/` and can be dropped into
 `/lib/firmware/postmarketos/sprd/` by hand.
+
+The rest of this file is the flash procedure and then the boot, stage by stage. Only one write goes
+into the phone's own storage - U-Boot, into `boot_a`; the rootfs is written to a microSD card.
 
 ## Building it on GitHub instead
 
@@ -46,14 +47,49 @@ writes the config file init would have written and points pmbootstrap at it with
 
 - Back up `boot_a` and, to be safe, `boot_b`, `vendor_boot_a`, `dtbo_a` and `vbmeta_a`. Only `boot_a` is
   overwritten by this port, but a known-good set makes every later step reversible.
-- `fastboot getvar current-slot` - the port flashes the *current* slot. Boot images are written to
-  `boot_a`, the rootfs to `super` (this erases Android data).
+- `fastboot getvar current-slot` - the port flashes the *current* slot. The only eMMC write is the
+  boot image, to `boot_a`; the rootfs goes to a microSD card (see [Flashing](#flashing)), so Android
+  and its data are left alone.
 - Know the way back **before** you need it: `fastboot flash boot_a <backup boot.img>` restores Android.
   If the phone no longer reaches fastboot at all, the Spreadtrum download mode with `spd_dump` is the
   fallback (your Termux setup).
 - U-Boot gets the screen as a console (`CONFIG_VIDEO`, simple framebuffer at `0x9e000000`) and speaks
   **fastboot over USB** (`CONFIG_USB_FUNCTION_FASTBOOT`), so a USB cable is enough for the first
-  stages - a UART is nice to have (`serial1`, 115200 8N1, the stock console) but not required.
+  stages - a UART is nice to have (`serial1`, 115200 8N1, the stock console) but not required, and it
+  works now: `CONFIG_SERIAL_SPRD` is on in the ROM's kernel config, where it used to be off and
+  left `stdout-path` inert.
+
+## Flashing
+
+Two writes: U-Boot into the phone, the disk image onto a microSD card (2 GB or more; the image is
+1.3 GB). `<out>` is the extracted `x6525-rom` artifact, or `/tmp/postmarketOS-export/` after
+`pmbootstrap export`. With the phone in fastboot mode (`fastboot devices` lists it):
+
+```sh
+fastboot flash boot_a <out>/boot.img
+dd if=<out>/infinix-x6525.img of=/dev/sdX bs=4M conv=fsync    # /dev/sdX = the card, not a partition
+```
+
+- The card is written **whole**, because the image carries its own partition table: an extended-boot
+  partition holding `/extlinux/extlinux.conf`, `/vmlinuz`, `/initramfs` and the DTB, and the root
+  filesystem. The initramfs finds both by the filesystem UUIDs baked into the extlinux command line
+  (`pmos_boot_uuid`/`pmos_root_uuid`, written by boot-deploy from the image's own fstab), and those
+  travel with a copied image, so it boots the same way from the card as it would from anything else.
+- `pmbootstrap flasher flash_kernel` is the first command's equivalent if you built locally; both do
+  the same fastboot write of the same `boot.img`.
+- Do **not** run `pmbootstrap flasher flash_rootfs`. It would write the whole 1.36 GB disk image into
+  the phone's `super` partition, and U-Boot cannot see a partition table nested inside a partition
+  (`drivers/block/blk-uclass.c`: `part_create_block_devices()` returns early unless the device is
+  `UCLASS_BLK`, and a partition is `UCLASS_PARTITION`). It would find no bootflow and sit at the
+  U-Boot prompt - that is what the earlier procedure did.
+- Nothing else on the eMMC is written: Android and its data stay where they are, and
+  `fastboot flash boot_a <backup boot.img>` is the way back.
+- The image is smaller than any current card, so the copy leaves the backup GPT 1 MB from the image's
+  end rather than the card's. That is harmless - the kernel tolerates a smaller disk's protective MBR
+  on a larger one on purpose, "to support dd'ing an image from a smaller disk to a larger disk"
+  (`block/partitions/efi.c`) - and `sgdisk -e /dev/sdX` afterwards only tidies the backup copy.
+- Insert the card, then plug in the USB cable **before** powering on: the initramfs brings the USB
+  gadget up once, about two seconds in, and never retries (see 4).
 
 ## 1. U-Boot starts
 
@@ -79,25 +115,32 @@ mmc dev 0        # the board device tree aliases the eMMC (sdio3) as mmc0, so it
 part list mmc 0  # if mmc list shows something else first, use the number it prints
 ```
 
-Expect the stock partition table with `super` and the `pmOS_boot` / `pmOS_root` contents after flashing.
+Expect two devices. The eMMC still carries Android's stock partition table - this route does not
+touch it - while the microSD is the pmOS one: an extended-boot partition holding `/extlinux`, and
+the Linux root. `bootcmd` is `bootflow scan -lb mmc` (from `board/unisoc/ums9230/ums9230.env`), so
+U-Boot looks on both and boots the card.
 - **The eMMC is slow (DDR52, tens of MB/s):** expected, not a fault. `sdhci-sprd` keeps
   `SDHCI_QUIRK2_BROKEN_HS200` set for `sprd,sdhci-r11`, and the core clears `MMC_CAP2_HS200` for it -
   HS400 is gated behind HS200, so the HS200/HS400 flags the DTS declares never take effect.
-- **eMMC not found or I/O errors:** the DTS now carries the device's own values (8-bit, the speed flags
-  and all five `sprd,phy-delay-*` sets, read off the running system), so the remaining suspect is the
-  delay *tuning*: drop `sprd,phy-delay-mmc-ddr52` to fall back to the driver's defaults, or force
-  `bus-width = <4>`, and see if the errors move.
+- **eMMC not found or I/O errors:** the DTS now carries the device's own values (8-bit, the speed
+  flags, all five `sprd,phy-delay-*` sets, and no `vqmmc-supply` - `vddsdio`, which the port used to
+  name here, is the microSD slot's IO rail), so the remaining suspect is the delay *tuning*: drop
+  `sprd,phy-delay-mmc-ddr52` to fall back to the driver's defaults, or force `bus-width = <4>`, and
+  see if the errors move.
 - **SD card not seen:** card-detect. The DTS uses `eic_sync 35` (confirmed on the stock system; the empty slot
   reads high, so the flag is ACTIVE_LOW - check with a card in). `CONFIG_MMC_BROKEN_CD` is set in U-Boot, so U-Boot itself does not care; the
   kernel does. Test with a card in and out and read `cat /sys/kernel/debug/gpio`.
 
 ## 3. Kernel starts, and how to see it
 
-Expect extlinux to boot the kernel, and the framebuffer to show kernel messages.
+Expect extlinux to boot the kernel, and the framebuffer to show kernel messages. The kernel command
+line carries `loglevel=7` (the device package's `kernel-cmdline.conf`; the distro config ships
+`quiet`, and the later `loglevel=` is the one that counts), so the console is not filtered.
 - The `simple-framebuffer` node in the DTS is **disabled** (the display driver takes over). To debug
   without the display driver, set it to `okay` and disable `&dpu` and `&dsi`; you get the bootloader's
   framebuffer with plain text.
-- Console: `console=ttyS1,115200n8` is in `stdout-path`.
+- Console: `console=ttyS1,115200n8` is in `stdout-path`, and `CONFIG_SERIAL_SPRD=y` in the ROM's
+  kernel config (it was off before, which left the property inert) makes it a real console.
 - **Crash or reboot with nothing on screen: read `ramoops`.** The DTS reserves `ramoops@fff80000`; after a
   reboot into the stock system the last kernel log is in `/sys/fs/pstore/`. This is the best
   tool this phone gives you for a kernel that dies before the display works.
@@ -140,8 +183,10 @@ and then `touch ready: <w>x<h>, <n> objects`. Check `/proc/bus/input/devices` fo
   installed. Put `firmware/hdl_firmware_01.img` from this repository under
   `/lib/firmware/postmarketos/sprd/` by hand to test.
 - **"no identify report after reset":** the reset line or the interrupt. The reset is active-low
-  (`ap_gpio 145`); the interrupt is level-low (`ap_gpio 16`). Probe with `cat /proc/interrupts` - the
-  count should move when you touch the panel, and also right after the reset.
+  (`ap_gpio 145`); the interrupt is level-low on `eic_async` 16, which is what the running system's
+  own tree carries - the vendor overlay's `ap_gpio 16` is a different line, and on it the controller
+  never sees the first IDENTIFY report. Probe with `cat /proc/interrupts` - the count should move
+  when you touch the panel, and also right after the reset.
 - **Timeouts on `CMD_ROMBOOT_DOWNLOAD`:** the download is one large SPI transfer (about 100 KB).
   Check the SPI controller's limits first (`spi-sprd-adi`/the `spi3` driver's maximum transfer size) and
   the clock (`spi-max-frequency = <8000000>`); try 4 MHz.
