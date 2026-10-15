@@ -1,0 +1,33 @@
+From 73923f92a7b8e323d74a47b2d32cd185ff1214ac Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Thu, 15 Oct 2026 06:12:57 +0800
+Subject: [PATCH] dt-bindings: power: supply: sc27xx-fg: allow power-supplies
+
+The binding pulls in power-supply.yaml but is additionalProperties: false, so
+the power-supplies property that power-supply.yaml defines is not accepted on
+the fuel gauge node. The power supply core reads it from the node to find the
+charger that supplies the battery, which is how sc27xx_fuel_gauge learns the
+charging status from a charger other than the SC27xx one (the Infinix X6525
+uses a bq24158). List it as bq27xxx.yaml and cpcap-battery.yaml do.
+
+Signed-off-by: Seuj09 <jeus110310@gmail.com>
+---
+ Documentation/devicetree/bindings/power/supply/sc27xx-fg.yaml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/power/supply/sc27xx-fg.yaml b/Documentation/devicetree/bindings/power/supply/sc27xx-fg.yaml
+index c1de2c802..6ec99f379 100644
+--- a/Documentation/devicetree/bindings/power/supply/sc27xx-fg.yaml
++++ b/Documentation/devicetree/bindings/power/supply/sc27xx-fg.yaml
+@@ -57,6 +57,8 @@ properties:
+ 
+   monitored-battery: true
+ 
++  power-supplies: true
++
+ required:
+   - compatible
+   - reg
+-- 
+2.43.0
+

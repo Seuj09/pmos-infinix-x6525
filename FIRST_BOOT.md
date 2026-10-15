@@ -21,7 +21,7 @@ pmbootstrap flasher flash_kernel
 pmbootstrap flasher flash_rootfs
 ```
 
-`linux-postmarketos-unisoc-ums9230/` here is the kernel package with this port's nine patches in
+`linux-postmarketos-unisoc-ums9230/` here is the kernel package with this port's ten patches in
 `source=` and its four config symbols added (the reasoning is in `pmaports/README.md`), and the
 u-boot package builds from the port's fork, so the payload `flash_kernel` puts in `boot` is already
 this board's.

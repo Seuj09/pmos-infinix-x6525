@@ -1,4 +1,4 @@
-# Staging for the Infinix X6525: the nine patches below add this board (device
+# Staging for the Infinix X6525: the ten patches below add this board (device
 # tree, panel, touch and charger drivers, the bindings they need, and a gpio
 # binding fix) and are cut against the same tag this package builds from. They
 # come back out once the series is merged upstream - see the port repository's
@@ -7,7 +7,7 @@ maintainer="Affe Null <affenull2345@gmail.com>"
 _flavor="postmarketos-unisoc-ums9230"
 pkgname=linux-$_flavor
 pkgver=7.2.0_rc6_git20260807
-pkgrel=1
+pkgrel=2
 pkgdesc="Linux kernel with patches for Unisoc UMS9230 devices"
 arch="aarch64"
 _carch="arm64"
@@ -17,6 +17,7 @@ options="!strip !check !tracedeps
 	pmb:cross-native
 	pmb:kconfigcheck-nftables
 	pmb:kconfigcheck-community
+c8d4c9191516a0bff476855d8e63dec3fb284142ee27f766d3440c0cc8d4703530dd43680a3d91146d46333bbbb52c686e44fe5865fa4707a3ed0d97323e694c  0010-dt-bindings-power-supply-sc27xx-fg-allow-power-suppl.patch
 "
 makedepends="
 	bison
@@ -33,6 +34,7 @@ makedepends="
 	postmarketos-installkernel
 	python3
 	zstd
+c8d4c9191516a0bff476855d8e63dec3fb284142ee27f766d3440c0cc8d4703530dd43680a3d91146d46333bbbb52c686e44fe5865fa4707a3ed0d97323e694c  0010-dt-bindings-power-supply-sc27xx-fg-allow-power-suppl.patch
 "
 
 _tag="v7.2-rc6-ums9230-0"
@@ -49,6 +51,8 @@ source="
 	0007-dt-bindings-power-supply-add-extcon-backed-USB-charg.patch
 	0008-power-supply-add-extcon-backed-USB-charger-detection.patch
 	0009-dt-bindings-gpio-sprd-allow-gpio-hog-nodes.patch
+	0010-dt-bindings-power-supply-sc27xx-fg-allow-power-suppl.patch
+c8d4c9191516a0bff476855d8e63dec3fb284142ee27f766d3440c0cc8d4703530dd43680a3d91146d46333bbbb52c686e44fe5865fa4707a3ed0d97323e694c  0010-dt-bindings-power-supply-sc27xx-fg-allow-power-suppl.patch
 "
 builddir="$srcdir/linux"
 
@@ -82,11 +86,12 @@ sha512sums="
 a0b7a7644a1b3b303bcc752905f78dc9aeecae3756e7d3d6037270b471ee08d3aa20f4638a7ff7ae2cc254ef36cb0a993d992445fcb34bad07f223bf14463470  config-postmarketos-unisoc-ums9230.aarch64
 7eaff147db4d2dbaadb287ce72f11d4bbfb0abb70af36aff3001331777627a40e573d680d31079946be0234d3af0be9e7db8fabf4d87e5ce4a03ae4d106b23f3  0001-dt-bindings-vendor-prefixes-add-Infinix-Mobility.patch
 3f035560c3dcf79104266c382fe55bdf0a6ae434eb27f5e44b19430573fc6bff1f99248c6d48d04d6c0834722ddf690efed6f8c6791fd8e704f72708dd86f574  0002-dt-bindings-arm-sprd-add-Infinix-X6525-board.patch
-33f80919d9390499e8ad74826675b531670e8685bfcedb41b5484ea95b115fd094b715b30a63c61cd7b72d24f394a3d44704b62c1b667ac95023054f23b69ba8  0003-arm64-dts-sprd-add-device-tree-for-Infinix-X6525.patch
+2a35b1f24caf4d5b879d5415b46698698c9e75e09f9da68a9f2bf57710d48db254bf8372f9a3b1549a786b15e826163975478277dd6f3282fdd617008be52dde  0003-arm64-dts-sprd-add-device-tree-for-Infinix-X6525.patch
 e36b407a421fa80e0014763102247553eebcdb707ffdab84d528426095190ba30a27c76eaab9d888d786e38a5ee54c007dc293cec5765fcdbd1750a9b904a7ed  0004-drm-panel-add-driver-for-the-TD4160-HX-720x1612-panel.patch
 efeef7f9ed719bd38cc592a4360c0dfd8547aa3af943046db6db61e05432d9fe1f8f0a3fc8b6d3200013dd1ea263a9659269ff15aa88a51d8f7b57e8f45147df  0005-dt-bindings-input-add-OmniVision-TCM-SPI-touchscreen.patch
-9849d09c5c854b9c7547e26c64c0c3a04c3b3a7b165c24964469a5dbe6c52c4cf8500e3676d66d6c378dc2d422f406c988e95a8ee8ad308443a3c67b670e925e  0006-Input-add-OmniVision-TCM-SPI-touchscreen-driver-host.patch
+c95311c7b30feef0474f0280966a43508c753689d9696b6f09ddae399903b9c91062c706f798a793acc33a0f4396c1a2e1344cd0438fd41b1d65f58abf805ba1  0006-Input-add-OmniVision-TCM-SPI-touchscreen-driver-host.patch
 2af46178324b3bb7d211aa271d8cb8a85b4fd051d1874a5533f28b57ef38fa31655aaeedda9ebf8133e114715f7d0480484ac840bf3e6d6f8648129bc36409a6  0007-dt-bindings-power-supply-add-extcon-backed-USB-charg.patch
-e26d4205a43c64d6fc6373bb165efac6fb67a3e28b67c65f1f20af42cd31ded0f522b4cb07e277ab6f0efc6239fb23c285ec7a4ea95b4e1eb59d37ede0c19304  0008-power-supply-add-extcon-backed-USB-charger-detection.patch
+ededc2108a66340663f1af70f38ec417c9854e678044aac044c558f0ac5bfb49171884e4485e1087f252aa1744ecaed0aaafe912c4b45c9d50db45bc06fc606c  0008-power-supply-add-extcon-backed-USB-charger-detection.patch
 8e91302d4c025dea24ca257020f712f7a37f1f6c562caa0e983611fef37fb668b65ab6a57240e8204f4ec020a170b70b6f523c9df9551ab029b8da4dadbe478e  0009-dt-bindings-gpio-sprd-allow-gpio-hog-nodes.patch
+c8d4c9191516a0bff476855d8e63dec3fb284142ee27f766d3440c0cc8d4703530dd43680a3d91146d46333bbbb52c686e44fe5865fa4707a3ed0d97323e694c  0010-dt-bindings-power-supply-sc27xx-fg-allow-power-suppl.patch
 "

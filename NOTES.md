@@ -278,7 +278,7 @@ Charger (resolved - no new driver):
 
 The ROM, and the first boot:
 - **the kernel package is drafted** in `pmaports/device/testing/linux-postmarketos-unisoc-ums9230/`:
-  pmaports' own package with the nine patches added to `source=` (verified to apply with `patch -p1`,
+  pmaports' own package with the ten patches added to `source=` (verified to apply with `patch -p1`,
   which is what `default_prepare` uses, reproducing `dts/`, `drivers/` and `bindings/` byte for byte)
   and the four symbols its config was missing. That config is pmaports' own and is what the ROM's
   kernel actually uses, so CI now checks those four survive `olddefconfig` in it, last in the job
@@ -312,7 +312,7 @@ The ROM, and the first boot:
   expand it. And `boot-deploy` will not build a boot image without `mkbootimg`, which is in
   `android-tools`: `deviceinfo_generate_bootimg="true"` therefore obliges the device package to
   *depend* on it, or `mkinitfs` fails the whole install. That is where the fourth run stopped - with
-  the kernel compiled from the nine patches, U-Boot built, and both packages built.
+  the kernel compiled from the ten patches, U-Boot built, and both packages built.
 - **the ROM built, 2026-10-15** (run 38668586983, 48 minutes): `x6525-rom` holds the five things
   `export` produces - `boot.img` (U-Boot as the payload, which is the chainload design),
   `infinix-x6525.img` (the rootfs, for `super`), `initramfs`, `vmlinuz` and

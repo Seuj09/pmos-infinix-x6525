@@ -43,6 +43,24 @@ jobs:
       # longer applies - or that replaces a whole file instead of adding a hunk
       # - goes unnoticed until it is sent upstream. Apply it to the clean clone,
       # check the result against the sources, then put the tree back.
+      - name: The kernel package carries the current patches and their checksums
+        run: |
+          # The package's copies of the series and its sha512sums are what the ROM
+          # build uses; editing patches/upstream/ without refreshing them makes the
+          # next ROM build fail at the checksum step, as it nearly did once.
+          K=pmaports/device/testing/linux-postmarketos-unisoc-ums9230
+          fail=0
+          for p in patches/upstream/0*.patch; do
+            b=$(basename "$p")
+            cmp -s "$p" "$K/$b" || { echo "STALE copy: $K/$b"; fail=1; }
+            grep -qE "^$(sha512sum "$p" | cut -d' ' -f1)  $b\$" "$K/APKBUILD" ||
+              { echo "BAD or missing sha512 in $K/APKBUILD: $b"; fail=1; }
+            grep -qE "^[[:space:]]+$b\$" "$K/APKBUILD" ||
+              { echo "not in source=: $b"; fail=1; }
+          done
+          [ "$fail" = 0 ] || exit 1
+          echo "kernel package matches patches/upstream"
+
       - name: Verify the submission patches
         run: |
           base=$(git -C kernel rev-parse HEAD)
