@@ -296,7 +296,20 @@ The ROM, and the first boot:
   recommends it: without it a ROM boots and has no touchscreen.
 - **then it is the phone**: `pmbootstrap` build and flash per `FIRST_BOOT.md`, and the hardware list
   there - panel reset polarity, the DCS brightness curve, the eMMC/SD phy timing, and the touch
-  firmware download, which is the likeliest first failure.
+  firmware download, which is the likeliest first failure. `.github/workflows/rom.yml` (Actions →
+  *rom* → Run workflow) does the same build on GitHub's arm64 runner and uploads the artifacts, so
+  the build needs neither this container nor any local install; arm64 because on x86_64 the kernel
+  build goes through qemu-user and takes hours.
+- **what building it in CI taught, none of which anything local had run**: `pmbootstrap init` cannot
+  run unattended, so the workflow writes the config file init would have written *and* the `version`
+  marker init creates in the work directory (`pmb.config.work_version` - without it pmbootstrap
+  refuses the directory as needing migration); `abuild` refuses an APKBUILD with no `url=`, which is
+  how the first run died, on the first of our packages it reached; `pmbootstrap export` fills its
+  folder with **symlinks** into the work directory, so the upload copies it out with `cp -rL` first;
+  and the source check that had been "verifying" the firmware URL never expanded `$_tarball` - it fed
+  curl a URL that was not one and read the 404 as "not published yet", so it passed for a file that
+  was published and hashing correctly all along. It now sources the APKBUILD and lets the shell
+  expand it. The build has not yet come out the far end.
 - `firmware-infinix-x6525-wcn` (WiFi/Bluetooth) does not exist yet; touch under unl0kr needs the
   touch module and the HDL image in a `modules-initfs` file; the wiki device page is required at MR
   time; and the SD card-detect is settled (`eic_sync` 35, ACTIVE_LOW, empty slot reads high).

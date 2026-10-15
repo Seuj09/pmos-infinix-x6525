@@ -31,6 +31,17 @@ its tarball out of this repository, which is public, so `install` gets it and th
 it needs. If it ever fails to fetch, the same file sits in `firmware/` and can be dropped into
 `/lib/firmware/postmarketos/sprd/` by hand.
 
+## Building it on GitHub instead
+
+`.github/workflows/rom.yml` runs the same build on an arm64 runner — Actions → **rom** → *Run
+workflow* — and leaves an artifact called `x6525-rom` with the kernel, U-Boot and the rootfs image in
+it. It clones pmbootstrap and pmaports itself and copies these four packages over them, so there is
+nothing to prepare and nothing to install locally. The image's user password is `x6525pmos`.
+
+Arm64 on purpose: on x86_64 every kernel build goes through qemu-user, which turns twenty minutes
+into hours. `pmbootstrap init` asks its questions on stdin and cannot run unattended, so the workflow
+writes the config file init would have written and points pmbootstrap at it with `--config`.
+
 ## 0. Before flashing anything
 
 - Back up `boot_a` and, to be safe, `boot_b`, `vendor_boot_a`, `dtbo_a` and `vbmeta_a`. Only `boot_a` is
