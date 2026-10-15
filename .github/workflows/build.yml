@@ -104,11 +104,19 @@ jobs:
                    "drivers/input/touchscreen/Makefile TOUCHSCREEN_OVT_TCM_SPI" \
                    "drivers/power/supply/Kconfig CHARGER_EXTCON_DETECT" \
                    "drivers/power/supply/Makefile CHARGER_EXTCON_DETECT" \
+                   "arch/arm64/boot/dts/sprd/Makefile ums9230-infinix-x6525.dtb" \
                    "Documentation/devicetree/bindings/arm/sprd/sprd.yaml infinix,x6525" \
                    "Documentation/devicetree/bindings/vendor-prefixes.yaml infinix"; do
             set -- $e
             grep -q "$2" "kernel/$1" || { echo "MISSING: $2 in $1"; fail=1; }
           done
+          # The dtb-y entry is checked because it lives in the DTS patch, not in
+          # the glue: the ROM's kernel package applies this series with patch -p1
+          # and then runs dtbs_install, so a 0003 without that hunk builds no DTB
+          # for this board and mkinitfs dies in boot-deploy looking for
+          # sprd/ums9230-infinix-x6525.dtb. The DTB built further up comes from
+          # the overlay path, which gets the entry from patches/*.patch - which
+          # is exactly how that failure got past this job once.
           git -C kernel reset --hard -q "$base"
           git -C kernel clean -qfd
           [ "$fail" = 0 ] || exit 1
