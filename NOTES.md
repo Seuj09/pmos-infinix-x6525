@@ -312,8 +312,19 @@ The ROM, and the first boot:
   expand it. And `boot-deploy` will not build a boot image without `mkbootimg`, which is in
   `android-tools`: `deviceinfo_generate_bootimg="true"` therefore obliges the device package to
   *depend* on it, or `mkinitfs` fails the whole install. That is where the fourth run stopped - with
-  the kernel compiled from the nine patches, U-Boot built, and both packages built, which is as far
-  as this has got. The build has not yet come out the far end.
+  the kernel compiled from the nine patches, U-Boot built, and both packages built.
+- **the ROM built, 2026-10-15** (run 38668586983, 48 minutes): `x6525-rom` holds the five things
+  `export` produces - `boot.img` (U-Boot as the payload, which is the chainload design),
+  `infinix-x6525.img` (the rootfs, for `super`), `initramfs`, `vmlinuz` and
+  `dtbs/ums9230-infinix-x6525.dtb`. Nothing has been flashed: the next step is `FIRST_BOOT.md`, on
+  the phone, with the backups it lists first.
+- **which runner does what, and why**: `rom.yml` runs on GitHub's arm64 runner because building the
+  image means attaching it to a loop device, and the Namespace profile's runner is a container whose
+  device cgroup refuses the block device - the nodes can be made and `losetup -f` answers, but
+  attaching fails with `Operation not permitted`. `build.yml` and `firmware-release.yml` run on
+  `namespace-profile-1`, where both are green and the kernel compiles in 10 minutes against 43 on
+  GitHub's runner. If Namespace offers a VM-based profile, moving `rom.yml` there is one line and
+  would roughly quarter the build.
 - `firmware-infinix-x6525-wcn` (WiFi/Bluetooth) does not exist yet; touch under unl0kr needs the
   touch module and the HDL image in a `modules-initfs` file; the wiki device page is required at MR
   time; and the SD card-detect is settled (`eic_sync` 35, ACTIVE_LOW, empty slot reads high).
