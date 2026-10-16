@@ -46,7 +46,10 @@ writes the config file init would have written and points pmbootstrap at it with
 ## 0. Before flashing anything
 
 - Back up `boot_a` and, to be safe, `boot_b`, `vendor_boot_a`, `dtbo_a` and `vbmeta_a`. Only `boot_a` is
-  overwritten by this port, but a known-good set makes every later step reversible.
+  overwritten by this port, but a known-good set makes every later step reversible. Keep a copy *off*
+  the phone as well: `boot.img.xz` in Downloads is the same image at 16 MB, and the only other copy
+  lives on the device being flashed. Note that a plain reboot does **not** go back to Android once
+  `boot_a` holds U-Boot - restoring the image is what does that.
 - `fastboot getvar current-slot` - the port flashes the *current* slot. The only eMMC write is the
   boot image, to `boot_a`; the rootfs goes to a microSD card (see [Flashing](#flashing)), so Android
   and its data are left alone.
@@ -200,9 +203,11 @@ line carries `loglevel=7` (the device package's `kernel-cmdline.conf`; the distr
   `console=tty0` the kernel prints only to the UART when `stdout-path` is set, so the screen would stay silent;
   naming a console also turns `stdout-path` off, hence the UART is named too), `plymouth.enable=0` and `nosplash`. The UART is in `stdout-path`, and `CONFIG_SERIAL_SPRD=y` in the ROM's
   kernel config (it was off before, which left the property inert) makes it a real console.
-- **Crash or reboot with nothing on screen: read `ramoops`.** The DTS reserves `ramoops@fff80000`; after a
-  reboot into the stock system the last kernel log is in `/sys/fs/pstore/`. This is the best
-  tool this phone gives you for a kernel that dies before the display works.
+- **Crash or reboot with nothing on screen: read `ramoops`.** The DTS reserves `ramoops@fff80000`, and
+  `CONFIG_PSTORE_RAM=y` is set, so the last kernel log survives in `/sys/fs/pstore/` for the next boot
+  to read - including a boot that only gets as far as the initramfs, whose debug shell mounts pstore
+  first (see 9). This is the best tool this phone gives you for a kernel that dies before the display
+  works.
 
 - **Reboots about 12 seconds after the kernel starts: the watchdog.** The stock command line carries
   `androidboot.wdten=e551`, and `sprd_wdt` (DT `timeout-sec = <12>`) used not to notice a counter the
@@ -290,6 +295,32 @@ Smart 8 may not even carry the part - the overlay is shared - so a probe failure
 
 The accelerometer and ambient-light sensor are not here: the vendor kernel reaches them through
 `sprd,sensor-hub`, a coprocessor with no mainline driver. Auto-rotate and auto-brightness will not work.
+
+## 9. When it does not boot
+
+The initramfs has two levers on keys you already have. Both are checked *after* USB networking is up,
+and both work here because `evdev` is in the initramfs (pmOS ships it in `00-default.modules`) and
+`CONFIG_KEYBOARD_GPIO=y`, so the volume keys are readable that early:
+
+- **Hold volume-down while booting** - the debug shell. It runs over the USB network that is already
+  configured and mounts `/sys/fs/pstore` before it starts, so a panic `ramoops` captured is readable
+  there even when the rootfs never mounted. In images built after this change the initramfs also
+  carries the vibrator (`modules-initfs`), so the shell announces itself by buzzing; before that it
+  hides the splash instead.
+- **Hold volume-up while booting** - refuse to continue and dump the logs.
+
+If neither key does anything, the keys themselves are the suspect, not the lever.
+
+If **U-Boot** finds no bootflow (card missing or unreadable), there is no way to type at its prompt:
+it has no `stdin`, so the phone sits there silently. Hold the power key to turn it off, insert the
+card, and try again - or leave the card out and go to the stock fastboot with the volume keys, where
+`fastboot flash boot_a` still works.
+
+The lever that does not depend on the keys is `pmos.debug-shell` in the card's
+`/extlinux/extlinux.conf`: mount the card on any PC, add it to the `append` line, put the card back.
+The initramfs then opens a shell unconditionally - and stops there until `pmos_continue_boot` is run
+in it, which is why it is not on the default command line: if USB never comes up, a boot carrying it
+would wait forever at a shell nobody can reach.
 
 ## What to send back
 

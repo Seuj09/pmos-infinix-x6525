@@ -6,3 +6,10 @@ u_ether
 usb_f_rndis
 usb_f_ecm
 usb_f_ncm
+
+# The cue for the initramfs debug shell (hold volume-down at boot; volume-up
+# dumps the logs). beebzzr drives a vibrator or an LED, and both drivers are
+# modules that nothing else pulls in, so without these the shell starts with no
+# indication that it did. Named as their Makefiles build them.
+sc27xx-vibra
+leds-sc27xx-bltc
