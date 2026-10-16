@@ -65,9 +65,20 @@ writes the config file init would have written and points pmbootstrap at it with
 
 ## Flashing
 
-The microSD route first (see the eMMC route after it for why it may not work). Two writes: U-Boot into the phone, the disk image onto a microSD card (2 GB or more; the image is
-1.3 GB). `<out>` is the extracted `x6525-rom` artifact, or `/tmp/postmarketOS-export/` after
-`pmbootstrap export`. With the phone in fastboot mode (`fastboot devices` lists it):
+The microSD route first (see the eMMC route after it for why it may not work). Two writes: U-Boot
+into the phone, the disk image onto a microSD card (2 GB or more; the image is 1.3 GB). pmbootstrap
+does both natively - `--sdcard` is an alias of `--disk`, which writes to the block device instead of
+producing an image file, and `flasher flash_kernel` resolves to
+`fastboot flash $deviceinfo_flash_fastboot_partition_kernel`, which this port sets to `boot_a`:
+
+```sh
+pmbootstrap install --sdcard=/dev/sdX    # /dev/sdX = the card, not a partition
+pmbootstrap flasher flash_kernel         # with the phone in fastboot mode
+```
+
+Building locally and doing the two writes by hand is equivalent. `<out>` is the extracted `x6525-rom`
+artifact, or `/tmp/postmarketOS-export/` after `pmbootstrap export`; with the phone in fastboot mode
+(`fastboot devices` lists it):
 
 ```sh
 fastboot flash boot_a <out>/boot.img
@@ -79,8 +90,8 @@ dd if=<out>/infinix-x6525.img of=/dev/sdX bs=4M conv=fsync    # /dev/sdX = the c
   filesystem. The initramfs finds both by the filesystem UUIDs baked into the extlinux command line
   (`pmos_boot_uuid`/`pmos_root_uuid`, written by boot-deploy from the image's own fstab), and those
   travel with a copied image, so it boots the same way from the card as it would from anything else.
-- `pmbootstrap flasher flash_kernel` is the first command's equivalent if you built locally; both do
-  the same fastboot write of the same `boot.img`.
+- Both routes write the same bytes: `--sdcard` puts on the card exactly what `dd`-ing the exported
+  image would, and `flasher flash_kernel` is the same `fastboot flash boot_a boot.img`.
 - Do **not** run `pmbootstrap flasher flash_rootfs`. It would write the whole 1.36 GB disk image into
   the phone's `super` partition, and U-Boot cannot see a partition table nested inside a partition
   (`drivers/block/blk-uclass.c`: `part_create_block_devices()` returns early unless the device is

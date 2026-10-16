@@ -1,0 +1,64 @@
+{{Infobox device
+| image = <!-- optional: a photo of the phone -->
+| imagecaption =
+
+| manufacturer = Infinix
+| name = X6525
+| codename = infinix-x6525
+| releaseyear = 2023
+| type = handset
+
+| chipset = Unisoc Tiger T606 (UMS9230)
+| display = 720x1612 (LCD)
+| storage = <!-- fill in: the eMMC size -->
+| memory = 4 GB
+| architecture = aarch64
+
+| originalsoftware = Android
+| originalversion = 13
+| status_fossbootloader = N
+
+<!-- Nothing has run on the hardware yet, so every status below is deliberately
+     absent, which the infobox renders as "untested". Fill each in as it is
+     verified on the phone. booting and packaged must be raised together - see
+     the repository's wiki/README.md for why. -->
+| booting = no
+| packaged = no
+| pmoskernel = 7.2-rc6
+}}
+
+The Infinix X6525 is a Unisoc UMS9230 (Tiger T606) handset, being ported to a close-to-mainline
+kernel. U-Boot is chainloaded from the Android boot partition and the root filesystem boots from a
+microSD card, so the stock Android installation and its data are left untouched.
+
+== Maintainers ==
+* [[User:<!-- your wiki username -->|<!-- your wiki username -->]]
+
+== Users owning this device ==
+{{Device owners}}
+
+== How to enter flash mode ==
+=== Fastboot mode ===
+Power on with the volume keys held: the stock bootloader's own fastboot, which is also what
+restores Android from a backup boot image. (Confirm the exact combination on the device page once
+verified.)
+
+=== Unisoc flashing mode ===
+Power on with volume up held and connect with a flashing tool. `spd_dump` is the way back if the
+phone reaches neither fastboot nor U-Boot.
+
+== Installation ==
+The port is not in pmaports yet; build it from the [https://github.com/Seuj09/pmos-infinix-x6525
+port repository] and follow that repository's FIRST_BOOT.md. In short: install to a microSD card
+with <code>pmbootstrap install --sdcard=/dev/sdX</code>, flash U-Boot into <code>boot_a</code> with
+<code>pmbootstrap flasher flash_kernel</code>, insert the card and boot from it.
+
+<code>pmbootstrap flasher flash_rootfs</code> must not be used: it would write the whole disk image
+into the <code>super</code> partition, where U-Boot cannot see the partition table nested inside it.
+Only <code>boot_a</code> is written on the eMMC, so Android and its data stay where they are, and
+<code>fastboot flash boot_a &lt;backup boot.img&gt;</code> is the way back.
+
+== See also ==
+* [https://github.com/Seuj09/pmos-infinix-x6525 Port repository]
+* [https://codeberg.org/ums9230-mainline/linux Close-to-mainline kernel for UMS9230]
+* [[Jolla C2 (jolla-c2)]] - the same SoC, and the port this one follows
