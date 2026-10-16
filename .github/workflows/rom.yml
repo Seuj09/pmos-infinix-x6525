@@ -145,6 +145,13 @@ jobs:
           # does not write out four gigabytes of zeroes.
           mkdir -p /tmp/rom-out
           cp -rL /tmp/postmarketOS-export/. /tmp/rom-out/
+
+          # The disk image is for a microSD card. U-Boot cannot read a table nested
+          # inside an eMMC partition, so also cut it into its two filesystems, which
+          # can each be flashed into an eMMC partition (FIRST_BOOT.md, "Flashing to
+          # the eMMC"). Byte-for-byte copies: the UUIDs extlinux names survive.
+          python3 -I tools/split-disk-image.py /tmp/rom-out/infinix-x6525.img \
+            /tmp/rom-out/pmos-boot-fs.img /tmp/rom-out/pmos-root-fs.img
           ls -la /tmp/rom-out/
 
       # No `if: always()`: on a failed build there is nothing to flash, and a

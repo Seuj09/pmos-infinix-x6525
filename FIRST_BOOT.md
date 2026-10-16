@@ -65,7 +65,7 @@ writes the config file init would have written and points pmbootstrap at it with
 
 ## Flashing
 
-Two writes: U-Boot into the phone, the disk image onto a microSD card (2 GB or more; the image is
+The microSD route first (see the eMMC route after it for why it may not work). Two writes: U-Boot into the phone, the disk image onto a microSD card (2 GB or more; the image is
 1.3 GB). `<out>` is the extracted `x6525-rom` artifact, or `/tmp/postmarketOS-export/` after
 `pmbootstrap export`. With the phone in fastboot mode (`fastboot devices` lists it):
 
@@ -94,6 +94,41 @@ dd if=<out>/infinix-x6525.img of=/dev/sdX bs=4M conv=fsync    # /dev/sdX = the c
   (`block/partitions/efi.c`) - and `sgdisk -e /dev/sdX` afterwards only tidies the backup copy.
 - Insert the card, then plug in the USB cable **before** powering on: the initramfs brings the USB
   gadget up once, about two seconds in, and never retries (see 4).
+
+### Flashing to the eMMC instead (recommended for a first boot)
+
+The microSD route has an assumption nothing has tested: that U-Boot can see the card at all. The slot's
+supply rails (`vddsdcore`, `vddsdio`) are LDOs of the SC2730 PMIC, and U-Boot has no PMIC or regulator
+driver (`configs/infinix-x6525_defconfig` has no `DM_REGULATOR`/`DM_PMIC`; `sdhci-sprd.c` handles no
+supplies). In the stock dump both rails are *disabled* while no card is in use, so unless the stock
+bootloader leaves them on, the slot is unpowered when U-Boot looks and the boot ends at the prompt. The
+eMMC has no such problem: its rail is on from power-up, and it is what U-Boot already reads.
+
+U-Boot cannot read a partition table nested inside an eMMC partition, so the whole-disk image cannot go
+there. The `rom` workflow therefore also cuts it into its two filesystems (`tools/split-disk-image.py`),
+which are flashed into two eMMC partitions of their own:
+
+```sh
+fastboot getvar partition-size:cache          # must be >= the size of pmos-boot-fs.img
+fastboot getvar partition-size:userdata       # must be >= the size of pmos-root-fs.img
+fastboot flash boot_a  <out>/boot.img         # as before
+fastboot flash cache    <out>/pmos-boot-fs.img    # pmOS_boot: extlinux.conf, kernel, initramfs, DTB
+fastboot flash userdata <out>/pmos-root-fs.img    # pmOS_root
+```
+
+- This overwrites `cache` and `userdata`. Android's *system* (`super`) is untouched, but its data is gone:
+  after restoring `boot_a` Android will find an unrecognised `userdata` and have to format it, so it
+  starts like a fresh install (`fastboot -w` from the stock bootloader does the same explicitly). Back up
+  what you need first. Do not use `persist`, `metadata`, `misc`, `tkv_*` or any of the `*_a`/`*_b` pairs for
+  this - `persist` holds the device's calibration.
+- fastboot splits a large raw image into chunks by itself, so the 1.3 GB root image needs no `sparse`
+  conversion on your side.
+- The filesystems keep their UUIDs and labels, so the extlinux command line (`pmos_boot_uuid`,
+  `pmos_root_uuid`) finds them wherever they were written. Check with `file -s` on the two images: they must
+  be ext2/4 filesystems, not a disk with a table.
+- If `cache` is smaller than the boot image, use another expendable partition for `pmOS_boot` rather than
+  shrinking anything: U-Boot scans every partition of the eMMC for a bootflow, so the name does not
+  matter.
 
 ## 1. U-Boot starts
 
