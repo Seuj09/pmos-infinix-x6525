@@ -187,7 +187,7 @@ line carries `loglevel=7` (the device package's `kernel-cmdline.conf`; the distr
   To rule the display driver out entirely, also disable `&dpu` and `&dsi`.
 - Console: the device package's `kernel-cmdline.conf` names `console=tty0 console=ttyS1,115200n8` (without a
   `console=tty0` the kernel prints only to the UART when `stdout-path` is set, so the screen would stay silent;
-  naming a console also turns `stdout-path` off, hence the UART is named too) and `plymouth.enable=0`. The UART is in `stdout-path`, and `CONFIG_SERIAL_SPRD=y` in the ROM's
+  naming a console also turns `stdout-path` off, hence the UART is named too), `plymouth.enable=0` and `nosplash`. The UART is in `stdout-path`, and `CONFIG_SERIAL_SPRD=y` in the ROM's
   kernel config (it was off before, which left the property inert) makes it a real console.
 - **Crash or reboot with nothing on screen: read `ramoops`.** The DTS reserves `ramoops@fff80000`; after a
   reboot into the stock system the last kernel log is in `/sys/fs/pstore/`. This is the best

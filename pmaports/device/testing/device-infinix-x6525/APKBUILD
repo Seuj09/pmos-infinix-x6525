@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=2
+pkgrel=3
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -40,7 +40,8 @@ makedepends="devicepkg-dev"
 # console is preferred); naming console= turns stdout-path off, so the UART (the
 # last one, which becomes /dev/console) has to be named too. The extlinux line
 # otherwise carries `quiet splash plymouth.*`, and plymouth would cover the
-# console, so plymouth.enable=0 keeps the kernel messages visible.
+# console, so plymouth.enable=0 and nosplash (the shipped initramfs's init_2nd.sh
+# honours the latter) keep the kernel messages visible.
 source="
 	deviceinfo
 	kernel-cmdline.conf
@@ -63,6 +64,6 @@ package() {
 
 sha512sums="
 ec06cee676200b6901690acfbd767dd1a57fa3a21fa8fc890bba09c253cefcd1266de1d8ad1807b584cbf721f3829ff9c8b9c830e8e6d1042089540e5a9a3907  deviceinfo
-2cb4b70c6eef6f3998abc32f73f53b4a8cd05f04e3cd9894e2ff6edd57ac728943723ac865ad98305421a3b1bb0302b2cf389207b157a700a1333f4d48d5ff5f  kernel-cmdline.conf
+30afa38f438e5fc77eadc6ffa410024301d24997d0d62a7a4154c56933fc67f8255511f74f5bf550c800fee5d8abc2db2fbd34f6855f437e2d8cf16c702053d6  kernel-cmdline.conf
 c928e1744e0428ee00c59194db16e2c36b28273f3b7497f7802e8c5ca7d527c526a50713a8263aadd0208fa40762d40e4fbcfcf094cceaea60599f21d0d34b9d  modules-initfs
 "
