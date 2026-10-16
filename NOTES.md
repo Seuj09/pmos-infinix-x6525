@@ -179,7 +179,7 @@ branch that is the upstream base plus this port's commits and nothing else:
 | Tree | Fork and branch | Tip |
 |---|---|---|
 | kernel | `github.com/Seuj09/ums9230-mainline-linux`, branch `x6525` | `2f0f93b0cb27358ee3238eca1c8fd6a212b38a63` |
-| U-Boot | `github.com/Seuj09/ums9230-mainline-u-boot`, branch `x6525` | `d169d38cab37a39282c96a1bfa0d32aff5d326df` |
+| U-Boot | `github.com/Seuj09/ums9230-mainline-u-boot`, branch `x6525` | `0b7433364843e89af4fdf80166f6e6729994b252` |
 
 The kernel branch is the tag `v7.2-rc6-ums9230-0` plus the eleven patches in `patches/upstream/`, one
 commit each (verified: the subjects match the patch files one for one and the tree's files are

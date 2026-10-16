@@ -1,0 +1,48 @@
+From 0b7433364843e89af4fdf80166f6e6729994b252 Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Sat, 17 Oct 2026 06:26:24 +0800
+Subject: [PATCH] board: unisoc: ums9230: add an environment file for the
+ Infinix X6525
+
+The shared ums9230.env is the Reeder's: its preboot reads the Bluetooth and WiFi
+MAC addresses from the UFS prodnv partition, which this board does not have (the
+commands just fail), and it sets stdout/stderr to vidconsole only, so a UART
+sees nothing from U-Boot. Use a board environment instead: the same load
+addresses and an eMMC/SD-only bootcmd, with the serial port as a console next
+to the display.
+---
+ board/unisoc/ums9230/infinix-x6525.env | 9 +++++++++
+ configs/infinix-x6525_defconfig        | 1 +
+ 2 files changed, 10 insertions(+)
+ create mode 100644 board/unisoc/ums9230/infinix-x6525.env
+
+diff --git a/board/unisoc/ums9230/infinix-x6525.env b/board/unisoc/ums9230/infinix-x6525.env
+new file mode 100644
+index 00000000..83657718
+--- /dev/null
++++ b/board/unisoc/ums9230/infinix-x6525.env
+@@ -0,0 +1,9 @@
++bootcmd=bootflow scan -lb mmc
++fdt_addr_r=0x9df00000
++kernel_addr_r=0x80080000
++kernel_comp_addr_r=0xc0000000
++kernel_comp_size=0x10000000
++ramdisk_addr_r=0xa0000000
++stdin=serial
++stdout=serial,vidconsole
++stderr=serial,vidconsole
+diff --git a/configs/infinix-x6525_defconfig b/configs/infinix-x6525_defconfig
+index 3e0402f1..8aea625e 100644
+--- a/configs/infinix-x6525_defconfig
++++ b/configs/infinix-x6525_defconfig
+@@ -13,6 +13,7 @@ CONFIG_BOOTSTD_FULL=y
+ CONFIG_SD_BOOT=y
+ CONFIG_OF_BOARD_SETUP=y
+ # CONFIG_USE_BOOTCOMMAND is not set
++CONFIG_ENV_SOURCE_FILE="infinix-x6525"
+ CONFIG_USE_PREBOOT=y
+ CONFIG_DEFAULT_FDT_FILE="sprd/ums9230-infinix-x6525.dtb"
+ CONFIG_LOGLEVEL=8
+-- 
+2.43.0
+

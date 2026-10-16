@@ -1,7 +1,7 @@
 # U-Boot board patches
 
-Two patches for [codeberg.org/ums9230-mainline/u-boot](https://codeberg.org/ums9230-mainline/u-boot),
-split the way that fork splits its own board commits - one device tree, one defconfig. The fork marks
+Three patches for [codeberg.org/ums9230-mainline/u-boot](https://codeberg.org/ums9230-mainline/u-boot),
+split the way that fork splits its own board commits - one device tree, one defconfig, one environment file. The fork marks
 its own Reeder device tree commit `WIP:`; these two do not, since the board builds in CI and the
 values that came from the Reeder have been checked against this phone. Verified with `git am` to apply
 in order to a clean checkout and to reproduce byte-identical files to what CI builds.

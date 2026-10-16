@@ -7,7 +7,7 @@
 #   ./tools/apply-uboot-overlay.sh uboot
 #
 # Unlike the kernel side this needs no patch: a U-Boot board for this SoC is
-# only a defconfig plus a device tree, with no Kconfig or Makefile changes,
+# only a defconfig, a device tree and a small environment file, with no Kconfig or Makefile changes,
 # because SYS_BOARD and SYS_CONFIG_NAME already default to "ums9230" for
 # TARGET_UMS9230. The two files are copied to the paths they live at in the fork.
 set -e
@@ -26,5 +26,8 @@ install -Dm644 "$HERE/uboot/dts/ums9230-infinix-x6525.dts" \
 	"$TREE/arch/arm/dts/ums9230-infinix-x6525.dts"
 install -Dm644 "$HERE/uboot/configs/infinix-x6525_defconfig" \
 	"$TREE/configs/infinix-x6525_defconfig"
+
+install -Dm644 "$HERE/uboot/board/unisoc/ums9230/infinix-x6525.env" \
+	"$TREE/board/unisoc/ums9230/infinix-x6525.env"
 
 echo "board applied to $TREE"

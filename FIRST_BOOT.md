@@ -62,11 +62,12 @@ writes the config file init would have written and points pmbootstrap at it with
   `super` for the active slot only, so `fastboot set_active b` may not give a bootable Android. If the stock
   bootloader gives up on a slot that keeps failing and flips to B, run `fastboot set_active a` again after
   restoring `boot_a`.
-- **U-Boot's `preboot` is not empty.** `CONFIG_PREBOOT` is, but the board's `ums9230.env` (the Reeder one)
-  sets `preboot=sspi 0 00; ufs init; scsi scan; load scsi ...` as a default variable. This board has no UFS
-  and no SPI controller in U-Boot, so each command fails with "Unknown command" / "Invalid device" and the
-  scan goes on to `bootcmd`; a few such errors at the top of the U-Boot log are expected. The same file
-  sets `stdout=vidconsole` only, so a UART shows nothing from U-Boot - only the kernel, once it is up.
+- **U-Boot's environment is the board's own.** The fork's shared `ums9230.env` is the Reeder's: a `preboot`
+  that reads MAC addresses from a UFS partition this phone lacks, and `stdout=vidconsole` only. The X6525
+  now has `board/unisoc/ums9230/infinix-x6525.env` (no preboot, `bootcmd=bootflow scan -lb mmc`, and
+  `stdout`/`stderr` = `serial,vidconsole`), so a UART on `serial1` shows U-Boot's own log as well as the
+  kernel's. An older `boot.img` still has the Reeder one: a few "Unknown command" lines at the top of its
+  log are that preboot failing, and boot goes on regardless.
 - Know the way back **before** you need it: `fastboot flash boot_a <backup boot.img>` restores Android.
   If the phone no longer reaches fastboot at all, the Spreadtrum download mode with `spd_dump` is the
   fallback (your Termux setup).
