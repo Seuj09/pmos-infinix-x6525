@@ -103,6 +103,7 @@ jobs:
           timezone = GMT
           locale = en_US.UTF-8
           ssh_keys = false
+          boot_size = 256
           jobs = 4
           work = /tmp/pmbwork
           EOF

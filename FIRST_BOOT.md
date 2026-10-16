@@ -109,7 +109,7 @@ there. The `rom` workflow therefore also cuts it into its two filesystems (`tool
 which are flashed into two eMMC partitions of their own:
 
 ```sh
-fastboot getvar partition-size:cache          # must be >= the size of pmos-boot-fs.img
+fastboot getvar partition-size:cache          # must be >= the size of pmos-boot-fs.img (256 MiB)
 fastboot getvar partition-size:userdata       # must be >= the size of pmos-root-fs.img
 fastboot flash boot_a  <out>/boot.img         # as before
 fastboot flash cache    <out>/pmos-boot-fs.img    # pmOS_boot: extlinux.conf, kernel, initramfs, DTB
@@ -185,7 +185,9 @@ line carries `loglevel=7` (the device package's `kernel-cmdline.conf`; the distr
   messages are visible even if the DPU/DSI/panel stack never probes. If the real display stack works,
   the two coexist (the picture may go stale when the DPU takes over); then set the node to `disabled`.
   To rule the display driver out entirely, also disable `&dpu` and `&dsi`.
-- Console: `console=ttyS1,115200n8` is in `stdout-path`, and `CONFIG_SERIAL_SPRD=y` in the ROM's
+- Console: the device package's `kernel-cmdline.conf` names `console=tty0 console=ttyS1,115200n8` (without a
+  `console=tty0` the kernel prints only to the UART when `stdout-path` is set, so the screen would stay silent;
+  naming a console also turns `stdout-path` off, hence the UART is named too) and `plymouth.enable=0`. The UART is in `stdout-path`, and `CONFIG_SERIAL_SPRD=y` in the ROM's
   kernel config (it was off before, which left the property inert) makes it a real console.
 - **Crash or reboot with nothing on screen: read `ramoops`.** The DTS reserves `ramoops@fff80000`; after a
   reboot into the stock system the last kernel log is in `/sys/fs/pstore/`. This is the best

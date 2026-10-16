@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=1
+pkgrel=2
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -34,7 +34,13 @@ makedepends="devicepkg-dev"
 # kernel-cmdline.conf goes to /usr/lib/kernel-cmdline.d/50-$pkgname.conf
 # (devicepkg-dev installs it; boot-deploy reads it via generate-kernel-cmdline).
 # It carries loglevel=7 for the first boot: the distro config ships `quiet`, and
-# a later loglevel= is what wins, so the kernel prints its messages anyway.
+# a later loglevel= is what wins, so the kernel prints its messages anyway. It also
+# names both consoles: with the DT's stdout-path alone only the UART is a console,
+# so nothing the kernel prints reaches the screen (tty0 is only enabled when no
+# console is preferred); naming console= turns stdout-path off, so the UART (the
+# last one, which becomes /dev/console) has to be named too. The extlinux line
+# otherwise carries `quiet splash plymouth.*`, and plymouth would cover the
+# console, so plymouth.enable=0 keeps the kernel messages visible.
 source="
 	deviceinfo
 	kernel-cmdline.conf
@@ -57,6 +63,6 @@ package() {
 
 sha512sums="
 ec06cee676200b6901690acfbd767dd1a57fa3a21fa8fc890bba09c253cefcd1266de1d8ad1807b584cbf721f3829ff9c8b9c830e8e6d1042089540e5a9a3907  deviceinfo
-1656b9152c06a37091b3b94c5a80c90de73b87428b6bc7d95584ff3fb6f511a4ac6e72b09263ff6c9347835f436d013490226a0224ad3ea9a84569c67672b35b  kernel-cmdline.conf
+2cb4b70c6eef6f3998abc32f73f53b4a8cd05f04e3cd9894e2ff6edd57ac728943723ac865ad98305421a3b1bb0302b2cf389207b157a700a1333f4d48d5ff5f  kernel-cmdline.conf
 c928e1744e0428ee00c59194db16e2c36b28273f3b7497f7802e8c5ca7d527c526a50713a8263aadd0208fa40762d40e4fbcfcf094cceaea60599f21d0d34b9d  modules-initfs
 "
