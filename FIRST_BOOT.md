@@ -325,10 +325,19 @@ and both work here because `evdev` is in the initramfs (pmOS ships it in `00-def
 
 If neither key does anything, the keys themselves are the suspect, not the lever.
 
-If **U-Boot** finds no bootflow (card missing or unreadable), there is no way to type at its prompt:
-it has no `stdin`, so the phone sits there silently. Hold the power key to turn it off, insert the
-card, and try again - or leave the card out and go to the stock fastboot with the volume keys, where
-`fastboot flash boot_a` still works.
+If **U-Boot** finds no bootflow (card missing or unreadable), the phone stops there, and what you
+can do about it depends on whether a UART is attached. U-Boot's *output* goes to the screen
+(the board environment sets `stdout=vidconsole`), but its *input* is the serial port: the build has
+`CONFIG_SERIAL_PRESENT` and `CONFIG_SPRD_SERIAL`, and a display with no keyboard driver is not an
+input device, so the UART is the only one, and the environment never overrides `stdin`. **With a
+UART attached you can type at U-Boot's prompt even though you will not see the echo**, which is
+enough to run `bootflow scan` by hand or to reach the stock fastboot. Adding `serial` to `stdout`
+in the board environment - a one-line change in the U-Boot fork plus its `_commit` and checksum -
+would give the UART the output too.
+
+Without one: hold the power key to turn the phone off, insert the card, and try again - or leave
+the card out and go to the stock fastboot with the volume keys, where `fastboot flash boot_a`
+still works.
 
 The lever that does not depend on the keys is `pmos.debug-shell` in the card's
 `/extlinux/extlinux.conf`: mount the card on any PC, add it to the `append` line, put the card back.
