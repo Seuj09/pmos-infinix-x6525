@@ -11,7 +11,7 @@ marks `fate = "obsolete"`.
    `linux-postmarketos-unisoc-ums9230` from a *tarball at a tag*, so `deviceinfo_dtb` cannot resolve
    until a tree at that tag contains `sprd/ums9230-infinix-x6525.dtb`. Two routes, and the first
    works today: `device/testing/linux-postmarketos-unisoc-ums9230/` here is that package with the
-   ten patches from `../patches/upstream/` added to `source=` - `default_prepare`, which the package
+   eleven patches from `../patches/upstream/` added to `source=` - `default_prepare`, which the package
    already calls, applies them with `patch -p1`, verified against the same tag it builds from - plus
    the five config symbols below. Copy it in beside the device package and the ROM builds. Once the
    series is merged instead, drop that directory, bump `KERNEL_TAG` in

@@ -20,7 +20,7 @@ pmbootstrap install
 pmbootstrap export        # writes /tmp/postmarketOS-export/
 ```
 
-`linux-postmarketos-unisoc-ums9230/` here is the kernel package with this port's ten patches in
+`linux-postmarketos-unisoc-ums9230/` here is the kernel package with this port's eleven patches in
 `source=` and its five config symbols added (the reasoning is in `pmaports/README.md`), and the
 u-boot package builds from the port's fork, so the `boot.img` in the export is already this board's.
 
@@ -155,6 +155,12 @@ line carries `loglevel=7` (the device package's `kernel-cmdline.conf`; the distr
 - **Crash or reboot with nothing on screen: read `ramoops`.** The DTS reserves `ramoops@fff80000`; after a
   reboot into the stock system the last kernel log is in `/sys/fs/pstore/`. This is the best
   tool this phone gives you for a kernel that dies before the display works.
+
+- **Reboots about 12 seconds after the kernel starts: the watchdog.** The stock command line carries
+  `androidboot.wdten=e551`, and `sprd_wdt` (DT `timeout-sec = <12>`) used not to notice a counter the
+  bootloader had already started, so nothing fed it until userspace opened `/dev/watchdog`. Patch 11 marks
+  it running when the enable bit is set at probe, so the core feeds it. If the reboot loop persists with
+  that patch in, it is a different watchdog (the PMIC's has no mainline driver).
 
 ## 4. USB networking (how you will actually reach it)
 

@@ -7,7 +7,7 @@ maintainer="Affe Null <affenull2345@gmail.com>"
 _flavor="postmarketos-unisoc-ums9230"
 pkgname=linux-$_flavor
 pkgver=7.2.0_rc6_git20260807
-pkgrel=7
+pkgrel=8
 pkgdesc="Linux kernel with patches for Unisoc UMS9230 devices"
 arch="aarch64"
 _carch="arm64"
@@ -50,6 +50,7 @@ source="
 	0008-power-supply-add-extcon-backed-USB-charger-detection.patch
 	0009-dt-bindings-gpio-sprd-allow-gpio-hog-nodes.patch
 	0010-dt-bindings-power-supply-sc27xx-fg-allow-power-suppl.patch
+	0011-watchdog-sprd_wdt-keep-a-watchdog-the-bootloader-started-fed.patch
 "
 builddir="$srcdir/linux"
 
@@ -91,4 +92,5 @@ c95311c7b30feef0474f0280966a43508c753689d9696b6f09ddae399903b9c91062c706f798a793
 ededc2108a66340663f1af70f38ec417c9854e678044aac044c558f0ac5bfb49171884e4485e1087f252aa1744ecaed0aaafe912c4b45c9d50db45bc06fc606c  0008-power-supply-add-extcon-backed-USB-charger-detection.patch
 8e91302d4c025dea24ca257020f712f7a37f1f6c562caa0e983611fef37fb668b65ab6a57240e8204f4ec020a170b70b6f523c9df9551ab029b8da4dadbe478e  0009-dt-bindings-gpio-sprd-allow-gpio-hog-nodes.patch
 c8d4c9191516a0bff476855d8e63dec3fb284142ee27f766d3440c0cc8d4703530dd43680a3d91146d46333bbbb52c686e44fe5865fa4707a3ed0d97323e694c  0010-dt-bindings-power-supply-sc27xx-fg-allow-power-suppl.patch
+debb96fe3138b14e5498cfdd5c6f0dd3c953c5f9335262e1d1ce5bb6851df3cb71aed32f267d40677c8992e35bc875acdce9d0afb363f09886830d9925ae5888  0011-watchdog-sprd_wdt-keep-a-watchdog-the-bootloader-started-fed.patch
 "

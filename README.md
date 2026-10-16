@@ -73,10 +73,10 @@ in the **pmaports** kernel config — the one the ROM is actually built with. Th
 | `dts/`, `drivers/` | the device tree and the three drivers (panel, touch, charger) to send upstream |
 | `bindings/` | new DT bindings (the board/vendor entries are in `patches/`) |
 | `patches/` | build glue for the pinned kernel tag: kernel tree entries, the panel/touchscreen/charger Kconfig and Makefile entries, and the gpio binding fix |
-| `patches/upstream/` | the ten `git am`-able patches for submission, plus notes on where each goes |
+| `patches/upstream/` | the eleven `git am`-able patches for submission, plus notes on where each goes |
 | `uboot/` | the X6525 U-Boot board: a defconfig and a device tree, no board directory |
 | `patches/upstream-uboot/` | the two U-Boot board patches for submission |
-| `pmaports/` | the four packages to copy into pmaports: the device, the kernel (this port's ten patches and its config), U-Boot, and the touch firmware |
+| `pmaports/` | the four packages to copy into pmaports: the device, the kernel (this port's eleven patches and its config), U-Boot, and the touch firmware |
 | `firmware/` | the touch HDL image off the device, the upload tarball and its hashes |
 | `tools/` | dtbo/dtb extraction, the live device-tree dumper, the HDL image checker and the vendor-sequence converter |
 | `linux-infinix-x6525/`, `device-infinix-x6525/`, `build-kernel.sh`, `repack.sh` | the earlier downstream 5.4 approach, kept for reference |
