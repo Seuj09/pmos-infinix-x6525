@@ -53,6 +53,20 @@ writes the config file init would have written and points pmbootstrap at it with
 - `fastboot getvar current-slot` - the port flashes the *current* slot. The only eMMC write is the
   boot image, to `boot_a`; the rootfs goes to a microSD card (see [Flashing](#flashing)), so Android
   and its data are left alone.
+- **How to take that backup** - the stock fastboot cannot read partitions, so use one of: a rooted Android
+  (`adb shell su -c 'dd if=/dev/block/by-name/boot_a of=/sdcard/boot_a.img'`, same for the others), or
+  `spd_dump` in download mode (`read_part boot_a 0 <size> boot_a.img`). Check the file is the partition's
+  full size and starts with `ANDROID!`. Without any backup, the stock firmware package's `boot.img` for this
+  exact build is the only way back, so have one of the two before the first flash.
+- **Do not count on slot B as a spare.** `boot_b` is untouched, but on virtual A/B the system lives in
+  `super` for the active slot only, so `fastboot set_active b` may not give a bootable Android. If the stock
+  bootloader gives up on a slot that keeps failing and flips to B, run `fastboot set_active a` again after
+  restoring `boot_a`.
+- **U-Boot's `preboot` is not empty.** `CONFIG_PREBOOT` is, but the board's `ums9230.env` (the Reeder one)
+  sets `preboot=sspi 0 00; ufs init; scsi scan; load scsi ...` as a default variable. This board has no UFS
+  and no SPI controller in U-Boot, so each command fails with "Unknown command" / "Invalid device" and the
+  scan goes on to `bootcmd`; a few such errors at the top of the U-Boot log are expected. The same file
+  sets `stdout=vidconsole` only, so a UART shows nothing from U-Boot - only the kernel, once it is up.
 - Know the way back **before** you need it: `fastboot flash boot_a <backup boot.img>` restores Android.
   If the phone no longer reaches fastboot at all, the Spreadtrum download mode with `spd_dump` is the
   fallback (your Termux setup).
@@ -123,7 +137,7 @@ there. The `rom` workflow therefore also cuts it into its two filesystems (`tool
 which are flashed into two eMMC partitions of their own:
 
 ```sh
-fastboot getvar partition-size:cache          # must be >= the size of pmos-boot-fs.img (256 MiB)
+fastboot getvar partition-size:cache          # must be >= the size of pmos-boot-fs.img (about 80 MiB: the workflow shrinks it)
 fastboot getvar partition-size:userdata       # must be >= the size of pmos-root-fs.img
 fastboot flash boot_a  <out>/boot.img         # as before
 fastboot flash cache    <out>/pmos-boot-fs.img    # pmOS_boot: extlinux.conf, kernel, initramfs, DTB

@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=4
+pkgrel=5
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -41,7 +41,10 @@ makedepends="devicepkg-dev"
 # last one, which becomes /dev/console) has to be named too. The extlinux line
 # otherwise carries `quiet splash plymouth.*`, and plymouth would cover the
 # console, so plymouth.enable=0 and nosplash (the shipped initramfs's init_2nd.sh
-# honours the latter) keep the kernel messages visible.
+# honours the latter) keep the kernel messages visible. clk_ignore_unused and
+# pd_ignore_unused stop the kernel gating, 30 s in, the clocks and power domains
+# the bootloader left running for the display (and bus masters) that no driver has
+# claimed yet - the screen would go black exactly when the DPU stack failed to take over.
 source="
 	deviceinfo
 	kernel-cmdline.conf
@@ -64,6 +67,6 @@ package() {
 
 sha512sums="
 ec06cee676200b6901690acfbd767dd1a57fa3a21fa8fc890bba09c253cefcd1266de1d8ad1807b584cbf721f3829ff9c8b9c830e8e6d1042089540e5a9a3907  deviceinfo
-30afa38f438e5fc77eadc6ffa410024301d24997d0d62a7a4154c56933fc67f8255511f74f5bf550c800fee5d8abc2db2fbd34f6855f437e2d8cf16c702053d6  kernel-cmdline.conf
+d93fb1bf0bc6e4ba4a2408ba11babbeac9aebbb1d8aa85ac7d26603e144c1a9104a41188d4eb94124d4c0fd60908a43b7ac2dcec516a70079cc55f71e4b904fd  kernel-cmdline.conf
 65df7a69ce968c5e8cea474b307a4c6de915386158f3e3a3378644defaa0eafcd26bd39a5febe2e6f6d0748ceb34f3dfb6980a38d7a9caecf754fa1769751639  modules-initfs
 "
