@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=5
+pkgrel=6
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -66,7 +66,7 @@ package() {
 }
 
 sha512sums="
-ec06cee676200b6901690acfbd767dd1a57fa3a21fa8fc890bba09c253cefcd1266de1d8ad1807b584cbf721f3829ff9c8b9c830e8e6d1042089540e5a9a3907  deviceinfo
+6292d7399f573e3120525d8a92715d67efd91f6c9e16d191ad1ce38af971016352c7f00bdd250e0276f186c4df6ae8e46ce115e6483d404187efc615818fbe7b  deviceinfo
 d93fb1bf0bc6e4ba4a2408ba11babbeac9aebbb1d8aa85ac7d26603e144c1a9104a41188d4eb94124d4c0fd60908a43b7ac2dcec516a70079cc55f71e4b904fd  kernel-cmdline.conf
 65df7a69ce968c5e8cea474b307a4c6de915386158f3e3a3378644defaa0eafcd26bd39a5febe2e6f6d0748ceb34f3dfb6980a38d7a9caecf754fa1769751639  modules-initfs
 "

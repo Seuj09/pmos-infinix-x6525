@@ -14,6 +14,15 @@ deviceinfo_arch="aarch64"
 deviceinfo_drm="true"
 deviceinfo_chassis="handset"
 
+# Display and serial console. The panel is 720x1612; the width and height let
+# framebuffer tools (unl0kr, the charging screen) size themselves. The kernel
+# console is on uart1 (ttyS1, 115200 8N1, see kernel-cmdline.conf), so offer a
+# login there as well: with a UART attached it is a way in that needs neither
+# the USB network nor the screen.
+deviceinfo_screen_width="720"
+deviceinfo_screen_height="1612"
+deviceinfo_getty="ttyS1;115200"
+
 # Bootloader related
 
 # The primary bootloader cannot be replaced, so U-Boot is chainloaded from an

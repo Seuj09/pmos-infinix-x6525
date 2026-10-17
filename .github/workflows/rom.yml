@@ -151,6 +151,13 @@ jobs:
           # inside an eMMC partition, so also cut it into its two filesystems, which
           # can each be flashed into an eMMC partition (FIRST_BOOT.md, "Flashing to
           # the eMMC"). Byte-for-byte copies: the UUIDs extlinux names survive.
+          # boot_a gets U-Boot: the image must be a v4 Android boot image that fits
+          # the 64 MiB partition. A warning rather than a failure, like the boot
+          # filesystem check: it has not been run against a real pmbootstrap image yet,
+          # and a false alarm should not cost the artifact.
+          python3 -I tools/check-boot-img.py /tmp/rom-out/boot.img 64 \
+            || echo "::warning::boot.img failed its sanity check (see above)"
+
           python3 -I tools/split-disk-image.py /tmp/rom-out/infinix-x6525.img \
             /tmp/rom-out/pmos-boot-fs.img /tmp/rom-out/pmos-root-fs.img
 
