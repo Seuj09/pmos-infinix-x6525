@@ -280,7 +280,7 @@ jobs:
       - name: Check the ROM's own kernel config takes our symbols
         run: |
           # The ROM builds with pmaports' config, not with the tree's defconfig,
-          # so the five symbols this port adds have to survive olddefconfig
+          # so the six symbols this port adds have to survive olddefconfig
           # there, dependencies and all. Last in the job on purpose: it replaces
           # .config, and the steps above and the upload want the tree's own.
           # SERIAL_SPRD is the odd one out: not a driver this port adds, but the
@@ -297,7 +297,7 @@ jobs:
               exit 1
             }
           done
-          echo "the ROM's kernel config takes all five"
+          echo "the ROM's kernel config takes all six"
 
       - name: Upload what was built
         if: always()

@@ -62,7 +62,7 @@ some: it clones the pinned tag, checks that the submission series applies to it 
 bindings and this board's nodes, enables `DRM_SPRD`, `DRM_PANEL_TD4160_HX`, `TOUCHSCREEN_OVT_TCM_SPI`,
 `CHARGER_BQ2415X`, `CHARGER_EXTCON_DETECT` and the PMIC chain the thermistors need behind an
 `olddefconfig` gate, compiles the three drivers, refetches the U-Boot archive and the firmware tarball
-and compares them against the sha512s in their APKBUILDs, and checks this port's five symbols survive
+and compares them against the sha512s in their APKBUILDs, and checks this port's six symbols survive
 in the **pmaports** kernel config — the one the ROM is actually built with. The `build` job uploads
 `x6525-build`; the `uboot` job builds the board and uploads `x6525-uboot`.
 
@@ -75,7 +75,7 @@ in the **pmaports** kernel config — the one the ROM is actually built with. Th
 | `patches/` | build glue for the pinned kernel tag: kernel tree entries, the panel/touchscreen/charger Kconfig and Makefile entries, and the gpio binding fix |
 | `patches/upstream/` | the eleven `git am`-able patches for submission, plus notes on where each goes |
 | `uboot/` | the X6525 U-Boot board: a defconfig and a device tree, no board directory |
-| `patches/upstream-uboot/` | the two U-Boot board patches for submission |
+| `patches/upstream-uboot/` | the three U-Boot board patches for submission (device tree, defconfig, environment) |
 | `pmaports/` | the four packages to copy into pmaports: the device, the kernel (this port's eleven patches and its config), U-Boot, and the touch firmware |
 | `firmware/` | the touch HDL image off the device, the upload tarball and its hashes |
 | `tools/` | dtbo/dtb extraction, the live device-tree dumper, the HDL image checker and the vendor-sequence converter |

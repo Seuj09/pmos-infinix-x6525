@@ -8,11 +8,7 @@ out of a board DTB the bootloader hands over - which is the whole point.
 
 Usage:
     python3 -I dtb-dump.py board.dtb > board.dts        # text
-    python3 -I dtb-dump.py -p board.dtb sprd,initial-command   # one property
-
-Property values are printed the way dtc does: as a string when they look like
-one, otherwise as <hex bytes> with a decimal/hex comment when every 4 bytes form
-a big-endian u32.
+    python3 -I dtb-dump.py board.dtb -n lcd_td4160_hx -p sprd,initial-command -r
 """
 import argparse
 import struct
@@ -82,6 +78,8 @@ def iter_props(blob):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("dtb")
+    ap.add_argument("-n", "--node", default=None,
+                    help="with -p, match only nodes whose path contains this substring")
     ap.add_argument("-p", "--property", default=None,
                     help="print only this property name, one value per line")
     ap.add_argument("-r", "--raw", action="store_true",
@@ -94,16 +92,21 @@ def main():
         sys.exit("not a device tree blob (bad FDT magic)")
 
     if args.property:
-        found = 0
+        matches = []
         for path, name, value in iter_props(blob):
-            if name == args.property:
-                if args.raw:
-                    print(" ".join(f"{b:02x}" for b in value))
-                else:
-                    print(f"/{'/'.join(path)}: {decode(value)}")
-                found += 1
-        if not found:
+            full = "/" + "/".join(path)
+            if name == args.property and (not args.node or args.node in full):
+                matches.append((full, value))
+        if not matches:
             sys.exit(f"no property {args.property!r} in this tree")
+        if args.raw and len(matches) > 1:
+            nodes = ", ".join(p for p, _ in matches)
+            sys.exit(f"{args.property!r} matched {len(matches)} nodes ({nodes}); pass -n <node>")
+        for full, value in matches:
+            if args.raw:
+                print(" ".join(f"{b:02x}" for b in value))
+            else:
+                print(f"{full}: {decode(value)}")
         return
 
     last = None

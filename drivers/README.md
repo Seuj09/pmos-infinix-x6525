@@ -7,7 +7,7 @@
 Everything panel-specific in it now comes from **this device's own board device tree** (dtbo entry 18),
 not from a sibling panel:
 
-- the DCS init sequence (355 packets, extracted and converted, with the vendor's `0x13` delay opcodes
+- the DCS init sequence (44 packets, from the `lcd_td4160_hx_mipi_hdp_x6525` node only, extracted and converted, with the vendor's `0x13` delay opcodes
   turned into `mipi_dsi_msleep`);
 - the reset sequences (`sprd,reset-on-sequence = <1 5>, <0 5>, <1 20>`);
 - the mode timings, from `display-timings/timing0` - the native mode - which are self-consistent at
@@ -18,7 +18,7 @@ The sequence can be regenerated at any time:
 
 ```sh
 python3 -I tools/dtbo-extract.py dtbo.img -n 18 -x board.dtb
-python3 -I tools/dtb-dump.py board.dtb -p sprd,initial-command -r \
+python3 -I tools/dtb-dump.py board.dtb -n lcd_td4160_hx_mipi_hdp_x6525 -p sprd,initial-command -r \
     | python3 -I tools/lcd-dtsi-to-c.py --stream
 ```
 
@@ -27,9 +27,12 @@ Still open, in order of what would bite first:
 1. the panel reset polarity (vendor DT says active-high; the reeder driver assumes active-low);
 2. the brightness curve - the vendor's `brightness-levels` table is not reproduced, so brightness is
    linear;
-3. the charging driver (Awinic AW32257 via Transsion `tran_charger`) - unrelated to the panel, but it
-   has to be ported separately before the battery charges under mainline;
-4. the touch driver - see below.
+3. the touch driver - see below.
+
+The board DT carries four panel nodes (`td4160_txd`, `td4160_hx`, `ft8057s_dpt`, a dummy), each with its
+own `sprd,initial-command`. An earlier version of the driver concatenated all four (dtb-dump printed every
+match and the converter joined them), so the TD4160 was re-programmed with the FT8057S's registers after
+init. `dtb-dump.py -r` now refuses multiple matches and `lcd-dtsi-to-c.py --stream` refuses multiple lines.
 
 ## `ovt-tcm-spi.c` - touchscreen (new, untested on hardware)
 
@@ -52,8 +55,8 @@ Open points, in order of what would bite first:
    device actually runs asks for `hdl_firmware_01.img` - the only `hdl_firmware` name in its strings,
    and `/vendor/firmware` holds `hdl_firmware_00.img` and `_01.img`. So `firmware-name` is
    `postmarketos/sprd/hdl_firmware_01.img` (note the double digit - the tree's single-digit names
-   would not resolve), and `../pmaports/device/testing/firmware-infinix-x6525/` packages it. The file
-   still has to be copied off the device and republished somewhere fetchable.
+   would not resolve), and `../pmaports/device/testing/firmware-infinix-x6525/` packages it from
+   `../firmware/`.
 2. The first hardware run will show whether the 9-byte first read plus continued reads match the
    chip's framing, and whether 8 MHz in SPI mode 3 is right with the SoC's SPI controller (the
    ROM-boot download is a single large transfer, as in the stock driver).

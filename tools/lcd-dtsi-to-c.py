@@ -10,7 +10,7 @@ Two input forms are supported.
   --stream: the same data as a flat byte stream, which is how it comes out of a
   decompiled board DTB, e.g.
 
-      python3 -I dtb-dump.py board.dtb -p sprd,initial-command -r \
+      python3 -I dtb-dump.py board.dtb -n lcd_td4160_hx -p sprd,initial-command -r \
           | python3 -I lcd-dtsi-to-c.py --stream
 
   Both use the same packet layout: [data type][vc][ack][len][payload x len].
@@ -114,8 +114,10 @@ def main():
     args = ap.parse_args()
 
     if args.stream:
-        text = sys.stdin.read()
-        tokens = [int(t, 16) for t in text.split()]
+        lines = [ln.strip() for ln in sys.stdin.read().splitlines() if ln.strip()]
+        if len(lines) > 1:
+            sys.exit(f"--stream expected 1 line, got {len(lines)} (did dtb-dump match multiple panel nodes?)")
+        tokens = [int(t, 16) for t in (lines[0].split() if lines else [])]
         do_stream(tokens)
     else:
         do_lines()

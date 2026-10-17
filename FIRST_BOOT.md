@@ -192,7 +192,7 @@ part list mmc 0  # if mmc list shows something else first, use the number it pri
 
 Expect two devices. The eMMC still carries Android's stock partition table - this route does not
 touch it - while the microSD is the pmOS one: an extended-boot partition holding `/extlinux`, and
-the Linux root. `bootcmd` is `bootflow scan -lb mmc` (from `board/unisoc/ums9230/ums9230.env`), so
+the Linux root. `bootcmd` is `bootflow scan -lb mmc` (from `board/unisoc/ums9230/infinix-x6525.env`), so
 U-Boot looks on both and boots the card.
 - **The eMMC is slow (DDR52, tens of MB/s):** expected, not a fault. `sdhci-sprd` keeps
   `SDHCI_QUIRK2_BROKEN_HS200` set for `sprd,sdhci-r11`, and the core clears `MMC_CAP2_HS200` for it -
@@ -334,14 +334,12 @@ and both work here because `evdev` is in the initramfs (pmOS ships it in `00-def
 If neither key does anything, the keys themselves are the suspect, not the lever.
 
 If **U-Boot** finds no bootflow (card missing or unreadable), the phone stops there, and what you
-can do about it depends on whether a UART is attached. U-Boot's *output* goes to the screen
-(the board environment sets `stdout=vidconsole`), but its *input* is the serial port: the build has
-`CONFIG_SERIAL_PRESENT` and `CONFIG_SPRD_SERIAL`, and a display with no keyboard driver is not an
-input device, so the UART is the only one, and the environment never overrides `stdin`. **With a
-UART attached you can type at U-Boot's prompt even though you will not see the echo**, which is
-enough to run `bootflow scan` by hand or to reach the stock fastboot. Adding `serial` to `stdout`
-in the board environment - a one-line change in the U-Boot fork plus its `_commit` and checksum -
-would give the UART the output too.
+can do about it depends on whether a UART is attached. The board environment sets
+`stdin=serial` and `stdout`/`stderr` = `serial,vidconsole`, so U-Boot's output goes to the screen
+*and* the UART, and its only input is the serial port (a display with no keyboard driver is not an
+input device). **With a UART attached you get a full U-Boot prompt**, enough to run `bootflow scan`
+by hand or to reach the stock fastboot. (A `boot.img` built before `39bf351` still has the Reeder
+environment: screen-only output, so you would type blind.)
 
 Without one: hold the power key to turn the phone off, insert the card, and try again - or leave
 the card out and go to the stock fastboot with the volume keys, where `fastboot flash boot_a`
