@@ -392,3 +392,24 @@ The smallest set that lets me find a problem without another round trip:
 1. the screen or serial output of U-Boot (the first screenful is enough);
 2. `dmesg` after the kernel starts (or `/sys/fs/pstore/*` if it died);
 3. for each stage above that failed, the commands listed under it.
+
+
+## Debug build: first boot reached "Starting kernel", then a blank screen
+
+The first flash got as far as U-Boot loading the kernel, then showed a black screen and reset itself
+after a few minutes, and the host phone saw no USB device. The debug build changes three things (all
+marked DEBUG, remove them once the boot works):
+
+- kernel cmdline `initcall_blacklist=sprd_drm_init`: the DPU/DSI driver does not load, so the
+  framebuffer the bootloader left running (simpledrm) stays the only display and nothing can blank it;
+- `ignore_loglevel initcall_debug`: every message and every initcall is printed, so a hang shows the
+  last initcall that started;
+- U-Boot prints the previous boot's kernel log (`pstore display`, from the ramoops region at
+  `0xfff80000`) and waits 15 s before booting. It needs the RAM to survive the reset, so it may show
+  nothing - that is itself a result.
+
+How to read it: flash `boot_a` and `cache` only (`userdata` is unchanged), boot, and photograph the
+screen (1) at the first U-Boot screen after the phone resets itself and (2) the last lines of the
+kernel output before it stops. If the kernel text appears and then stops, the last initcall line is
+the culprit. If the screen stays black with the display driver off, the kernel died before
+simpledrm.

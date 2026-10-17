@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=8
+pkgrel=9
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -45,6 +45,10 @@ makedepends="devicepkg-dev"
 # pd_ignore_unused stop the kernel gating, 30 s in, the clocks and power domains
 # the bootloader left running for the display (and bus masters) that no driver has
 # claimed yet - the screen would go black exactly when the DPU stack failed to take over.
+# DEBUG BUILD: initcall_blacklist=sprd_drm_init keeps the DPU/DSI driver from loading so
+# the framebuffer the bootloader left running (simpledrm) is the only display and
+# nothing can blank it; ignore_loglevel and initcall_debug put every initcall on
+# screen so a hang shows where it stopped. Remove all three once the boot is known good.
 source="
 	deviceinfo
 	kernel-cmdline.conf
@@ -67,6 +71,6 @@ package() {
 
 sha512sums="
 0a3b1f1d6fa3fa04b92d52dec7d622a9b8a3dd0c4b6608f7f6f30edbbe47d33f8f3f1abdd97bbf26d0625d9aae46e67eb1ea39672169d8192ec37e5f733134fc  deviceinfo
-d93fb1bf0bc6e4ba4a2408ba11babbeac9aebbb1d8aa85ac7d26603e144c1a9104a41188d4eb94124d4c0fd60908a43b7ac2dcec516a70079cc55f71e4b904fd  kernel-cmdline.conf
+3694921a00434d3d6c349fd7d830af68e192d019c1f454aa69fe10e6d14546e7a03fc5a55b84f587ab02fb93d5ad88099197806317d562b63a3b3ba3c445c691  kernel-cmdline.conf
 65df7a69ce968c5e8cea474b307a4c6de915386158f3e3a3378644defaa0eafcd26bd39a5febe2e6f6d0748ceb34f3dfb6980a38d7a9caecf754fa1769751639  modules-initfs
 "

@@ -1,0 +1,43 @@
+From d7631cad29cf6431e26f71f2a69dff9d9c1f2cdb Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 20:59:05 +0800
+Subject: [PATCH] board: unisoc: ums9230: infinix-x6525: show the last kernel
+ log (pstore) at boot
+
+The kernel keeps its console in ramoops at 0xfff80000 (0x40000 bytes: 0x8000
+records, console and pmsg, no ftrace). Print it before booting, then wait, so a
+boot that resets itself leaves its last messages readable on the screen even with
+no UART.
+---
+ board/unisoc/ums9230/infinix-x6525.env | 2 +-
+ configs/infinix-x6525_defconfig        | 7 +++++++
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/board/unisoc/ums9230/infinix-x6525.env b/board/unisoc/ums9230/infinix-x6525.env
+index 83657718..57ab32c5 100644
+--- a/board/unisoc/ums9230/infinix-x6525.env
++++ b/board/unisoc/ums9230/infinix-x6525.env
+@@ -1,4 +1,4 @@
+-bootcmd=bootflow scan -lb mmc
++bootcmd=pstore display console; pstore display dmesg; sleep 15; bootflow scan -lb mmc
+ fdt_addr_r=0x9df00000
+ kernel_addr_r=0x80080000
+ kernel_comp_addr_r=0xc0000000
+diff --git a/configs/infinix-x6525_defconfig b/configs/infinix-x6525_defconfig
+index 8aea625e..38fac289 100644
+--- a/configs/infinix-x6525_defconfig
++++ b/configs/infinix-x6525_defconfig
+@@ -60,3 +60,10 @@ CONFIG_VIDEO_FONT_16X32=y
+ CONFIG_VIDEO_ANSI=y
+ CONFIG_SYS_WHITE_ON_BLACK=y
+ CONFIG_VIDEO_SIMPLE=y
++CONFIG_CMD_PSTORE=y
++CONFIG_CMD_PSTORE_MEM_ADDR=0xfff80000
++CONFIG_CMD_PSTORE_MEM_SIZE=0x40000
++CONFIG_CMD_PSTORE_RECORD_SIZE=0x8000
++CONFIG_CMD_PSTORE_CONSOLE_SIZE=0x8000
++CONFIG_CMD_PSTORE_FTRACE_SIZE=0x0
++CONFIG_CMD_PSTORE_PMSG_SIZE=0x8000
+-- 
+2.43.0
+
