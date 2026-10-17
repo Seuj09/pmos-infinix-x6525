@@ -1,0 +1,25 @@
+From 2b896c1f89f0e389c3abf8ab8410e9b14349abf9 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 22:58:58 +0800
+Subject: [PATCH] board: unisoc: ums9230: infinix-x6525: fix pstore record
+ type, show the cache partition when no bootflow is found
+
+pstore display takes dump, not dmesg. When bootflow scan finds nothing, print which
+partition 'cache' is and what is in it, so a missing boot filesystem is visible on screen.
+---
+ board/unisoc/ums9230/infinix-x6525.env | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/board/unisoc/ums9230/infinix-x6525.env b/board/unisoc/ums9230/infinix-x6525.env
+index 57ab32c5..d62b5965 100644
+--- a/board/unisoc/ums9230/infinix-x6525.env
++++ b/board/unisoc/ums9230/infinix-x6525.env
+@@ -1,4 +1,4 @@
+-bootcmd=pstore display console; pstore display dmesg; sleep 15; bootflow scan -lb mmc
++bootcmd=pstore display console; pstore display dump; sleep 15; bootflow scan -lb mmc; echo === no bootflow: the cache partition ===; part number mmc 0 cache cachenum; echo cache is partition ${cachenum}; ls mmc 0:${cachenum} /; ls mmc 0:${cachenum} /extlinux
+ fdt_addr_r=0x9df00000
+ kernel_addr_r=0x80080000
+ kernel_comp_addr_r=0xc0000000
+-- 
+2.43.0
+

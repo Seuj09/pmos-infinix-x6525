@@ -415,7 +415,7 @@ marked DEBUG, remove them once the boot works):
   framebuffer the bootloader left running (simpledrm) stays the only display and nothing can blank it;
 - `ignore_loglevel initcall_debug`: every message and every initcall is printed, so a hang shows the
   last initcall that started;
-- U-Boot prints the previous boot's kernel log (`pstore display`, from the ramoops region at
+- U-Boot prints the previous boot's kernel log (`pstore display console` and `dump`, from the ramoops region at
   `0xfff80000`) and waits 15 s before booting. It needs the RAM to survive the reset, so it may show
   nothing - that is itself a result.
 
@@ -425,3 +425,8 @@ screen (1) at the first U-Boot screen after the phone resets itself and (2) the 
 kernel output before it stops. If the kernel text appears and then stops, the last initcall line is
 the culprit. If the screen stays black with the display driver off, the kernel died before
 simpledrm.
+
+If U-Boot stops at the `=>` prompt with `(0 bootflows, 0 valid)`, it found no extlinux on any eMMC partition.
+The debug U-Boot then prints which partition `cache` is and lists its `/` and `/extlinux`: an error there means
+the boot filesystem was not written to `cache` (flash it again and watch for a fastboot or `spd_dump` error), an
+empty listing means the wrong image went there.

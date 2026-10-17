@@ -1,6 +1,6 @@
 # U-Boot board patches
 
-Four patches for [codeberg.org/ums9230-mainline/u-boot](https://codeberg.org/ums9230-mainline/u-boot),
+Five patches for [codeberg.org/ums9230-mainline/u-boot](https://codeberg.org/ums9230-mainline/u-boot),
 split the way that fork splits its own board commits - one device tree, one defconfig, one environment file, and a debug one that prints the last
 kernel log (pstore) before booting - drop that one for anything but bring-up. The fork marks
 its own Reeder device tree commit `WIP:`; these do not, since the board builds in CI and the
