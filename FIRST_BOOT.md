@@ -151,7 +151,7 @@ fastboot flash userdata <out>/pmos-root-fs.img    # pmOS_root
   what you need first. Do not use `persist`, `metadata`, `misc`, `tkv_*` or any of the `*_a`/`*_b` pairs for
   this - `persist` holds the device's calibration.
 - **Recovering Android afterwards.** The route is: stock fastboot (via `spd_dump` reboot-to-fastboot; no key combo needed), `fastboot flash boot_a <backup>`,
-  `fastboot -w` (confirmed on this phone by its owner), `fastboot reboot`. `-w` is the ordinary factory-reset
+  `fastboot -w` (confirmed on this phone by its owner) - note that `-w` wipes `cache` as well as `userdata`, and `cache` holds the pmOS boot filesystem, so after any `-w` re-flash `cache` and `userdata` before booting pmOS again (a flash that is interrupted should be repeated, not wiped), `fastboot reboot`. `-w` is the ordinary factory-reset
   path: it leaves `/metadata` alone, which is where the encryption keys live, so Android formats `userdata`
   afresh. Evidence from the stock `vendor_boot` ramdisk (`recovery.fstab`, `fstab.X6525`): `/data` is f2fs with
   `fileencryption`, `keydirectory=/metadata/vold/metadata_encryption` and `formattable`, and `cache` has no
