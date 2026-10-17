@@ -35,6 +35,7 @@
 #include <linux/gpio/consumer.h>
 #include <linux/mod_devicetable.h>
 #include <linux/module.h>
+#include <linux/mutex.h>
 
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_modes.h>
@@ -51,6 +52,11 @@ struct td4160_panel {
 	struct mipi_dsi_device *dsi;
 	struct gpio_desc *reset;
 	struct backlight_device *backlight;
+	/* The DSI host's clock only runs between pre_enable and post_disable, so
+	 * a DCS write outside that window (a brightness write from user space
+	 * before the first modeset, say) must not reach it. */
+	struct mutex bl_lock;
+	bool prepared;
 };
 
 static inline struct td4160_panel *to_td4160_panel(struct drm_panel *panel)
@@ -61,12 +67,18 @@ static inline struct td4160_panel *to_td4160_panel(struct drm_panel *panel)
 static int td4160_panel_bl_update(struct backlight_device *bl)
 {
 	struct mipi_dsi_device *dsi = bl_get_data(bl);
+	struct td4160_panel *ctx = mipi_dsi_get_drvdata(dsi);
 	unsigned int level = backlight_get_brightness(bl);
 	u8 buf[2] = { level >> 8, level & 0xff };
+	int ret = 0;
 
 	/* 0x51 takes a 12-bit value on this panel */
-	return mipi_dsi_dcs_write(dsi, MIPI_DCS_SET_DISPLAY_BRIGHTNESS,
-				  buf, sizeof(buf));
+	mutex_lock(&ctx->bl_lock);
+	if (ctx->prepared)
+		ret = mipi_dsi_dcs_write(dsi, MIPI_DCS_SET_DISPLAY_BRIGHTNESS,
+					 buf, sizeof(buf));
+	mutex_unlock(&ctx->bl_lock);
+	return ret;
 }
 
 static const struct backlight_ops td4160_panel_bl_ops = {
@@ -485,6 +497,9 @@ static int td4160_panel_prepare(struct drm_panel *panel)
 
 	/* The init sequence ends on 0x51 0x00 0x00 (brightness 0), so push the
 	 * real level now or the panel stays dark. */
+	mutex_lock(&ctx->bl_lock);
+	ctx->prepared = true;
+	mutex_unlock(&ctx->bl_lock);
 	backlight_update_status(ctx->backlight);
 
 	return 0;
@@ -494,6 +509,10 @@ static int td4160_panel_unprepare(struct drm_panel *panel)
 {
 	struct td4160_panel *ctx = to_td4160_panel(panel);
 	int ret;
+
+	mutex_lock(&ctx->bl_lock);
+	ctx->prepared = false;
+	mutex_unlock(&ctx->bl_lock);
 
 	ret = td4160_panel_off(ctx);
 	if (ret < 0)
@@ -558,6 +577,10 @@ static int td4160_panel_probe(struct mipi_dsi_device *dsi)
 	if (IS_ERR(ctx->reset))
 		return dev_err_probe(&dsi->dev, PTR_ERR(ctx->reset),
 				     "Failed to get reset GPIO\n");
+
+	ret = devm_mutex_init(&dsi->dev, &ctx->bl_lock);
+	if (ret)
+		return ret;
 
 	ctx->dsi = dsi;
 	mipi_dsi_set_drvdata(dsi, ctx);

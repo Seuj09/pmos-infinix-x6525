@@ -207,7 +207,7 @@ struct ovt_tcm {
 	struct fw_status fw_status;
 
 	struct app_info app;
-	unsigned int max_x, max_y, max_objects;
+	unsigned int max_x, max_y, max_objects, objs_alloc;
 	u8 *report_cfg;
 	unsigned int report_cfg_len;
 	struct object_data *objs;
@@ -220,20 +220,30 @@ struct ovt_tcm {
 
 static int tcm_spi_read(struct ovt_tcm *t, u8 *rx, unsigned int len)
 {
-	u8 *tx;
-	struct spi_transfer xfer = { .len = len, .rx_buf = rx };
+	u8 *tx, *rxb;
+	struct spi_transfer xfer = { .len = len };
 	int ret;
 
+	/* both buffers heap-allocated: callers may pass a stack buffer, which
+	 * must not be handed to a DMA-capable SPI controller */
 	tx = kmalloc(len, GFP_KERNEL);
-	if (!tx)
+	rxb = kmalloc(len, GFP_KERNEL);
+	if (!tx || !rxb) {
+		kfree(tx);
+		kfree(rxb);
 		return -ENOMEM;
+	}
 	memset(tx, 0xff, len);
 	xfer.tx_buf = tx;
+	xfer.rx_buf = rxb;
 
 	mutex_lock(&t->spi_lock);
 	ret = spi_sync_transfer(t->spi, &xfer, 1);
 	mutex_unlock(&t->spi_lock);
+	if (!ret)
+		memcpy(rx, rxb, len);
 	kfree(tx);
+	kfree(rxb);
 	return ret;
 }
 
@@ -365,6 +375,10 @@ static int tcm_write_command(struct ovt_tcm *t, u8 cmd, const u8 *payload,
 	u8 *buf;
 	int ret = 0;
 
+	/* a first chunk carries cmd + 2 length bytes + data: anything the device
+	 * reports below that would never make progress (or overrun buf) */
+	if (t->wr_chunk && t->wr_chunk < 4)
+		return -EINVAL;
 	chunk_space = t->wr_chunk ? t->wr_chunk - 1 : remaining;
 	if (cmd == CMD_ROMBOOT_DOWNLOAD)
 		chunk_space = remaining;
@@ -803,6 +817,12 @@ static int tcm_bring_up_touch(struct ovt_tcm *t)
 	t->max_objects = get_unaligned_le16(t->app.max_objects);
 	if (!t->max_x || !t->max_y || !t->max_objects)
 		return -EINVAL;
+	/* the arrays and input slots are sized once; a later bring-up must agree */
+	if (t->objs && t->max_objects != t->objs_alloc) {
+		dev_err(&t->spi->dev, "max_objects changed from %u to %u\n",
+			t->objs_alloc, t->max_objects);
+		return -EINVAL;
+	}
 
 	ret = tcm_set_report_config(t);
 	if (ret)
@@ -814,6 +834,8 @@ static int tcm_bring_up_touch(struct ovt_tcm *t)
 		return ret;
 
 	t->touch_ready = false;
+	/* let a touch report being parsed finish before its config is freed */
+	synchronize_irq(t->spi->irq);
 	kfree(t->report_cfg);
 	t->report_cfg = resp;
 	t->report_cfg_len = rlen;
@@ -825,6 +847,7 @@ static int tcm_bring_up_touch(struct ovt_tcm *t)
 					      GFP_KERNEL);
 		if (!t->objs || !t->prev_status)
 			return -ENOMEM;
+		t->objs_alloc = t->max_objects;
 	}
 	ret = tcm_register_input(t);
 	if (ret)
@@ -985,6 +1008,16 @@ static irqreturn_t tcm_irq_thread(int irq, void *data)
 			memset(&t->id, 0, sizeof(t->id));
 			memcpy(&t->id, payload, min_t(unsigned int, len, sizeof(t->id)));
 			t->got_identify = true;
+		}
+		if (pending == CMD_IDENTIFY) {
+			/* the reply to CMD_IDENTIFY is itself an identify report */
+			t->resp_err = false;
+			t->resp_code = STATUS_OK;
+			t->resp_buf = payload;
+			t->resp_len = len;
+			payload = NULL;
+			complete(&t->resp_done);
+			break;
 		}
 		if (pending == CMD_ROMBOOT_RUN_BOOTLOADER_FW) {
 			/* the "response" to these is the device coming back */

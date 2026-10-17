@@ -1,7 +1,7 @@
-From f83e54bd90b59634efd6fd5c9a4f6cd1fb644de8 Mon Sep 17 00:00:00 2001
+From cf6694c3dc15a3c136ed3b5240a931cbdf78312b Mon Sep 17 00:00:00 2001
 From: Seuj09 <jeus110310@gmail.com>
 Date: Wed, 14 Oct 2026 12:58:07 +0000
-Subject: [PATCH 2/2] Input: add OmniVision TCM SPI touchscreen driver (host
+Subject: [PATCH] Input: add OmniVision TCM SPI touchscreen driver (host
  download)
 
 Add a driver for OmniVision TCM touch controllers that have no flash and come
@@ -19,12 +19,12 @@ Signed-off-by: Seuj09 <jeus110310@gmail.com>
 ---
  drivers/input/touchscreen/Kconfig       |   14 +
  drivers/input/touchscreen/Makefile      |    1 +
- drivers/input/touchscreen/ovt-tcm-spi.c | 1163 +++++++++++++++++++++++
- 3 files changed, 1178 insertions(+)
+ drivers/input/touchscreen/ovt-tcm-spi.c | 1196 +++++++++++++++++++++++
+ 3 files changed, 1211 insertions(+)
  create mode 100644 drivers/input/touchscreen/ovt-tcm-spi.c
 
 diff --git a/drivers/input/touchscreen/Kconfig b/drivers/input/touchscreen/Kconfig
-index 8585188..51a74fe 100644
+index 8585188b8..51a74fee7 100644
 --- a/drivers/input/touchscreen/Kconfig
 +++ b/drivers/input/touchscreen/Kconfig
 @@ -657,6 +657,20 @@ config TOUCHSCREEN_MAX11801
@@ -49,7 +49,7 @@ index 8585188..51a74fe 100644
  	tristate "MELFAS MMS114 touchscreen"
  	depends on I2C
 diff --git a/drivers/input/touchscreen/Makefile b/drivers/input/touchscreen/Makefile
-index b46b874..563237f 100644
+index b46b8747b..563237f89 100644
 --- a/drivers/input/touchscreen/Makefile
 +++ b/drivers/input/touchscreen/Makefile
 @@ -66,6 +66,7 @@ obj-$(CONFIG_TOUCHSCREEN_MX25)		+= fsl-imx25-tcq.o
@@ -62,10 +62,10 @@ index b46b874..563237f 100644
  obj-$(CONFIG_TOUCHSCREEN_MTOUCH)	+= mtouch.o
 diff --git a/drivers/input/touchscreen/ovt-tcm-spi.c b/drivers/input/touchscreen/ovt-tcm-spi.c
 new file mode 100644
-index 0000000..872b64b
+index 000000000..cac1e958a
 --- /dev/null
 +++ b/drivers/input/touchscreen/ovt-tcm-spi.c
-@@ -0,0 +1,1163 @@
+@@ -0,0 +1,1196 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * OmniVision TCM touchscreen driver (SPI, ROM-boot "host download" parts)
@@ -275,7 +275,7 @@ index 0000000..872b64b
 +	struct fw_status fw_status;
 +
 +	struct app_info app;
-+	unsigned int max_x, max_y, max_objects;
++	unsigned int max_x, max_y, max_objects, objs_alloc;
 +	u8 *report_cfg;
 +	unsigned int report_cfg_len;
 +	struct object_data *objs;
@@ -288,20 +288,30 @@ index 0000000..872b64b
 +
 +static int tcm_spi_read(struct ovt_tcm *t, u8 *rx, unsigned int len)
 +{
-+	u8 *tx;
-+	struct spi_transfer xfer = { .len = len, .rx_buf = rx };
++	u8 *tx, *rxb;
++	struct spi_transfer xfer = { .len = len };
 +	int ret;
 +
++	/* both buffers heap-allocated: callers may pass a stack buffer, which
++	 * must not be handed to a DMA-capable SPI controller */
 +	tx = kmalloc(len, GFP_KERNEL);
-+	if (!tx)
++	rxb = kmalloc(len, GFP_KERNEL);
++	if (!tx || !rxb) {
++		kfree(tx);
++		kfree(rxb);
 +		return -ENOMEM;
++	}
 +	memset(tx, 0xff, len);
 +	xfer.tx_buf = tx;
++	xfer.rx_buf = rxb;
 +
 +	mutex_lock(&t->spi_lock);
 +	ret = spi_sync_transfer(t->spi, &xfer, 1);
 +	mutex_unlock(&t->spi_lock);
++	if (!ret)
++		memcpy(rx, rxb, len);
 +	kfree(tx);
++	kfree(rxb);
 +	return ret;
 +}
 +
@@ -433,6 +443,10 @@ index 0000000..872b64b
 +	u8 *buf;
 +	int ret = 0;
 +
++	/* a first chunk carries cmd + 2 length bytes + data: anything the device
++	 * reports below that would never make progress (or overrun buf) */
++	if (t->wr_chunk && t->wr_chunk < 4)
++		return -EINVAL;
 +	chunk_space = t->wr_chunk ? t->wr_chunk - 1 : remaining;
 +	if (cmd == CMD_ROMBOOT_DOWNLOAD)
 +		chunk_space = remaining;
@@ -871,6 +885,12 @@ index 0000000..872b64b
 +	t->max_objects = get_unaligned_le16(t->app.max_objects);
 +	if (!t->max_x || !t->max_y || !t->max_objects)
 +		return -EINVAL;
++	/* the arrays and input slots are sized once; a later bring-up must agree */
++	if (t->objs && t->max_objects != t->objs_alloc) {
++		dev_err(&t->spi->dev, "max_objects changed from %u to %u\n",
++			t->objs_alloc, t->max_objects);
++		return -EINVAL;
++	}
 +
 +	ret = tcm_set_report_config(t);
 +	if (ret)
@@ -882,6 +902,8 @@ index 0000000..872b64b
 +		return ret;
 +
 +	t->touch_ready = false;
++	/* let a touch report being parsed finish before its config is freed */
++	synchronize_irq(t->spi->irq);
 +	kfree(t->report_cfg);
 +	t->report_cfg = resp;
 +	t->report_cfg_len = rlen;
@@ -893,6 +915,7 @@ index 0000000..872b64b
 +					      GFP_KERNEL);
 +		if (!t->objs || !t->prev_status)
 +			return -ENOMEM;
++		t->objs_alloc = t->max_objects;
 +	}
 +	ret = tcm_register_input(t);
 +	if (ret)
@@ -1053,6 +1076,16 @@ index 0000000..872b64b
 +			memset(&t->id, 0, sizeof(t->id));
 +			memcpy(&t->id, payload, min_t(unsigned int, len, sizeof(t->id)));
 +			t->got_identify = true;
++		}
++		if (pending == CMD_IDENTIFY) {
++			/* the reply to CMD_IDENTIFY is itself an identify report */
++			t->resp_err = false;
++			t->resp_code = STATUS_OK;
++			t->resp_buf = payload;
++			t->resp_len = len;
++			payload = NULL;
++			complete(&t->resp_done);
++			break;
 +		}
 +		if (pending == CMD_ROMBOOT_RUN_BOOTLOADER_FW) {
 +			/* the "response" to these is the device coming back */
@@ -1230,5 +1263,5 @@ index 0000000..872b64b
 +MODULE_DESCRIPTION("OmniVision TCM touchscreen (SPI, host download)");
 +MODULE_LICENSE("GPL");
 -- 
-2.47.3
+2.43.0
 
