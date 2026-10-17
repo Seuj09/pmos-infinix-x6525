@@ -279,6 +279,17 @@ link is NCM, which it can. Use `rndis.usb0` only for a Windows 10 host.
   On the host phone, as root: `ip link` (`usb0` is usually the host phone's own gadget; the NCM link appears as `usb1`, `eth*` or similar), then
   `ip link set <if> up; ip addr add 172.16.42.2/24 dev <if>; ssh user@172.16.42.1`.
   If no interface appears, `dmesg | grep -i -E 'cdc|ncm|usb'` on the host says whether it enumerated.
+- **Watch instead of guessing:** `tools/host-watch.sh` (run as root on the host phone, in the chroot with
+  `/sys` bind-mounted) logs every USB device that appears or disappears with a timestamp, relays the host
+  kernel's USB lines, and when the pmOS gadget (`18d1:d001`) appears it finds the interface, sets
+  `172.16.42.2/24` and tests the debug shell (23) and SSH (22). It separates three cases that all look like
+  "lsusb shows nothing": no device ever attached; a device attached under another id (stock fastboot
+  `18d1:4ee0`, Spreadtrum download `1782:4d00`); and an attach that fails (`error -71`, over-current). Until
+  the pmOS kernel has brought its USB up there is nothing to see: U-Boot has no USB gadget. The logic is
+  tested against a fake `/sys` (`sh tools/test-host-watch.sh`), not yet on an A01 Core.
+- **Camera:** the host phone can also film the X6525's screen. Record video and step through it frame by
+  frame; the debug build's 15 s pause in U-Boot is long enough to read the previous boot's log from a
+  still frame.
 - **UART alternative:** an FTDI or PL2303 USB-serial adapter shows up as `/dev/ttyUSB0` on that kernel (CH341
   and CP210x are not built in). Wire it to the X6525's `serial1` and `screen /dev/ttyUSB0 115200`.
 
