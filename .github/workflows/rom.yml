@@ -155,19 +155,22 @@ jobs:
             /tmp/rom-out/pmos-boot-fs.img /tmp/rom-out/pmos-root-fs.img
 
           # The boot filesystem comes out of the image at boot_size (512 MiB, the floor
-          # pmbootstrap enforces) but holds ~50 MiB. Shrink it, with 32 MiB of slack, so it
-          # fits whichever small eMMC partition (cache) it is flashed into. resize2fs keeps
+          # pmbootstrap enforces) but holds ~50 MiB. Shrink it, with 8 MiB of slack, so it
+          # fits the phone's 64 MiB cache partition (the one this is flashed into). resize2fs keeps
           # the UUID and label, which extlinux's pmos_boot_uuid depends on.
           B=/tmp/rom-out/pmos-boot-fs.img
           e2fsck -fy "$B" || [ $? -le 1 ]
           resize2fs -M "$B"
           bs=$(dumpe2fs -h "$B" 2>/dev/null | awk '/^Block size/{print $3}')
           bc=$(dumpe2fs -h "$B" 2>/dev/null | awk '/^Block count/{print $3}')
-          bc=$((bc + 32 * 1048576 / bs))
+          bc=$((bc + 8 * 1048576 / bs))
           resize2fs "$B" "$bc"
           truncate -s $((bs * bc)) "$B"
           e2fsck -fn "$B"
           ls -l "$B"
+          if [ $((bs * bc)) -gt $((64 * 1048576)) ]; then
+            echo "::warning::pmos-boot-fs.img is $((bs * bc / 1048576)) MiB, more than the 64 MiB cache partition; flash it to another partition (FIRST_BOOT.md)"
+          fi
 
           # What U-Boot's extlinux will ask the boot filesystem for must be there:
           # kernel, initramfs, and the device tree at fdtdir + the default fdtfile.

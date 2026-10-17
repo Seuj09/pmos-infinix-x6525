@@ -138,7 +138,7 @@ there. The `rom` workflow therefore also cuts it into its two filesystems (`tool
 which are flashed into two eMMC partitions of their own:
 
 ```sh
-fastboot getvar partition-size:cache          # must be >= the size of pmos-boot-fs.img (about 80 MiB: the workflow shrinks it)
+fastboot getvar partition-size:cache          # this phone: p47, 64 MiB (65536 KiB); pmos-boot-fs.img must be no bigger
 fastboot getvar partition-size:userdata       # must be >= the size of pmos-root-fs.img
 fastboot flash boot_a  <out>/boot.img         # as before
 fastboot flash cache    <out>/pmos-boot-fs.img    # pmOS_boot: extlinux.conf, kernel, initramfs, DTB
@@ -155,6 +155,13 @@ fastboot flash userdata <out>/pmos-root-fs.img    # pmOS_root
 - The filesystems keep their UUIDs and labels, so the extlinux command line (`pmos_boot_uuid`,
   `pmos_root_uuid`) finds them wherever they were written. Check with `file -s` on the two images: they must
   be ext2/4 filesystems, not a disk with a table.
+- **Measured on this phone** (`/proc/partitions` + `/dev/block/by-name`): `cache` is `mmcblk0p47`, **64 MiB**;
+  `userdata` is `mmcblk0p73`, about 110 GiB. The workflow shrinks the boot filesystem to its minimum plus
+  8 MiB (about 60 MiB) and warns if the result is over 64 MiB. That fits, but leaves almost no room: a
+  later kernel upgrade through `apk` needs space for the new kernel and initramfs next to the old ones, so
+  move `pmOS_boot` to a larger partition once the system runs. `blackbox` (`p48`, 500 MiB, crash-log
+  storage) is the roomy candidate, but nobody has confirmed it is safe to overwrite; do not use it, or
+  `tranfs` (`p70`), on a guess - back it up first (`dd`) so it can be put back.
 - If `cache` is smaller than the boot image, use another expendable partition for `pmOS_boot` rather than
   shrinking anything: U-Boot scans every partition of the eMMC for a bootflow, so the name does not
   matter.
