@@ -150,17 +150,18 @@ fastboot flash userdata <out>/pmos-root-fs.img    # pmOS_root
   starts like a fresh install (`fastboot -w` from the stock bootloader does the same explicitly). Back up
   what you need first. Do not use `persist`, `metadata`, `misc`, `tkv_*` or any of the `*_a`/`*_b` pairs for
   this - `persist` holds the device's calibration.
-- **Recovering Android afterwards** (read from the stock `vendor_boot` ramdisk, `fstab.X6525` and
-  `recovery.fstab`): `/data` is f2fs with `fileencryption`, `keydirectory=/metadata/vold/metadata_encryption`
-  and **`formattable`**, so when it will not mount (it is now a pmOS ext4) init formats it and Android starts
-  as new; `/metadata` is untouched and is only mounted first-stage. `cache` is not in the fstab at all, so
-  Android never uses it. Order of recovery: (1) stock fastboot via the key combo, (2) `fastboot flash boot_a
-  <backup>`, (3) reboot; if it stops at a "can't load Android" screen, wipe from recovery or
-  `fastboot -w`. Recovery is the `vendor_boot` ramdisk started by `boot_a`'s kernel, so it exists
-  only after `boot_a` is restored. **Copy the `boot_a` backup (and anything you need from `/data`) off the phone
-  first: it lives on `userdata` otherwise and the flash destroys it.** If even fastboot is unreachable, the
-  bootloader chain (`spl`, `uboot_a`, `sml`, `trustos`) is never written, so Spreadtrum download mode with
-  `spd_dump` still works.
+- **Recovering Android afterwards.** The route is: stock fastboot (key combo), `fastboot flash boot_a <backup>`,
+  `fastboot -w` (confirmed on this phone by its owner), `fastboot reboot`. `-w` is the ordinary factory-reset
+  path: it leaves `/metadata` alone, which is where the encryption keys live, so Android formats `userdata`
+  afresh. Evidence from the stock `vendor_boot` ramdisk (`recovery.fstab`, `fstab.X6525`): `/data` is f2fs with
+  `fileencryption`, `keydirectory=/metadata/vold/metadata_encryption` and `formattable`, and `cache` has no
+  entry. **Those lines are the recovery and first-stage tables;** the runtime table is `/vendor/etc/fstab.*` in
+  `super` and has not been read, so do not rely on Android auto-formatting `/data` alone - run `-w`. To check,
+  in Android: `grep -h userdata /vendor/etc/fstab.* /proc/mounts`. Recovery mode is the `vendor_boot`
+  ramdisk started by `boot_a`'s kernel, so it exists only after `boot_a` is restored (`-w` works before that).
+  **Copy the `boot_a` backup (and anything you need from `/data`) off the phone first: it lives on `userdata`
+  otherwise and the flash destroys it.** If even fastboot is unreachable, the bootloader chain (`spl`,
+  `uboot_a`, `sml`, `trustos`) is never written, so Spreadtrum download mode with `spd_dump` still works.
 - fastboot splits a large raw image into chunks by itself, so the 1.3 GB root image needs no `sparse`
   conversion on your side.
 - The filesystems keep their UUIDs and labels, so the extlinux command line (`pmos_boot_uuid`,
