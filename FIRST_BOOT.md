@@ -248,6 +248,27 @@ function enabled.
 - Interface but no IP: look at the initramfs log (`pmos.debug-shell` on the kernel command line gives a
   shell on the network console).
 
+### Using a second Android phone as the host (Galaxy A01 Core, Ubuntu chroot)
+
+This works for flashing and for SSH, with some checks. The A01 Core's kernel
+(`github.com/Takumi123w/kernel-a01c`, 4.14.141, MT6739, `a01core_defconfig`) has `cdc_ncm`, `cdc_ether`,
+`cdc_eem`, `usbnet`, `USB_ACM`, FTDI and PL2303 serial built in and `USB_NET_RNDIS_HOST` **off**; that is why this
+image's `deviceinfo` sets `deviceinfo_usb_network_function="ncm.usb0"` instead of the RNDIS default
+(set it back for a Windows 10 host).
+
+- **Cable:** the A01 Core has a micro-USB port: micro-USB OTG adapter -> USB-A cable -> the X6525's USB-C.
+  First test OTG with a USB stick, because nothing here confirms that port supplies VBUS to a peripheral.
+  The A01 Core is a 32-bit userland, so the chroot must be `armhf` Ubuntu.
+- **Flashing (stock fastboot):** in the chroot, `apt install fastboot`, then expose USB to it from the
+  Android side as root: `mount --bind /dev/bus/usb <chroot>/dev/bus/usb` and `setenforce 0` if SELinux
+  blocks it. `fastboot devices` must list the X6525 before any flash. Keep about 2 GB free for the images.
+- **SSH after boot:** the X6525 serves DHCP (`unudhcpd`), but an Android chroot has no DHCP client set up.
+  On the host phone, as root: `ip link` (a new `usb0` / `eth*` appears), then
+  `ip link set <if> up; ip addr add 172.16.42.2/24 dev <if>; ssh user@172.16.42.1`.
+  If no interface appears, `dmesg | grep -i -E 'cdc|ncm|usb'` on the host says whether it enumerated.
+- **UART alternative:** an FTDI or PL2303 USB-serial adapter shows up as `/dev/ttyUSB0` on that kernel (CH341
+  and CP210x are not built in). Wire it to the X6525's `serial1` and `screen /dev/ttyUSB0 115200`.
+
 ## 5. Display
 
 Expect `dmesg | grep -i -E 'dpu|dsi|td4160|panel'` to show the panel probing and the framebuffer
