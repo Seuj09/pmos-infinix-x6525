@@ -419,7 +419,8 @@ marked DEBUG, remove them once the boot works):
   `0xfff80000`) and waits 15 s before booting. It needs the RAM to survive the reset, so it may show
   nothing - that is itself a result.
 
-How to read it: flash `boot_a` and `cache` only (`userdata` is unchanged), boot, and photograph the
+How to read it: flash all three again from the same build (`boot_a`, `cache`, and `userdata` - Android has since
+replaced the pmOS root filesystem there, and the U-Boot with the log reader is in `boot.img`), boot, and photograph the
 screen (1) at the first U-Boot screen after the phone resets itself and (2) the last lines of the
 kernel output before it stops. If the kernel text appears and then stops, the last initcall line is
 the culprit. If the screen stays black with the display driver off, the kernel died before
