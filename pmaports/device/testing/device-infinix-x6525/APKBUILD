@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=44
+pkgrel=45
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -704,7 +704,8 @@ SectionDevice."Speaker" {
 	EnableSequence [
 		cset "name='TX0 MIXER0 Mode' HALF_ADD"
 		cset "name='Headphone Playback Switch' on"
-		cset "name='Headphone Volume' 9"
+		# step 12 = +12 dB (hp_ear_tlv: -24 dB + 3 dB per step); 9 was +3 dB and too quiet at full volume
+		cset "name='Headphone Volume' 12"
 		cset "name='Speaker Switch' on"
 	]
 
