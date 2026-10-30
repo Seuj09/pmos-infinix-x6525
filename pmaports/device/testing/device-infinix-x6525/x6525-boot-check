@@ -16,13 +16,24 @@
 case "$1" in
 pre-commit)
 	args=$(tr '\0' ' ' < "/proc/$PPID/cmdline" 2>/dev/null)
+	bad=
+	case " $args " in *" upgrade "*) up=1 ;; *) up= ;; esac
+	for w in $args; do
+		case "$w" in
+		--prune|--available) bad=1 ;;
+		--*) ;;
+		-*a*) [ -n "$up" ] && bad=1 ;;	# -a, -Ua, ... (short for --available)
+		esac
+	done
 	case " $args " in
-	*" --prune "*|*" --available "*|*" upgrade"*" -a "*|*" upgrade"*" -"[a-zA-Z]*a[a-zA-Z]*" "*|*" del "*linux-postmarketos-unisoc-ums9230*|*" del "*device-infinix-x6525*)
+	*" del "*linux-postmarketos-unisoc-ums9230*|*" del "*device-infinix-x6525*) bad=1 ;;
+	esac
+	if [ -n "$bad" ]; then
 		echo "x6525-boot-check: refusing '$args'" >&2
 		echo "x6525-boot-check: it would remove the kernel and device packages (they are not in any" >&2
 		echo "x6525-boot-check: mirror) and the phone would not boot. Use plain 'apk upgrade'." >&2
-		exit 1 ;;
-	esac
+		exit 1
+	fi
 	exit 0 ;;
 esac
 [ "$1" = post-commit ] || exit 0
