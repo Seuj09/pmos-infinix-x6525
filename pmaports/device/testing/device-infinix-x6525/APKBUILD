@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=46
+pkgrel=47
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -481,67 +481,95 @@ WantedBy=multi-user.target
 EOF2
 
 	# Shake: three hard jolts within about a second toggle the flashlight.
-	# Reads the sensor hub's accelerometer straight from IIO sysfs. Waits for
-	# the device to appear, so it costs nothing where the sensor hub is absent.
+	# NOT enabled by default. The sensor hub's accelerometer has no sysfs
+	# *_raw files, only the IIO buffer (/dev/iio:deviceN), and that character
+	# device has a single reader. iio-sensor-proxy (screen auto-rotate) needs
+	# the same buffer, so this service and auto-rotate exclude each other:
+	# `systemctl enable --now x6525-shake` takes the accelerometer from it
+	# (Conflicts= below), `systemctl disable --now x6525-shake` gives it back.
 	install -Dm755 /dev/stdin "$pkgdir"/usr/libexec/x6525-shake <<'EOF2'
 #!/usr/bin/python3
-import glob, math, os, time
+import glob, math, os, struct, time
 
 LED = "/sys/class/leds/white:flash/brightness"
-JOLT = 11.0        # m/s^2 away from 1 g counts as a jolt
-NEED = 3           # jolts needed
-WINDOW = 1.2       # seconds they must fall within
+SCALE = 1.0 / 256          # SPRD_SHUB_FIXED_SCALE: raw units per m/s^2
+JOLT = 11.0                # m/s^2 away from 1 g counts as a jolt
+NEED = 3                   # jolts needed
+WINDOW = 1.2               # seconds they must fall within
 COOLDOWN = 2.0
+REC = struct.Struct("<iii4xq")   # x, y, z (s32), padding, timestamp (s64)
 
 
-def rd(path):
-    with open(path) as f:
-        return float(f.read().strip())
+def put(path, value):
+    with open(path, "w") as f:
+        f.write(value)
 
 
 def find():
     for d in sorted(glob.glob("/sys/bus/iio/devices/iio:device*")):
-        if os.path.exists(d + "/in_accel_x_raw"):
-            return d
+        try:
+            with open(d + "/name") as f:
+                if f.read().strip() == "sprd-shub-accel":
+                    return d
+        except OSError:
+            pass
     return None
 
 
 def toggle():
     try:
-        on = rd(LED) > 0
-        with open(LED, "w") as f:
-            f.write("0" if on else "1")
-    except OSError:
+        with open(LED) as f:
+            on = int(f.read().strip() or 0) > 0
+        put(LED, "0" if on else "1")
+    except (OSError, ValueError):
         pass
+
+
+def run(dev):
+    for ch in ("x", "y", "z"):
+        put("%s/scan_elements/in_accel_%s_en" % (dev, ch), "1")
+    put(dev + "/scan_elements/in_timestamp_en", "1")
+    put(dev + "/sampling_frequency", "25")
+    put(dev + "/buffer/length", "64")
+    put(dev + "/buffer/enable", "1")
+    jolts, last, quiet_until = [], 0.0, 0.0
+    try:
+        with open("/dev/" + os.path.basename(dev), "rb", buffering=0) as f:
+            while True:
+                rec = f.read(REC.size)
+                if len(rec) < REC.size:
+                    raise OSError("short read")
+                x, y, z, _ = REC.unpack(rec)
+                now = time.monotonic()
+                mag = math.sqrt(x * x + y * y + z * z) * SCALE
+                if now >= quiet_until and abs(mag - 9.81) > JOLT and now - last > 0.12:
+                    last = now
+                    jolts = [t for t in jolts if now - t < WINDOW] + [now]
+                    if len(jolts) >= NEED:
+                        toggle()
+                        jolts, quiet_until = [], now + COOLDOWN
+    finally:
+        try:
+            put(dev + "/buffer/enable", "0")
+        except OSError:
+            pass
 
 
 while True:
     dev = find()
-    if not dev:
-        time.sleep(10)
-        continue
-    try:
-        scale = rd(dev + "/in_accel_scale") if os.path.exists(dev + "/in_accel_scale") else 1.0
-        jolts, last, quiet_until = [], 0.0, 0.0
-        while True:
-            x, y, z = (rd("%s/in_accel_%s_raw" % (dev, a)) * scale for a in "xyz")
-            now = time.monotonic()
-            if now >= quiet_until and abs(math.sqrt(x * x + y * y + z * z) - 9.81) > JOLT \
-                    and now - last > 0.12:
-                last = now
-                jolts = [t for t in jolts if now - t < WINDOW] + [now]
-                if len(jolts) >= NEED:
-                    toggle()
-                    jolts, quiet_until = [], now + COOLDOWN
-            time.sleep(0.04)
-    except (OSError, ValueError):
-        time.sleep(10)
+    if dev:
+        try:
+            run(dev)
+        except (OSError, ValueError):
+            pass
+    time.sleep(10)
 EOF2
 	install -Dm644 /dev/stdin \
 		"$pkgdir"/usr/lib/systemd/system/x6525-shake.service <<'EOF2'
 [Unit]
-Description=Shake the phone three times to toggle the flashlight
+Description=Shake the phone three times to toggle the flashlight (takes the accelerometer from iio-sensor-proxy)
 After=x6525-pmsys.service
+Conflicts=iio-sensor-proxy.service
 
 [Service]
 ExecStart=/usr/libexec/x6525-shake
@@ -554,8 +582,6 @@ WantedBy=multi-user.target
 EOF2
 	ln -s /usr/lib/systemd/system/x6525-gpsd.service \
 		"$pkgdir"/etc/systemd/system/multi-user.target.wants/x6525-gpsd.service
-	ln -s /usr/lib/systemd/system/x6525-shake.service \
-		"$pkgdir"/etc/systemd/system/multi-user.target.wants/x6525-shake.service
 
 	install -Dm755 "$srcdir"/x6525-boot-check "$pkgdir"/etc/apk/commit_hooks.d/90-x6525-boot-check
 
@@ -584,7 +610,6 @@ enable x6525-prodnv-mac.service
 enable x6525-modem-nv.service
 enable x6525-pmsys.service
 enable x6525-gpsd.service
-enable x6525-shake.service
 EOF
 
 	# Create /dev/dri/x6525-primary for the compositor, waiting for the sprd
