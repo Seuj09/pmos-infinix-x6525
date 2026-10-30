@@ -41,6 +41,7 @@
 #include <linux/gpio/consumer.h>
 #include <linux/input.h>
 #include <linux/input/mt.h>
+#include <linux/jiffies.h>
 #include <linux/interrupt.h>
 #include <linux/mod_devicetable.h>
 #include <linux/module.h>
@@ -58,6 +59,7 @@
 #define RD_CHUNK_SIZE		256
 #define WR_CHUNK_SIZE		256
 #define RESPONSE_TIMEOUT_MS	3000
+#define WD_PERIOD_MS		2500
 
 /* commands */
 #define CMD_CONTINUE_WRITE		0x01
@@ -184,6 +186,9 @@ struct ovt_tcm {
 	struct work_struct hdl_work;	/* ROM-boot firmware download */
 	struct work_struct cfg_work;	/* config download + touch bring-up */
 	struct work_struct init_work;	/* first reset */
+	struct delayed_work wd_work;	/* self-heal after a panel reset */
+	unsigned long last_msg;		/* jiffies of the last message */
+	unsigned int wd_fails;
 	const char *fw_name;
 
 	struct mutex spi_lock;		/* one SPI transaction at a time */
@@ -1033,6 +1038,7 @@ static irqreturn_t tcm_irq_thread(int irq, void *data)
 	    code == STATUS_CONTINUED_READ)
 		return IRQ_HANDLED;
 
+	WRITE_ONCE(t->last_msg, jiffies);
 	pending = READ_ONCE(t->pending_cmd);
 
 	if (code < REPORT_IDENTIFY) {
@@ -1104,21 +1110,22 @@ static void tcm_hw_reset(struct ovt_tcm *t)
 	gpiod_set_value_cansleep(t->reset, 0);
 }
 
-static void tcm_init_work(struct work_struct *work)
+/* Reset the part and pick up its IDENTIFY report by hand if the IRQ missed it. */
+static void tcm_reset_and_identify(struct ovt_tcm *t)
 {
-	struct ovt_tcm *t = container_of(work, struct ovt_tcm, init_work);
 	u8 code, *payload;
 	unsigned int len;
 
+	t->got_identify = false;
 	tcm_hw_reset(t);
-	enable_irq(t->spi->irq);
 	msleep(200);
 	/*
 	 * With a level-triggered interrupt the identify report has already
 	 * been picked up by the IRQ thread. With an edge, it may have been
 	 * missed while the handler was not requested: look once by hand.
 	 */
-	if (!t->got_identify && !tcm_read_message(t, &code, &payload, &len)) {
+	if (!t->got_identify && !t->hdl_busy &&
+	    !tcm_read_message(t, &code, &payload, &len)) {
 		if (code == REPORT_IDENTIFY && len >= 2) {
 			memcpy(&t->id, payload,
 			       min_t(unsigned int, len, sizeof(t->id)));
@@ -1132,6 +1139,63 @@ static void tcm_init_work(struct work_struct *work)
 	}
 	if (!t->got_identify)
 		dev_warn(&t->spi->dev, "no identify report after reset\n");
+}
+
+static void tcm_init_work(struct work_struct *work)
+{
+	struct ovt_tcm *t = container_of(work, struct ovt_tcm, init_work);
+
+	enable_irq(t->spi->irq);
+	tcm_reset_and_identify(t);
+	queue_delayed_work(t->wq, &t->wd_work, msecs_to_jiffies(WD_PERIOD_MS));
+}
+
+/*
+ * A panel reset (every screen off/on through the power button) resets the
+ * touch IC. If the resulting ROM-boot IDENTIFY report is lost - the IRQ is
+ * not guaranteed to see it - nothing ever restarts the firmware download and
+ * touch stays dead until the next reset. So, when the part has been quiet for
+ * a while, ask it who it is: a part that is in ROM boot, or does not answer
+ * twice in a row, gets reset and brought up again.
+ */
+static void tcm_wd_work(struct work_struct *work)
+{
+	struct ovt_tcm *t = container_of(to_delayed_work(work), struct ovt_tcm,
+					 wd_work);
+	u8 *resp = NULL;
+	unsigned int rlen = 0;
+	bool recover = false;
+	int ret;
+
+	if (t->hdl_busy || t->suspended ||
+	    time_before(jiffies, READ_ONCE(t->last_msg) +
+				 msecs_to_jiffies(WD_PERIOD_MS)))
+		goto again;
+
+	ret = tcm_command(t, CMD_IDENTIFY, NULL, 0, &resp, &rlen);
+	if (ret) {
+		recover = ++t->wd_fails >= 2;
+	} else {
+		t->wd_fails = 0;
+		if (rlen >= 2) {
+			struct identify id = { };
+
+			memcpy(&id, resp, min_t(unsigned int, rlen, sizeof(id)));
+			if (id.mode == MODE_ROMBOOTLOADER)
+				recover = true;
+			else if (!t->touch_ready && !t->hdl_busy)
+				recover = true;
+		}
+		kfree(resp);
+	}
+	if (recover) {
+		dev_info(&t->spi->dev, "touch part lost its firmware, restarting\n");
+		t->wd_fails = 0;
+		t->touch_ready = false;
+		tcm_reset_and_identify(t);
+	}
+again:
+	queue_delayed_work(t->wq, &t->wd_work, msecs_to_jiffies(WD_PERIOD_MS));
 }
 
 static int ovt_tcm_probe(struct spi_device *spi)
@@ -1150,6 +1214,7 @@ static int ovt_tcm_probe(struct spi_device *spi)
 	INIT_WORK(&t->hdl_work, tcm_hdl_work);
 	INIT_WORK(&t->cfg_work, tcm_cfg_work);
 	INIT_WORK(&t->init_work, tcm_init_work);
+	INIT_DELAYED_WORK(&t->wd_work, tcm_wd_work);
 	spi_set_drvdata(spi, t);
 
 	ret = device_property_read_string(dev, "firmware-name", &t->fw_name);
@@ -1186,6 +1251,7 @@ static void ovt_tcm_remove(struct spi_device *spi)
 	struct ovt_tcm *t = spi_get_drvdata(spi);
 
 	disable_irq(spi->irq);
+	cancel_delayed_work_sync(&t->wd_work);
 	cancel_work_sync(&t->init_work);
 	cancel_work_sync(&t->hdl_work);
 	cancel_work_sync(&t->cfg_work);
