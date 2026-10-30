@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=49
+pkgrel=50
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -251,8 +251,7 @@ EOF
 		"$pkgdir"/usr/lib/systemd/system/x6525-modem-nv.service <<'EOF'
 [Unit]
 Description=Extract this phone's modem images from its own partitions
-After=local-fs.target systemd-udevd.service
-Wants=systemd-udev-settle.service
+After=local-fs.target
 Before=network-pre.target modemmanager.service
 
 [Service]
@@ -350,8 +349,7 @@ EOF
 		"$pkgdir"/usr/lib/systemd/system/x6525-pmsys.service <<'EOF'
 [Unit]
 Description=Extract this phone's pmsys image from its own partition
-After=local-fs.target systemd-udevd.service
-Wants=systemd-udev-settle.service
+After=local-fs.target
 Before=network-pre.target
 
 [Service]
@@ -410,12 +408,17 @@ EOF
 ENV{ID_PART_ENTRY_NAME}=="?*", SYMLINK+="block/by-name/$env{ID_PART_ENTRY_NAME}"
 EOF
 
-	# Tag Unisoc cellular modem devices for ModemManager probing
-	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/udev/rules.d/90-x6525-modem.rules <<'EOF'
-SUBSYSTEM=="net", KERNEL=="seth_lte*|wwan*", ENV{ID_MM_DEVICE_PROCESS}="1"
-SUBSYSTEM=="wwan", ENV{ID_MM_DEVICE_PROCESS}="1"
-SUBSYSTEM=="rpmsg", ENV{ID_MM_DEVICE_PROCESS}="1"
-KERNEL=="ttyRPMSG*|spipe_lte*", ENV{ID_MM_DEVICE_PROCESS}="1"
+	# Tell ModemManager to process the Unisoc modem's ports and to treat them as one
+	# modem. ID_MM_DEVICE_PROCESS (documented since 1.10) is what makes MM look at
+	# devices that are not on USB/PCI; ID_MM_PHYSDEV_UID groups ports that have
+	# different parents (the seth net device and the rpmsg ttys). The file is
+	# 70-, ahead of ModemManager's own 77-/78- rules: 78-mm-candidate sets
+	# ID_MM_CANDIDATE from the tags that exist by then, so tags added later
+	# (the previous 90- name) were ignored.
+	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/udev/rules.d/70-x6525-modem.rules <<'EOF'
+SUBSYSTEM=="net", KERNEL=="seth_lte*", ENV{ID_MM_DEVICE_PROCESS}="1", ENV{ID_MM_PHYSDEV_UID}="x6525-modem"
+SUBSYSTEM=="wwan", ENV{ID_MM_DEVICE_PROCESS}="1", ENV{ID_MM_PHYSDEV_UID}="x6525-modem"
+SUBSYSTEM=="tty", KERNEL=="ttyRPMSG*|spipe_lte*", ENV{ID_MM_DEVICE_PROCESS}="1", ENV{ID_MM_PHYSDEV_UID}="x6525-modem"
 EOF
 
 	# Ensure persistent MACs on prodnv partition for U-Boot preboot loader
