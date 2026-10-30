@@ -801,30 +801,19 @@
 };
 
 /*
- * GPU DVFS. The frequencies and voltages are the stock kernel's own table for
- * this GPU (operating-points in its gpu@23100000 node): 384 MHz @ 0.70 V,
- * 512 MHz and 614.4 MHz @ 0.75 V. The stock table also has 768 MHz and
- * 850 MHz, but the stock driver disables both on T606 (the part is capped at
- * GPLL = 650 MHz), so they are left out; 650 MHz @ 0.80 V needs GPLL to be
- * programmed and is left out until that path is tested. Without an OPP table
- * Panfrost runs at whatever rate the bootloader left and never scales.
+ * GPU: fixed 512 MHz @ 0.75 V (stock OPP values). Full DVFS (384/512/614 MHz)
+ * and the GPU thermal cooling map are left out while the whole-phone freezes
+ * seen with Panfrost are being tracked down; with a single OPP Panfrost sets
+ * the rate and voltage once and never scales. Put the 384 and 614.4 MHz
+ * entries and the gpu-thermal trip/cooling map (patches 0018/0021) back once
+ * the freeze is understood.
  */
 / {
 	gpu_opp_table: opp-table {
 		compatible = "operating-points-v2";
 
-		opp-384000000 {
-			opp-hz = /bits/ 64 <384000000>;
-			opp-microvolt = <700000>;
-		};
-
 		opp-512000000 {
 			opp-hz = /bits/ 64 <512000000>;
-			opp-microvolt = <750000>;
-		};
-
-		opp-614400000 {
-			opp-hz = /bits/ 64 <614400000>;
 			opp-microvolt = <750000>;
 		};
 	};
@@ -833,34 +822,10 @@
 &gpu {
 	mali-supply = <&vddgpu>;
 	operating-points-v2 = <&gpu_opp_table>;
-	#cooling-cells = <2>;
 	/* the memory clock otherwise stays on its 26 MHz reset parent */
 	assigned-clocks = <&gpu_clk CLK_GPU_MEM>;
 	assigned-clock-parents = <&pll1 CLK_TWPLL_512M>;
 	status = "okay";
-};
-
-/*
- * The SoC's own gpu-thermal zone has a sensor (ap_thm2 0) but no trip and no
- * cooling device, so it only reports. Give it the same 70 C passive point the
- * CPU zones use and let Panfrost's devfreq cooling scale the GPU; without
- * this, the GPU stays at its OPP while the CPUs throttle the whole package.
- */
-&{/thermal-zones/gpu-thermal} {
-	trips {
-		gpu_alert0: trip-point0 {
-			temperature = <70000>;
-			hysteresis = <1000>;
-			type = "passive";
-		};
-	};
-
-	cooling-maps {
-		map0 {
-			trip = <&gpu_alert0>;
-			cooling-device = <&gpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
-		};
-	};
 };
 
 &modem {

@@ -9,7 +9,7 @@ maintainer="Affe Null <affenull2345@gmail.com>"
 _flavor="postmarketos-unisoc-ums9230"
 pkgname=linux-$_flavor
 pkgver=7.2.0_rc6_git20260807
-pkgrel=39
+pkgrel=40
 pkgdesc="Linux kernel with patches for Unisoc UMS9230 devices"
 arch="aarch64"
 _carch="arm64"
@@ -89,6 +89,7 @@ source="
 	0045-iommu-sprd-support-optional-resets-and-keep-the-powe.patch
 	0046-arm64-dts-sprd-ums9230-add-the-VSP-s-IOMMU-and-use-i.patch
 	0047-media-sprd-vsp-allocate-through-the-IOMMU-and-add-an.patch
+	0048-arm64-dts-sprd-infinix-x6525-pin-the-GPU-to-one-OPP-.patch
 "
 builddir="$srcdir/linux"
 
@@ -167,4 +168,5 @@ b230cd9f5ef23eb8f0adfeae5f7523eab0d941a984525643be0813d3fc80fcd75f74cc3434bf01d8
 1df24ccf5f518dcfac33b952f3930e9d848911c1e23b4045f2e5579ddfaba65a711e296dcfd0f35dfce4fdd86d954f695920fac5368587e974ea19177cef8faf  0045-iommu-sprd-support-optional-resets-and-keep-the-powe.patch
 6192b047054e01845b511d1e0abee91c09d9eacff640ea6a2f5ea62bf961170dd1285ff56381aed24e06dd8dda19e7d4023713e7b5f7b4ef9fb3ea1e0bef849a  0046-arm64-dts-sprd-ums9230-add-the-VSP-s-IOMMU-and-use-i.patch
 35eabf986f5b3d62bd5085d8274669bba45a2e7a88b1a0ba0468eee20fd4b17bd60f539dcd99885d677a8a2cad29f0d64cd94006aaa2e2b9aea4626e7cdb8a05  0047-media-sprd-vsp-allocate-through-the-IOMMU-and-add-an.patch
+3054179727cd80d366d8982e3d446480a7ff5e16b9bdff4b2112bcb289c50c3895ce35ce63f1593973cea1e53bab78ae94a8e28e6349e2e2c544c7f6d3cbb930  0048-arm64-dts-sprd-infinix-x6525-pin-the-GPU-to-one-OPP-.patch
 "

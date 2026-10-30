@@ -1,0 +1,4 @@
+# Keep the Mali GPU powered while the phone is up. Runtime-suspending its power
+# domain and clocks is one suspect for the whole-phone freezes seen with
+# Panfrost; the GPU is only gated off by system suspend / screen-off DPMS.
+SUBSYSTEM=="platform", KERNEL=="23100000.gpu", ATTR{power/control}="on"
