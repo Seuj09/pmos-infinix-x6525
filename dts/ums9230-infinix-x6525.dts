@@ -825,7 +825,8 @@
  * 512 MHz and 614.4 MHz @ 0.75 V. The stock table also has 768 MHz and
  * 850 MHz, but the stock driver disables both on T606 (the part is capped at
  * GPLL = 650 MHz), so they are left out; 650 MHz @ 0.80 V needs GPLL to be
- * programmed and is left out until that path is tested.
+ * programmed and is left out until that path is tested. Without an OPP table
+ * Panfrost runs at whatever rate the bootloader left and never scales.
  */
 / {
 	gpu_opp_table: opp-table {

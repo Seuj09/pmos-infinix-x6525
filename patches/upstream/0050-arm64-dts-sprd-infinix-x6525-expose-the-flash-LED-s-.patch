@@ -4,13 +4,15 @@ Date: Fri, 30 Oct 2026 18:54:41 +0800
 Subject: [PATCH] arm64: dts: sprd: infinix-x6525: expose the flash LED's torch
  pin as a GPIO LED
 
-The OCP8137/AW36515 torch enable is ap_gpio 32. No mainline driver for the parts, but the enable alone lights the LED, so register it as white:flash for Phosh's flashlight toggle.
+The OCP8137/AW36515 torch enable is ap_gpio 137. No mainline driver for
+the parts, but the enable alone lights the LED, so register it as
+white:flash for Phosh's flashlight toggle.
 ---
- .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 21 +++++++++++++++++++
- 1 file changed, 21 insertions(+)
+ .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
 
 diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
-index c8b631af1..a32cd5d08 100644
+index 72b3ee1da..4cc451000 100644
 --- a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 +++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 @@ -28,6 +28,7 @@
@@ -21,7 +23,7 @@ index c8b631af1..a32cd5d08 100644
  #include <dt-bindings/gpio/gpio.h>
  #include <dt-bindings/interrupt-controller/arm-gic.h>
  #include <dt-bindings/media/sprd-camsys.h>
-@@ -128,6 +129,26 @@ linux,cma {
+@@ -128,6 +129,24 @@ linux,cma {
  	 * is not reproduced yet.
  	 */
  
@@ -48,4 +50,3 @@ index c8b631af1..a32cd5d08 100644
  
 -- 
 2.43.0
-
