@@ -8,16 +8,16 @@
 # fix is to reflash one complete build, not to mix files.
 # Installed as /etc/apk/commit_hooks.d/90-x6525-boot-check.
 #
-# pre-commit: refuse `apk upgrade --prune` (and `apk del` of the port's own packages). The
+# pre-commit: refuse `apk upgrade --prune` / `--available` / `-a` (and `apk del` of the port's own packages). The
 # kernel, device, firmware, u-boot and soc packages come from the ROM build, not from any
-# mirror, so apk sees them as "no longer available from a repository" and --prune REMOVES
-# them: /boot/vmlinuz and /lib/modules go away and the phone cannot boot. A plain
+# mirror, so apk sees them as "no longer available from a repository" and --prune (and
+# --available, which prefers repository versions) can REMOVE them: /boot/vmlinuz and /lib/modules go away and the phone cannot boot. A plain
 # `apk update && apk upgrade` is safe and does not touch them.
 case "$1" in
 pre-commit)
 	args=$(tr '\0' ' ' < "/proc/$PPID/cmdline" 2>/dev/null)
 	case " $args " in
-	*" --prune "*|*" del "*linux-postmarketos-unisoc-ums9230*|*" del "*device-infinix-x6525*)
+	*" --prune "*|*" --available "*|*" upgrade "*" -a "*|*" upgrade "*" -"[a-zA-Z]*a[a-zA-Z]*" "*|*" del "*linux-postmarketos-unisoc-ums9230*|*" del "*device-infinix-x6525*)
 		echo "x6525-boot-check: refusing '$args'" >&2
 		echo "x6525-boot-check: it would remove the kernel and device packages (they are not in any" >&2
 		echo "x6525-boot-check: mirror) and the phone would not boot. Use plain 'apk upgrade'." >&2
