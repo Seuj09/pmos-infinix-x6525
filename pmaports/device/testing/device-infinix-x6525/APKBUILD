@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=51
+pkgrel=52
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -742,15 +742,6 @@ while [ "$r" -lt 15 ] && [ ! -c /dev/dri/renderD128 ]; do
 done
 [ -c /dev/dri/renderD128 ] ||
 	echo "x6525-wait-drm: no /dev/dri/renderD128 after 15 s" >&2
-for c in /sys/class/drm/card[0-9]*; do
-	[ -e "$c" ] || continue
-	case "$(readlink -f "$c")" in
-	*23100000.gpu*|*panfrost*)
-		n=${c##*/}
-		[ -c "/dev/dri/$n" ] && ln -sf "/dev/dri/$n" /dev/dri/x6525-panfrost
-		;;
-	esac
-done
 i=0
 while [ "$i" -lt 40 ]; do
 	for c in /sys/class/drm/card[0-9]*; do
@@ -795,15 +786,14 @@ EOF
 
 	# Plasma Mobile: plasma-mobile.service runs /usr/bin/startplasmamobile,
 	# which starts KWin Wayland as the session. KWin reads KWIN_DRM_DEVICES (a
-	# colon-separated list where the first device renders and subsequent devices
-	# scan out). We supply Panfrost (/dev/dri/x6525-panfrost) first for full
-	# 3D hardware acceleration, followed by sprd-drm (/dev/dri/x6525-primary)
-	# for panel display.
+	# colon-separated list of display (scanout) cards; with it set, every other
+	# card is ignored). Panfrost is render-only (no cardN node), so it cannot
+	# be listed here; it is reached as /dev/dri/renderD128 instead.
 	for unit in plasma-mobile plasmalogin; do
 		install -Dm644 /dev/stdin \
 			"$pkgdir"/etc/systemd/system/$unit.service.d/10-x6525-drm.conf <<'EOF'
 [Service]
-Environment=KWIN_DRM_DEVICES=/dev/dri/x6525-panfrost:/dev/dri/x6525-primary
+Environment=KWIN_DRM_DEVICES=/dev/dri/x6525-primary
 # The udev rule below sometimes misses the boot-time add event for the sprd
 # card, so KWin started with no DRM device and the panel stayed on the last
 # console frame (observed 2026-10-25). x6525-wait-drm waits for the card and
@@ -834,11 +824,10 @@ EOF
 ExecStartPre=-+/usr/libexec/x6525-wait-drm
 EOF
 
-	# Name the sprd-drm and panfrost cards so sessions can point at them
-	# deterministically regardless of probe order.
+	# Name the sprd-drm display card, and the Panfrost render node, so sessions can
+	# point at them regardless of probe order.
 	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/udev/rules.d/90-x6525-drm-primary.rules <<'EOF'
 ACTION=="add", SUBSYSTEM=="drm", KERNEL=="card[0-9]*", DEVPATH=="*/display-subsystem/drm/card[0-9]*", SYMLINK+="dri/x6525-primary"
-ACTION=="add", SUBSYSTEM=="drm", KERNEL=="card[0-9]*", DEVPATH=="*23100000.gpu*", SYMLINK+="dri/x6525-panfrost"
 ACTION=="add", SUBSYSTEM=="drm", KERNEL=="renderD[0-9]*", DEVPATH=="*23100000.gpu*", SYMLINK+="dri/x6525-render"
 EOF
 
