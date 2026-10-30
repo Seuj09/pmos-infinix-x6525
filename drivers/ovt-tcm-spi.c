@@ -420,8 +420,9 @@ static int tcm_write_command(struct ovt_tcm *t, u8 cmd, const u8 *payload,
  * Send a command and wait for the IRQ thread to deliver the response.
  * *resp (if not NULL) receives a kmalloc'd copy of the response payload.
  */
-static int tcm_command(struct ovt_tcm *t, u8 cmd, const u8 *payload,
-		       unsigned int len, u8 **resp, unsigned int *resp_len)
+static int tcm_command_timeout(struct ovt_tcm *t, u8 cmd, const u8 *payload,
+			       unsigned int len, u8 **resp, unsigned int *resp_len,
+			       unsigned int timeout_ms)
 {
 	int ret;
 
@@ -437,14 +438,11 @@ static int tcm_command(struct ovt_tcm *t, u8 cmd, const u8 *payload,
 		goto out;
 
 	if (!wait_for_completion_timeout(&t->resp_done,
-					 msecs_to_jiffies(RESPONSE_TIMEOUT_MS))) {
-		dev_err(&t->spi->dev, "command 0x%02x timed out\n", cmd);
+					 msecs_to_jiffies(timeout_ms))) {
 		ret = -ETIMEDOUT;
 		goto out;
 	}
 	if (t->resp_err) {
-		dev_err(&t->spi->dev, "command 0x%02x failed, code 0x%02x\n",
-			cmd, t->resp_code);
 		ret = -EIO;
 		kfree(t->resp_buf);
 		t->resp_buf = NULL;
@@ -461,6 +459,19 @@ static int tcm_command(struct ovt_tcm *t, u8 cmd, const u8 *payload,
 out:
 	WRITE_ONCE(t->pending_cmd, 0);
 	mutex_unlock(&t->cmd_lock);
+	return ret;
+}
+
+static int tcm_command(struct ovt_tcm *t, u8 cmd, const u8 *payload,
+		       unsigned int len, u8 **resp, unsigned int *resp_len)
+{
+	int ret = tcm_command_timeout(t, cmd, payload, len, resp, resp_len,
+				     RESPONSE_TIMEOUT_MS);
+	if (ret == -ETIMEDOUT)
+		dev_err(&t->spi->dev, "command 0x%02x timed out\n", cmd);
+	else if (ret == -EIO)
+		dev_err(&t->spi->dev, "command 0x%02x failed, code 0x%02x\n",
+			cmd, t->resp_code);
 	return ret;
 }
 
@@ -1069,7 +1080,12 @@ static irqreturn_t tcm_irq_thread(int irq, void *data)
 			t->resp_len = len;
 			payload = NULL;
 			complete(&t->resp_done);
-			break;
+			/*
+			 * If in ROM bootloader mode, do not break: fall through
+			 * to queue the firmware download work immediately.
+			 */
+			if (t->id.mode != MODE_ROMBOOTLOADER)
+				break;
 		}
 		if (pending == CMD_ROMBOOT_RUN_BOOTLOADER_FW) {
 			/* the "response" to these is the device coming back */
@@ -1132,6 +1148,7 @@ static void tcm_reset_and_identify(struct ovt_tcm *t)
 			t->got_identify = true;
 			if (t->id.mode == MODE_ROMBOOTLOADER && !t->hdl_busy) {
 				t->hdl_busy = true;
+				t->fw_status = (struct fw_status){ 0 };
 				queue_work(t->wq, &t->hdl_work);
 			}
 		}
@@ -1156,7 +1173,7 @@ static void tcm_init_work(struct work_struct *work)
  * not guaranteed to see it - nothing ever restarts the firmware download and
  * touch stays dead until the next reset. So, when the part has been quiet for
  * a while, ask it who it is: a part that is in ROM boot, or does not answer
- * twice in a row, gets reset and brought up again.
+ * twice in a row, gets brought back up.
  */
 static void tcm_wd_work(struct work_struct *work)
 {
@@ -1172,25 +1189,45 @@ static void tcm_wd_work(struct work_struct *work)
 				 msecs_to_jiffies(WD_PERIOD_MS)))
 		goto again;
 
-	ret = tcm_command(t, CMD_IDENTIFY, NULL, 0, &resp, &rlen);
+	/* 500 ms timeout so we don't stall the workqueue when the panel is blanked */
+	ret = tcm_command_timeout(t, CMD_IDENTIFY, NULL, 0, &resp, &rlen, 500);
 	if (ret) {
-		recover = ++t->wd_fails >= 2;
+		/*
+		 * If silent or unpowered, attempt recovery once after 2 failures.
+		 * If already not ready (e.g. screen blanked/unpowered), don't
+		 * keep cycling the hardware reset in a loop.
+		 */
+		t->wd_fails++;
+		if (t->wd_fails == 2 && t->touch_ready)
+			recover = true;
 	} else {
 		t->wd_fails = 0;
 		if (rlen >= 2) {
 			struct identify id = { };
 
 			memcpy(&id, resp, min_t(unsigned int, rlen, sizeof(id)));
-			if (id.mode == MODE_ROMBOOTLOADER)
+			if (id.mode == MODE_ROMBOOTLOADER) {
+				/*
+				 * The IC is already in ROM bootloader mode: start the download
+				 * directly without an extra hardware reset!
+				 */
+				if (!t->hdl_busy) {
+					dev_info(&t->spi->dev, "touch IC in ROM boot, starting download\n");
+					t->touch_ready = false;
+					t->hdl_busy = true;
+					t->fw_status = (struct fw_status){ 0 };
+					queue_work(t->wq, &t->hdl_work);
+				}
+				kfree(resp);
+				goto again;
+			} else if (!t->touch_ready && !t->hdl_busy) {
 				recover = true;
-			else if (!t->touch_ready && !t->hdl_busy)
-				recover = true;
+			}
 		}
 		kfree(resp);
 	}
 	if (recover) {
-		dev_info(&t->spi->dev, "touch part lost its firmware, restarting\n");
-		t->wd_fails = 0;
+		dev_info(&t->spi->dev, "touch part lost its firmware or silent, restarting\n");
 		t->touch_ready = false;
 		tcm_reset_and_identify(t);
 	}
