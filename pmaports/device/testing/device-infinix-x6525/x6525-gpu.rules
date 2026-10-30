@@ -2,3 +2,8 @@
 # domain and clocks is one suspect for the whole-phone freezes seen with
 # Panfrost; the GPU is only gated off by system suspend / screen-off DPMS.
 SUBSYSTEM=="platform", KERNEL=="23100000.gpu", ATTR{power/control}="on"
+
+# Tie the touchscreen to the panel's output. phoc only rotates touch input with the
+# screen when libinput reports which output a touchscreen belongs to (WL_OUTPUT);
+# without it, landscape keeps portrait touch coordinates. The connector is DSI-1.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="omnivision_tcm_touch", ENV{WL_OUTPUT}="DSI-1"
