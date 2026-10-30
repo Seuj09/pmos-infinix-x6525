@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=48
+pkgrel=49
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -165,24 +165,63 @@ EOF
 set -u
 
 dst=/lib/firmware/sprd
-by=/dev/disk/by-partlabel
 mkdir -p "$dst"
 
-copy() {
-	label=$1
-	file=$2
-	size=$3
-
-	if [ -s "$dst/$file" ] && [ "$(stat -c %s "$dst/$file")" = "$size" ]; then
-		return 0
+# Wait briefly for partition device links to be created by udev if needed
+for i in 1 2 3 4 5 6 7 8 9 10; do
+	if [ -d /dev/disk/by-partlabel ] || [ -d /dev/block/by-name ]; then
+		break
 	fi
-	if [ ! -e "$by/$label" ]; then
-		echo "x6525-modem-nv: no $label partition" >&2
+	sleep 0.5
+done
+
+slot=""
+if [ -r /proc/cmdline ]; then
+	slot=$(sed -nE 's/.*androidboot\.slot_suffix=(_[ab]).*/\1/p' /proc/cmdline)
+fi
+
+find_part() {
+	for name in "$@"; do
+		for dir in /dev/disk/by-partlabel /dev/block/by-name; do
+			if [ -e "$dir/$name" ]; then
+				echo "$dir/$name"
+				return 0
+			fi
+		done
+		for uevent in /sys/class/block/*/uevent; do
+			if [ -r "$uevent" ] && grep -qx "PARTNAME=$name" "$uevent"; then
+				dev=$(sed -n 's/^DEVNAME=//p' "$uevent")
+				if [ -n "$dev" ] && [ -e "/dev/$dev" ]; then
+					echo "/dev/$dev"
+					return 0
+				fi
+			fi
+		done
+	done
+	return 1
+}
+
+copy() {
+	file=$1
+	size=$2
+	shift 2
+
+	if [ -s "$dst/$file" ]; then
+		curr_size=$(stat -c %s "$dst/$file" 2>/dev/null || wc -c < "$dst/$file")
+		if [ "$curr_size" = "$size" ]; then
+			return 0
+		fi
+	fi
+
+	part=$(find_part "$@")
+	if [ -z "$part" ]; then
+		echo "x6525-modem-nv: no partition found for $file (tried: $*)" >&2
 		return 1
 	fi
-	if ! dd if="$by/$label" of="$dst/.$file.tmp" bs=4096 \
+
+	if ! dd if="$part" of="$dst/.$file.tmp" bs=4096 \
 			count=$((size / 4096)) status=none; then
-		echo "x6525-modem-nv: could not read $label" >&2
+		echo "x6525-modem-nv: could not read $part for $file" >&2
 		rm -f "$dst/.$file.tmp"
 		return 1
 	fi
@@ -190,12 +229,21 @@ copy() {
 }
 
 rc=0
-copy l_modem_a l_modem.bin 20447232 || rc=1
-copy l_deltanv_a l_deltanv.bin 131072 || rc=1
-copy l_fixnv1_a l_fixnv.bin 1048576 || rc=1
-copy l_runtimenv1 l_runtimenv.bin 1179648 || rc=1
-copy l_gdsp_a l_gdsp.bin 4456448 || rc=1
-copy l_ldsp_a l_ldsp.bin 11534336 || rc=1
+if [ "$slot" = "_b" ]; then
+	copy l_modem.bin 20447232 l_modem_b l_modem_a l_modem || rc=1
+	copy l_deltanv.bin 131072 l_deltanv_b l_deltanv_a l_deltanv || rc=1
+	copy l_fixnv.bin 1048576 l_fixnv1_b l_fixnv1_a l_fixnv2_b l_fixnv2_a l_fixnv || rc=1
+	copy l_runtimenv.bin 1179648 l_runtimenv2 l_runtimenv1 l_runtimenv || rc=1
+	copy l_gdsp.bin 4456448 l_gdsp_b l_gdsp_a l_gdsp || rc=1
+	copy l_ldsp.bin 11534336 l_ldsp_b l_ldsp_a l_ldsp || rc=1
+else
+	copy l_modem.bin 20447232 l_modem_a l_modem_b l_modem || rc=1
+	copy l_deltanv.bin 131072 l_deltanv_a l_deltanv_b l_deltanv || rc=1
+	copy l_fixnv.bin 1048576 l_fixnv1_a l_fixnv1_b l_fixnv2_a l_fixnv2_b l_fixnv || rc=1
+	copy l_runtimenv.bin 1179648 l_runtimenv1 l_runtimenv2 l_runtimenv || rc=1
+	copy l_gdsp.bin 4456448 l_gdsp_a l_gdsp_b l_gdsp || rc=1
+	copy l_ldsp.bin 11534336 l_ldsp_a l_ldsp_b l_ldsp || rc=1
+fi
 exit $rc
 EOF
 
@@ -203,18 +251,21 @@ EOF
 		"$pkgdir"/usr/lib/systemd/system/x6525-modem-nv.service <<'EOF'
 [Unit]
 Description=Extract this phone's modem images from its own partitions
-After=local-fs.target
+After=local-fs.target systemd-udevd.service
+Wants=systemd-udev-settle.service
 Before=network-pre.target modemmanager.service
-ConditionPathExists=/dev/disk/by-partlabel/l_modem_a
 
 [Service]
 Type=oneshot
-# - : a unit with a different partition layout must still boot; the modem then
-# fails to load its firmware instead of the boot stopping.
-ExecStart=-/usr/bin/x6525-modem-nv
-# sprd_modem is blacklisted, so this is the only place it gets loaded, and the
-# rpmsg/WWAN modules follow from the devices it creates.
+# Run the extraction tool; exit code 0 means all required firmware files exist
+ExecStart=/usr/bin/x6525-modem-nv
+# sprd_modem is blacklisted from coldplug, so load it only after the images exist.
+# Load associated WWAN and SIPC modules so all modem devices are registered.
 ExecStart=/sbin/modprobe sprd_modem
+ExecStart=-/sbin/modprobe rpmsg_sprd_sipc
+ExecStart=-/sbin/modprobe rpmsg_wwan_ctrl
+ExecStart=-/sbin/modprobe rpmsg_wwan_net
+ExecStart=-/sbin/modprobe wwan
 RemainAfterExit=yes
 
 [Install]
@@ -238,15 +289,57 @@ EOF
 set -u
 
 dst=/lib/firmware/sprd
-part=/dev/disk/by-partlabel/pm_sys_a
 mkdir -p "$dst"
 
-if [ ! -e "$part" ]; then
-	echo "x6525-pmsys-fw: no pm_sys_a partition" >&2
+if [ -s "$dst/pm_sys.bin" ]; then
+	exit 0
+fi
+
+for i in 1 2 3 4 5 6 7 8 9 10; do
+	if [ -d /dev/disk/by-partlabel ] || [ -d /dev/block/by-name ]; then
+		break
+	fi
+	sleep 0.5
+done
+
+slot=""
+if [ -r /proc/cmdline ]; then
+	slot=$(sed -nE 's/.*androidboot\.slot_suffix=(_[ab]).*/\1/p' /proc/cmdline)
+fi
+
+find_part() {
+	for name in "$@"; do
+		for dir in /dev/disk/by-partlabel /dev/block/by-name; do
+			if [ -e "$dir/$name" ]; then
+				echo "$dir/$name"
+				return 0
+			fi
+		done
+		for uevent in /sys/class/block/*/uevent; do
+			if [ -r "$uevent" ] && grep -qx "PARTNAME=$name" "$uevent"; then
+				dev=$(sed -n 's/^DEVNAME=//p' "$uevent")
+				if [ -n "$dev" ] && [ -e "/dev/$dev" ]; then
+					echo "/dev/$dev"
+					return 0
+				fi
+			fi
+		done
+	done
+	return 1
+}
+
+if [ "$slot" = "_b" ]; then
+	part=$(find_part pm_sys_b pm_sys_a pm_sys)
+else
+	part=$(find_part pm_sys_a pm_sys_b pm_sys)
+fi
+
+if [ -z "$part" ]; then
+	echo "x6525-pmsys-fw: no pm_sys partition found" >&2
 	exit 1
 fi
 if ! dd if="$part" of="$dst/.pm_sys.bin.tmp" bs=4096 count=704 status=none; then
-	echo "x6525-pmsys-fw: could not read pm_sys_a" >&2
+	echo "x6525-pmsys-fw: could not read $part" >&2
 	rm -f "$dst/.pm_sys.bin.tmp"
 	exit 1
 fi
@@ -257,9 +350,9 @@ EOF
 		"$pkgdir"/usr/lib/systemd/system/x6525-pmsys.service <<'EOF'
 [Unit]
 Description=Extract this phone's pmsys image from its own partition
-After=local-fs.target
+After=local-fs.target systemd-udevd.service
+Wants=systemd-udev-settle.service
 Before=network-pre.target
-ConditionPathExists=/dev/disk/by-partlabel/pm_sys_a
 
 [Service]
 Type=oneshot
@@ -310,6 +403,19 @@ ip link set dev "$1" address "$(cat "$f")"
 EOF
 	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/udev/rules.d/90-x6525-wlan-mac.rules <<'EOF'
 ACTION=="add", SUBSYSTEM=="net", KERNEL=="wlan*", RUN+="/usr/bin/x6525-wlan-mac %k"
+EOF
+
+	# Provide Android-compatible /dev/block/by-name symlinks
+	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/udev/rules.d/65-x6525-by-name.rules <<'EOF'
+ENV{ID_PART_ENTRY_NAME}=="?*", SYMLINK+="block/by-name/$env{ID_PART_ENTRY_NAME}"
+EOF
+
+	# Tag Unisoc cellular modem devices for ModemManager probing
+	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/udev/rules.d/90-x6525-modem.rules <<'EOF'
+SUBSYSTEM=="net", KERNEL=="seth_lte*|wwan*", ENV{ID_MM_DEVICE_PROCESS}="1"
+SUBSYSTEM=="wwan", ENV{ID_MM_DEVICE_PROCESS}="1"
+SUBSYSTEM=="rpmsg", ENV{ID_MM_DEVICE_PROCESS}="1"
+KERNEL=="ttyRPMSG*|spipe_lte*", ENV{ID_MM_DEVICE_PROCESS}="1"
 EOF
 
 	# Ensure persistent MACs on prodnv partition for U-Boot preboot loader
