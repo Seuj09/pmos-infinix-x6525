@@ -1056,7 +1056,7 @@ The vendor driver's own CSI controller choice (`csi0`/`csi1` in the live tree) i
 mainline binding; the media graph selects a controller at stream time.
 
 There is also a flash controller: `sprd,flash-ocp8137` on i2c5 at 0x63 (and `flash-aw36515` at 0x64
-in the live tree), with torch/preflash/highlight on ap_gpio 32/138/139 and sync on 121. No mainline
+in the live tree), with torch enable on ap_gpio 137 (confirmed from the stock device tree; exposed as the `white:flash` LED), other flash pins unconfirmed, and sync on 121. No mainline
 driver yet.
 
 The stock OTA's `/odm/etc/sensor_config.xml` lists what the HAL expects per camera slot:

@@ -57,12 +57,8 @@ else
 	echo "  curl -fsSL https://raw.githubusercontent.com/Seuj09/pmos-infinix-x6525/main/tools/check-gpu.sh -o /tmp/check-gpu.sh && sh /tmp/check-gpu.sh"
 fi
 
-echo; echo "== 6. Camera (tools/check-camera.sh, next to this script)"
-if [ -f "$D/check-camera.sh" ]; then
-	sh "$D/check-camera.sh" 2>&1
-else
-	echo "check-camera.sh not found next to this script."
-fi
+echo; echo "== 6. Camera: not run here"
+echo "  sh tools/check-camera.sh is read-only unless CAMERA_STREAM=1; run it by hand, on its own."
 
 echo; echo "== 7. services"
 timeout 5 systemctl --failed --no-pager 2>&1 | head -8

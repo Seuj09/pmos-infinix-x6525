@@ -23,7 +23,7 @@ so it does not boot there. That is a hardware-variant limitation, not an unfinis
 |---|---|---|
 | Rear Samsung S5K3L6 (slot 0) | in tree, untested | `drivers/media/i2c/s5k3l6.c` (kernel patch 0014), node on i2c1 0x2d and the 4-lane camsys port (0015). Vendor register tables, 24 MHz, 4 lanes, RAW10. Needs frames, not just a probe - see checklist 5.1. |
 | Front OmniVision OV8856 (slot 1) | in tree, untested | Mainline `ov8856` driver, node on i2c0 0x10, 2-lane M port (kernel patch 0020). Runs at 19.2 MHz because the mainline driver has no 24 MHz tables; the vendor library uses 24 MHz. Power-down (ap_gpio 46) is held low by a gpio-hog because the driver has no power-down support. |
-| Flash (OCP8137 / AW36515) | missing | The live tree has both at i2c5 0x63/0x64, torch/preflash/highlight on ap_gpio 32/138/139 and sync on 121. No mainline driver, so no torch and no flash for stills. |
+| Flash (OCP8137 / AW36515) | missing | The live tree has both at i2c5 0x63/0x64, torch enable on ap_gpio 137 (confirmed from the stock device tree; exposed as the `white:flash` LED), other flash pins unconfirmed, sync on 121. No mainline driver for the I2C parts, so no flash for stills and no flash for stills. |
 | VCM / autofocus | missing | The front socket also has `vddcammot`; the rear lens's focus motor has no mainline driver in this tree. Fixed-focus until then. |
 | Camera EEPROM/OTP | missing | The unit's `/mnt/vendor/productinfo/otpdata` is empty, so there is no calibration data to read for this unit anyway. |
 | Camera userspace | missing | The mainline sprd stack exposes raw Bayer and the ISP blocks over V4L2, but there is no libcamera pipeline handler, no 3A and no application. First milestone is raw frames; a usable camera is a userspace project. |

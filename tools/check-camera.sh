@@ -3,14 +3,14 @@
 #
 #   sh tools/check-camera.sh            # on the phone, as normal user or root
 #
-# Tests the camera subsystem on the Infinix Hot 40i (X6525):
+# Tests the camera subsystem on the Infinix X6525:
 #   1. Kernel drivers loaded (sprd-camsys, sprd-isp, s5k3l6, ov8856, leds-gpio)
 #   2. I2C devices probed on buses 0 and 1
 #   3. V4L2 and media controller nodes (/dev/media*, /dev/video*, /dev/v4l-subdev*)
 #   4. Subdev controls (test pattern generator, exposure, gain)
 #   5. Flash / torch LED (/sys/class/leds/white:flash)
 #   6. Megapixels device configuration
-#   7. CSI/DCAM frame streaming test
+#   7. CSI/DCAM frame streaming test - only with CAMERA_STREAM=1 (it starts the camera hardware)
 #
 # Every line is PASS, FAIL or INFO; a final VERDICT line sums it up.
 
@@ -20,7 +20,7 @@ fail() { printf 'FAIL  %s\n' "$*"; F=$((F + 1)); }
 info() { printf 'INFO  %s\n' "$*"; }
 
 S=; command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null && S='sudo -n'
-[ -n "$S" ] || [ "$(id -u)" = 0 ] || info "no passwordless sudo: run 'sudo -v' first for dmesg and hardware access\n"
+[ -n "$S" ] || [ "$(id -u)" = 0 ] || info "no passwordless sudo: run 'sudo -v' first for dmesg and hardware access"
 
 echo "== 1. Camera kernel modules =="
 for mod in sprd_camsys sprd_isp s5k3l6 ov8856 leds_gpio; do
@@ -97,7 +97,9 @@ else
 fi
 
 echo "== 6. Test pattern capture test =="
-if command -v v4l2-ctl >/dev/null 2>&1; then
+if [ "${CAMERA_STREAM:-0}" != 1 ]; then
+	info "stream test skipped; run CAMERA_STREAM=1 sh tools/check-camera.sh to start the camera and capture one frame"
+elif command -v v4l2-ctl >/dev/null 2>&1; then
 	if [ -e "/dev/video0" ]; then
 		info "testing frame capture from /dev/video0..."
 		if timeout 5 v4l2-ctl -d /dev/video0 --stream-mmap --stream-count=1 --stream-to=/tmp/cam_test.raw 2>/dev/null; then
