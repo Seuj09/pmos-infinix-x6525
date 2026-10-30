@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=45
+pkgrel=46
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -20,6 +20,9 @@ depends="
 	bluez-btmon
 	wlr-randr
 	dnsmasq
+	gpsd
+	gpsd-clients
+	iio-sensor-proxy
 	modemmanager
 	mesa-demos
 	e2fsprogs-extra
@@ -30,6 +33,7 @@ depends="
 	mmc-utils
 	networkmanager-wifi
 	postmarketos-base
+	python3
 	soc-unisoc-ums9230
 	u-boot-infinix-x6525
 	wireless-regdb
@@ -456,6 +460,103 @@ EOF2
 		"$pkgdir"/etc/systemd/system/multi-user.target.wants/x6525-growroot.service
 
 	install -Dm644 "$srcdir"/x6525-gpu.rules "$pkgdir"/usr/lib/udev/rules.d/60-x6525.rules
+	# GPS: gpsd on the GNSS chardev. /dev/gnss0 only exists once sprd_pmsys has
+	# run (x6525-pmsys.service), so wait for it. gpsd -n starts polling the
+	# receiver at once instead of waiting for a client.
+	install -Dm644 /dev/stdin \
+		"$pkgdir"/usr/lib/systemd/system/x6525-gpsd.service <<'EOF2'
+[Unit]
+Description=gpsd on the built-in GNSS receiver
+After=x6525-pmsys.service
+Wants=x6525-pmsys.service
+
+[Service]
+ExecStartPre=/bin/sh -c 'for i in $(seq 60); do [ -e /dev/gnss0 ] && exit 0; sleep 1; done; exit 1'
+ExecStart=/usr/sbin/gpsd -N -n /dev/gnss0
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+EOF2
+
+	# Shake: three hard jolts within about a second toggle the flashlight.
+	# Reads the sensor hub's accelerometer straight from IIO sysfs. Waits for
+	# the device to appear, so it costs nothing where the sensor hub is absent.
+	install -Dm755 /dev/stdin "$pkgdir"/usr/libexec/x6525-shake <<'EOF2'
+#!/usr/bin/python3
+import glob, math, os, time
+
+LED = "/sys/class/leds/white:flash/brightness"
+JOLT = 11.0        # m/s^2 away from 1 g counts as a jolt
+NEED = 3           # jolts needed
+WINDOW = 1.2       # seconds they must fall within
+COOLDOWN = 2.0
+
+
+def rd(path):
+    with open(path) as f:
+        return float(f.read().strip())
+
+
+def find():
+    for d in sorted(glob.glob("/sys/bus/iio/devices/iio:device*")):
+        if os.path.exists(d + "/in_accel_x_raw"):
+            return d
+    return None
+
+
+def toggle():
+    try:
+        on = rd(LED) > 0
+        with open(LED, "w") as f:
+            f.write("0" if on else "1")
+    except OSError:
+        pass
+
+
+while True:
+    dev = find()
+    if not dev:
+        time.sleep(10)
+        continue
+    try:
+        scale = rd(dev + "/in_accel_scale") if os.path.exists(dev + "/in_accel_scale") else 1.0
+        jolts, last, quiet_until = [], 0.0, 0.0
+        while True:
+            x, y, z = (rd("%s/in_accel_%s_raw" % (dev, a)) * scale for a in "xyz")
+            now = time.monotonic()
+            if now >= quiet_until and abs(math.sqrt(x * x + y * y + z * z) - 9.81) > JOLT \
+                    and now - last > 0.12:
+                last = now
+                jolts = [t for t in jolts if now - t < WINDOW] + [now]
+                if len(jolts) >= NEED:
+                    toggle()
+                    jolts, quiet_until = [], now + COOLDOWN
+            time.sleep(0.04)
+    except (OSError, ValueError):
+        time.sleep(10)
+EOF2
+	install -Dm644 /dev/stdin \
+		"$pkgdir"/usr/lib/systemd/system/x6525-shake.service <<'EOF2'
+[Unit]
+Description=Shake the phone three times to toggle the flashlight
+After=x6525-pmsys.service
+
+[Service]
+ExecStart=/usr/libexec/x6525-shake
+Restart=on-failure
+RestartSec=30
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
+EOF2
+	ln -s /usr/lib/systemd/system/x6525-gpsd.service \
+		"$pkgdir"/etc/systemd/system/multi-user.target.wants/x6525-gpsd.service
+	ln -s /usr/lib/systemd/system/x6525-shake.service \
+		"$pkgdir"/etc/systemd/system/multi-user.target.wants/x6525-shake.service
+
 	install -Dm755 "$srcdir"/x6525-boot-check "$pkgdir"/etc/apk/commit_hooks.d/90-x6525-boot-check
 
 	# Enabling a unit with a symlink created here does not survive the image
@@ -482,6 +583,8 @@ enable bluetooth.service
 enable x6525-prodnv-mac.service
 enable x6525-modem-nv.service
 enable x6525-pmsys.service
+enable x6525-gpsd.service
+enable x6525-shake.service
 EOF
 
 	# Create /dev/dri/x6525-primary for the compositor, waiting for the sprd

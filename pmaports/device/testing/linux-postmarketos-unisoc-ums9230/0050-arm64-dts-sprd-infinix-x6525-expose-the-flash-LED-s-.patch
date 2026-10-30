@@ -1,0 +1,53 @@
+From 1ea93e2ae944da070ef1539a10cab9102b58549b Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Fri, 30 Oct 2026 18:54:41 +0800
+Subject: [PATCH] arm64: dts: sprd: infinix-x6525: expose the flash LED's torch
+ pin as a GPIO LED
+
+The OCP8137/AW36515 torch enable is ap_gpio 32. No mainline driver for the parts, but the enable alone lights the LED, so register it as white:flash for Phosh's flashlight toggle.
+---
+ .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 21 +++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+index c8b631af1..a32cd5d08 100644
+--- a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
++++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+@@ -28,6 +28,7 @@
+ /dts-v1/;
+ 
+ #include <dt-bindings/input/input.h>
++#include <dt-bindings/leds/common.h>
+ #include <dt-bindings/gpio/gpio.h>
+ #include <dt-bindings/interrupt-controller/arm-gic.h>
+ #include <dt-bindings/media/sprd-camsys.h>
+@@ -128,6 +129,26 @@ linux,cma {
+ 	 * is not reproduced yet.
+ 	 */
+ 
++	/*
++	 * Flashlight. The live tree has the flash drivers (sprd,flash-ocp8137 on
++	 * i2c5 0x63, flash-aw36515 on 0x64) with torch, preflash and highlight
++	 * enables on ap_gpio 32 / 138 / 139. No mainline driver exists for the
++	 * parts, but the torch enable alone lights the LED at the driver chip's
++	 * default current, so it is exposed as a plain GPIO LED: Phosh's
++	 * flashlight toggle and the shake service drive white:flash. Not
++	 * confirmed on hardware: if nothing lights, the I2C parts need
++	 * configuring and 32 may not be the torch pin (try 138 and 139).
++	 */
++	leds {
++		compatible = "gpio-leds";
++
++		led-torch {
++			color = <LED_COLOR_ID_WHITE>;
++			function = LED_FUNCTION_FLASH;
++			gpios = <&ap_gpio 32 GPIO_ACTIVE_HIGH>;
++		};
++	};
++
+ 	gpio-keys {
+ 		compatible = "gpio-keys";
+ 
+-- 
+2.43.0
+
