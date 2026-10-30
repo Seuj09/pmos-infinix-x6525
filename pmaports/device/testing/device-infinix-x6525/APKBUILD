@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=52
+pkgrel=53
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -1236,6 +1236,7 @@ blacklevel=64
 whitelevel=1023
 focallength=3.85
 cropfactor=7.6
+flash-path=/sys/class/leds/white:flash
 
 [front]
 driver=ov8856

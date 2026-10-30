@@ -27,13 +27,11 @@ index c8b631af1..a32cd5d08 100644
  
 +	/*
 +	 * Flashlight. The live tree has the flash drivers (sprd,flash-ocp8137 on
-+	 * i2c5 0x63, flash-aw36515 on 0x64) with torch, preflash and highlight
-+	 * enables on ap_gpio 32 / 138 / 139. No mainline driver exists for the
-+	 * parts, but the torch enable alone lights the LED at the driver chip's
-+	 * default current, so it is exposed as a plain GPIO LED: Phosh's
-+	 * flashlight toggle and the shake service drive white:flash. Not
-+	 * confirmed on hardware: if nothing lights, the I2C parts need
-+	 * configuring and 32 may not be the torch pin (try 138 and 139).
++	 * i2c5 0x63, flash-aw36515 on 0x64). The stock device tree confirms the
++	 * torch enable pin is ap_gpio 137 (0x89 in flash-torch-en-gpios).
++	 * No mainline driver exists for the I2C parts, but the enable alone lights
++	 * the LED at default current, so it is exposed as a plain GPIO LED:
++	 * Phosh's flashlight toggle and the shake service drive white:flash.
 +	 */
 +	leds {
 +		compatible = "gpio-leds";
@@ -41,7 +39,7 @@ index c8b631af1..a32cd5d08 100644
 +		led-torch {
 +			color = <LED_COLOR_ID_WHITE>;
 +			function = LED_FUNCTION_FLASH;
-+			gpios = <&ap_gpio 32 GPIO_ACTIVE_HIGH>;
++			gpios = <&ap_gpio 137 GPIO_ACTIVE_HIGH>;
 +		};
 +	};
 +
