@@ -26,11 +26,15 @@ pre-commit)
 		esac
 	done
 	case " $args " in
-	*" del "*linux-postmarketos-unisoc-ums9230*|*" del "*device-infinix-x6525*) bad=1 ;;
+	*" del "*linux-postmarketos-unisoc-ums9230*|\
+	*" del "*device-infinix-x6525*|\
+	*" del "*soc-unisoc-ums9230*|\
+	*" del "*firmware-infinix-x6525*|\
+	*" del "*u-boot-infinix-x6525*) bad=1 ;;
 	esac
 	if [ -n "$bad" ]; then
 		echo "x6525-boot-check: refusing '$args'" >&2
-		echo "x6525-boot-check: it would remove the kernel and device packages (they are not in any" >&2
+		echo "x6525-boot-check: it would remove essential boot/device packages (they are not in any" >&2
 		echo "x6525-boot-check: mirror) and the phone would not boot. Use plain 'apk upgrade'." >&2
 		exit 1
 	fi
