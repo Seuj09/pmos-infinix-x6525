@@ -1,0 +1,56 @@
+From 22b99045ab9c44b9f4f3c0364f68bef5524a0299 Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Sat, 31 Oct 2026 21:01:54 +0800
+Subject: [PATCH] arm64: dts: sprd: infinix-x6525: add the 650 MHz GPU step
+
+The stock table's top usable step on T606 is 650 MHz @ 0.80 V, taken from
+GPLL. The composite GPU clock does not pass rate requests up to its parent,
+so the gpu node programs GPLL to 650 MHz at probe.
+---
+ .../boot/dts/sprd/ums9230-infinix-x6525.dts      | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+index 4cc45107d..ced0dc261 100644
+--- a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
++++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+@@ -824,8 +824,10 @@ &cpufreq {
+  * this GPU (operating-points in its gpu@23100000 node): 384 MHz @ 0.70 V,
+  * 512 MHz and 614.4 MHz @ 0.75 V. The stock table also has 768 MHz and
+  * 850 MHz, but the stock driver disables both on T606 (the part is capped at
+- * GPLL = 650 MHz), so they are left out; 650 MHz @ 0.80 V needs GPLL to be
+- * programmed and is left out until that path is tested. Without an OPP table
++ * GPLL = 650 MHz), so they are left out. The top step is that cap: 650 MHz @
++ * 0.80 V, taken from GPLL, which the gpu node programs to 650 MHz at probe
++ * (the composite GPU clock does not pass rate requests up to its parents).
++ * Nothing else in this tree uses GPLL's /20 aux output. Without an OPP table
+  * Panfrost runs at whatever rate the bootloader left and never scales.
+  */
+ / {
+@@ -846,6 +848,11 @@ opp-614400000 {
+ 			opp-hz = /bits/ 64 <614400000>;
+ 			opp-microvolt = <750000>;
+ 		};
++
++		opp-650000000 {
++			opp-hz = /bits/ 64 <650000000>;
++			opp-microvolt = <800000>;
++		};
+ 	};
+ };
+ 
+@@ -854,8 +861,9 @@ &gpu {
+ 	operating-points-v2 = <&gpu_opp_table>;
+ 	#cooling-cells = <2>;
+ 	/* the memory clock otherwise stays on its 26 MHz reset parent */
+-	assigned-clocks = <&gpu_clk CLK_GPU_MEM>;
+-	assigned-clock-parents = <&pll1 CLK_TWPLL_512M>;
++	assigned-clocks = <&gpu_clk CLK_GPU_MEM>, <&pll1 CLK_GPLL>;
++	assigned-clock-parents = <&pll1 CLK_TWPLL_512M>, <0>;
++	assigned-clock-rates = <0>, <650000000>;
+ 	status = "okay";
+ };
+ 
+-- 
+2.43.0
+

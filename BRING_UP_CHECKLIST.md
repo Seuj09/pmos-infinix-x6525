@@ -1435,11 +1435,10 @@ Vulkan, then software), and Mesa's panfrost Gallium driver (aarch64 `mesa-dri-ga
 `mesa-vulkan-panfrost`.
 
 The GPU now also has a DVFS table, taken from the stock kernel's `operating-points` for this part:
-384 MHz at 0.70 V, 512 and 614.4 MHz at 0.75 V, 768 MHz at 0.80 V. Panfrost's devfreq scales through
-those; without it the GPU runs at whatever rate the bootloader left and never changes. The stock
-table's 850 MHz at 0.80 V is left out for now: the mainline composite GPU clock does not propagate
-rate requests to GPLL (it stays at its 750 MHz default), and GPLL also feeds the aux clocks through
-`/20`, so 850 MHz needs clock-tree work and hardware testing (see ROADMAP.md).
+384 MHz at 0.70 V, 512 and 614.4 MHz at 0.75 V, 650 MHz at 0.80 V (GPLL, programmed by the gpu node at
+probe). Panfrost's devfreq scales through those; without it the GPU runs at whatever rate the
+bootloader left and never changes. The stock table's 768 and 850 MHz entries are disabled by the stock
+driver itself on T606, so they stay out (see ROADMAP.md).
 
 Checks after booting an image with the display switch:
 

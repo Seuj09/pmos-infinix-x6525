@@ -88,11 +88,12 @@ so it does not boot there. That is a hardware-variant limitation, not an unfinis
 
 **Still open:**
 
-- **GPU 850 MHz** - the stock OPP table has 850 MHz @ 0.8 V, but the mainline composite GPU clock
-  does not propagate rate requests to its parents (`sprd_comp_determine_rate()` passes flags 0), so
-  GPLL stays at its 750 MHz default. GPLL also feeds the aux clocks through `/20`
-  (`gpll_42m5` -> aux0/1/2/probe), so reprogramming it for the GPU changes those rates unless the
-  clock tree is reworked. The OPP table stops at 768 MHz until that is solved and tested.
+- **GPU 650 MHz** - the top step the stock driver allows on T606 (it disables its 768 and 850 MHz
+  entries; the part is capped at GPLL = 650 MHz). The OPP table now has 650 MHz @ 0.80 V, with the
+  gpu node programming GPLL to 650 MHz at probe, because the mainline composite GPU clock does not
+  pass rate requests to its parents. Untested on hardware: check `cat
+  /sys/class/devfreq/23100000.gpu/available_frequencies` and `/sys/kernel/debug/clk/gpll/clk_rate`.
+  850 MHz stays out (disabled by the stock driver itself).
 - **eMMC link speed** - `sdhci_sprd_pdata` sets `SDHCI_QUIRK2_BROKEN_HS200` for every r11
   controller, so the core clears `MMC_CAP2_HS200` and the link stays at DDR52 (HS400 is gated behind
   HS200), although the stock kernel runs this part at HS400. The opt-in knob exists to test whether
