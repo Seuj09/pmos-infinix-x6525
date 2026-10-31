@@ -172,3 +172,19 @@ pass, and then experiments on the phone. Step 3 is not done.
 - Does `0x8000` read as a stable value (the bitstream module's configuration)?
 Structured values there would confirm the offsets. Constant or `ffffffff` values would mean the core is
 still gated or in reset, and step 1's clock/reset sequence needs another look.
+
+## Step 3, first register facts: `H264Dec_cfg_bsm` (disassembly, not yet confirmed on hardware)
+Offsets are from the VSP window base (0x32000000); the library's `0x6120xxxx` constants are the same offsets.
+`llvm-objdump -d --disassemble-symbols=H264Dec_cfg_bsm libomx_avcdec_hw_sprd.so`:
+
+| Offset | Access | Meaning (inferred) |
+|--------|--------|--------------------|
+| `0x8018` | poll, bit 27 must be 0 (bounded at 0x3ffff tries) | bitstream module busy; waited for before reprogramming |
+| `0x1080`, `0x1084` | write `stream_buf_phys >> 4` (both) | bitstream buffer address |
+| `0x8008` | write `6` | bitstream module mode/config |
+| `0x8004` | write `length \| 0x80000000` (or `0xc0000000` when the mode argument is non-zero) | buffer length plus a mode flag |
+| `0x8000` | write `(offset + 0x400) \| 0x80000000` | start trigger |
+| `0x801c` | poll, bit 2 must be 1 | bitstream module ready (only when the mode argument is non-zero) |
+
+The address written is `>> 4`, so buffers must be 16-byte aligned. Next: `H264Dec_Process_slice`,
+`H264DecDecode_NALU`, `H264Dec_init_picture` for the per-picture and reference-frame registers.
