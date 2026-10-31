@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=54
+pkgrel=55
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -983,7 +983,7 @@ SectionDevice."Headphones" {
 	]
 
 	Value {
-		PlaybackPriority 300
+		PlaybackPriority 200
 		PlaybackChannels 2
 		PlaybackPCM "hw:${CardId},0"
 	}
@@ -1012,7 +1012,7 @@ SectionDevice."Speaker" {
 	]
 
 	Value {
-		PlaybackPriority 200
+		PlaybackPriority 300
 		PlaybackChannels 2
 		PlaybackPCM "hw:${CardId},0"
 	}
@@ -1159,7 +1159,7 @@ SectionDevice."Headphones" {
 	]
 
 	Value {
-		PlaybackPriority 300
+		PlaybackPriority 200
 		PlaybackChannels 2
 		PlaybackPCM "hw:${CardId},0"
 	}
@@ -1187,7 +1187,7 @@ SectionDevice."Speaker" {
 	]
 
 	Value {
-		PlaybackPriority 200
+		PlaybackPriority 300
 		PlaybackChannels 2
 		PlaybackPCM "hw:${CardId},0"
 	}
