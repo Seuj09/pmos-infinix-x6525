@@ -1,0 +1,43 @@
+From f339a5dbb494bde22d7c8f49dd50402f89907a9f Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Sat, 31 Oct 2026 20:54:59 +0800
+Subject: [PATCH] media: sprd-vsp: do not attach a power domain the bus already
+ attached
+
+The JPEG codec node lists a single power domain, which the platform bus
+attaches before probe. devm_pm_domain_attach_list() then returns -EEXIST
+and the codec never probes. Only attach the list when none is attached.
+---
+ drivers/media/platform/sprd/vsp/vsp.c | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/media/platform/sprd/vsp/vsp.c b/drivers/media/platform/sprd/vsp/vsp.c
+index b98b372e5..4ca0496d4 100644
+--- a/drivers/media/platform/sprd/vsp/vsp.c
++++ b/drivers/media/platform/sprd/vsp/vsp.c
+@@ -180,10 +180,18 @@ static int sprd_vsp_probe(struct platform_device *pdev)
+ 		return dev_err_probe(dev, PTR_ERR(vsp->rsts),
+ 				     "failed to get the resets\n");
+ 
+-	/* both the multimedia and the VSP domain have to be on */
+-	ret = devm_pm_domain_attach_list(dev, NULL, &vsp->pds);
+-	if (ret < 0)
+-		return dev_err_probe(dev, ret, "failed to attach the power domains\n");
++	/*
++	 * The VSP lists two power domains (multimedia and VSP) and has to attach
++	 * them itself. The JPEG codec lists only the multimedia one, which the
++	 * platform bus has already attached before probe, and attaching again
++	 * would fail with -EEXIST.
++	 */
++	if (!dev->pm_domain) {
++		ret = devm_pm_domain_attach_list(dev, NULL, &vsp->pds);
++		if (ret < 0)
++			return dev_err_probe(dev, ret,
++					     "failed to attach the power domains\n");
++	}
+ 
+ 	ret = devm_pm_runtime_enable(dev);
+ 	if (ret)
+-- 
+2.43.0
+
