@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=55
+pkgrel=56
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -1061,7 +1061,7 @@ SectionDevice."Mic" {
 	]
 
 	Value {
-		CapturePriority 200
+		CapturePriority 300
 	}
 
 	Macro.pcm_split.SplitPCMDevice {
@@ -1092,7 +1092,7 @@ SectionDevice."Headset" {
 	]
 
 	Value {
-		CapturePriority 300
+		CapturePriority 200
 	}
 
 	Macro.pcm_split.SplitPCMDevice {
@@ -1236,7 +1236,7 @@ SectionDevice."Mic" {
 	]
 
 	Value {
-		CapturePriority 200
+		CapturePriority 300
 		CaptureChannels 1
 		CapturePCM "hw:${CardId},3"
 	}
@@ -1259,7 +1259,7 @@ SectionDevice."Headset" {
 	]
 
 	Value {
-		CapturePriority 300
+		CapturePriority 200
 		CaptureChannels 1
 		CapturePCM "hw:${CardId},3"
 	}
