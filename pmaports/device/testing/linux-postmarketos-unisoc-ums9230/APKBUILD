@@ -9,7 +9,7 @@ maintainer="Affe Null <affenull2345@gmail.com>"
 _flavor="postmarketos-unisoc-ums9230"
 pkgname=linux-$_flavor
 pkgver=7.2.0_rc6_git20260807
-pkgrel=45
+pkgrel=46
 pkgdesc="Linux kernel with patches for Unisoc UMS9230 devices"
 arch="aarch64"
 _carch="arm64"
@@ -91,6 +91,7 @@ source="
 	0047-media-sprd-vsp-allocate-through-the-IOMMU-and-add-an.patch
 	0049-Input-ovt-tcm-spi-restart-the-firmware-download-whe.patch
 	0050-arm64-dts-sprd-infinix-x6525-expose-the-flash-LED-s-.patch
+	0051-media-sprd-isp-keep-the-IRQ-names-alive-after-prob.patch
 "
 builddir="$srcdir/linux"
 
@@ -171,4 +172,5 @@ b230cd9f5ef23eb8f0adfeae5f7523eab0d941a984525643be0813d3fc80fcd75f74cc3434bf01d8
 35eabf986f5b3d62bd5085d8274669bba45a2e7a88b1a0ba0468eee20fd4b17bd60f539dcd99885d677a8a2cad29f0d64cd94006aaa2e2b9aea4626e7cdb8a05  0047-media-sprd-vsp-allocate-through-the-IOMMU-and-add-an.patch
 92233a820f932c823be4775d3341b0ebbae9cca6f920eae25fce953923fdeadd6a0299a4f50ed944d03f33f6869dae3b741b58760a25e87bf32b701e9836f482  0049-Input-ovt-tcm-spi-restart-the-firmware-download-whe.patch
 167372a9335cbde1ffcb06ab58e2004029185857a1dea03edbd10f0660ea478440753554d4b99b9f95ed8bf86eb959bb3fadeec8b7c09c1db69e09a3e03612b5  0050-arm64-dts-sprd-infinix-x6525-expose-the-flash-LED-s-.patch
+00ca588d7690b4f0a54943103209e1abb665882e3dd8de222b58739a12be98360c71c7f9451fe3c40f1336ab785f036f6d28e0c86bb5a13fd4341016c2dd4906  0051-media-sprd-isp-keep-the-IRQ-names-alive-after-prob.patch
 "

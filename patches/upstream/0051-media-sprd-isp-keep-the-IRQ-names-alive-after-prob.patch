@@ -1,0 +1,36 @@
+From 1f5b781b65e7891e8eb186fcb6e8588f8a3d9e4a Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Sat, 31 Oct 2026 11:32:09 +0800
+Subject: [PATCH] media: sprd-isp: keep the IRQ names alive after probe
+
+request_irq() stores the name pointer instead of copying it. isp_probe() passed a char[32] on its own stack, so after probe() returned /proc/interrupts printed action->name through a dangling stack pointer. Reading that file dereferenced freed stack memory with desc->lock held and interrupts off, which oopsed (panic_on_oops) and hung the phone until the watchdog reset it. Allocate the names with devm_kasprintf().
+---
+ drivers/media/platform/sprd/isp/isp.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/media/platform/sprd/isp/isp.c b/drivers/media/platform/sprd/isp/isp.c
+index 503efb05b..008eba784 100644
+--- a/drivers/media/platform/sprd/isp/isp.c
++++ b/drivers/media/platform/sprd/isp/isp.c
+@@ -297,13 +297,16 @@ static int sprd_isp_probe(struct platform_device *pdev)
+ 		return PTR_ERR(isp->base);
+ 
+ 	for (i = 0; i < SPRD_ISP_NUM_IRQS; i++) {
+-		char name[32];
++		char *name;
+ 
+ 		isp->irq[i] = platform_get_irq(pdev, i);
+ 		if (isp->irq[i] <= 0)
+ 			return -EINVAL;
+ 
+-		snprintf(name, sizeof(name), "sprd-isp-ch%d", i);
++		/* request_irq() keeps the pointer: the name must outlive probe() */
++		name = devm_kasprintf(&pdev->dev, GFP_KERNEL, "sprd-isp-ch%d", i);
++		if (!name)
++			return -ENOMEM;
+ 
+ 		ret = devm_request_irq(&pdev->dev, isp->irq[i],
+ 				       isp->hw->handle_irq,
+-- 
+2.43.0
+
