@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=53
+pkgrel=54
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -692,6 +692,72 @@ EOF2
 	ln -s /usr/lib/systemd/system/x6525-gpsd.service \
 		"$pkgdir"/etc/systemd/system/multi-user.target.wants/x6525-gpsd.service
 
+	# Persist the kernel log line by line (fsync each) so a hard hang that ends in
+	# a watchdog reset still leaves its last messages: /var/log/x6525-kmsg.log is
+	# this boot, .1 the previous boot, up to .3.
+	install -Dm755 /dev/stdin "$pkgdir"/usr/libexec/x6525-kmsg <<'EOF2'
+#!/usr/bin/python3
+# Persist every kernel message to disk the moment it appears. After a hard hang
+# and watchdog reset nothing else survives: pstore is empty and journald only
+# syncs every few minutes. The eMMC write cache is off on this phone
+# (x6525-emmc-cacheoff), so an fsync'd line is on flash. The last few logs are
+# kept: /var/log/x6525-kmsg.log is this boot, .1 is the previous boot, and so on.
+import errno, os, time
+
+LOG = "/var/log/x6525-kmsg.log"
+KEEP = 4
+MAX_BYTES = 8 * 1024 * 1024
+
+for i in range(KEEP - 1, 0, -1):
+    src = LOG if i == 1 else "%s.%d" % (LOG, i - 1)
+    try:
+        os.replace(src, "%s.%d" % (LOG, i))
+    except OSError:
+        pass
+
+out = os.open(LOG, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_TRUNC, 0o644)
+kmsg = os.open("/dev/kmsg", os.O_RDONLY)
+written = 0
+while True:
+    try:
+        rec = os.read(kmsg, 8192)
+    except OSError as e:
+        if e.errno == errno.EPIPE:      # the ring buffer overran us: carry on
+            continue
+        raise
+    meta, _, msg = rec.partition(b";")
+    if not _:
+        continue
+    try:
+        sec = int(meta.split(b",")[2]) / 1e6
+    except (IndexError, ValueError):
+        sec = 0.0
+    line = ("[%12.6f] " % sec).encode() + msg.split(b"\n")[0] + b"\n"
+    if written + len(line) > MAX_BYTES:
+        time.sleep(3600)
+        continue
+    os.write(out, line)
+    os.fsync(out)
+    written += len(line)
+EOF2
+	install -Dm644 /dev/stdin \
+		"$pkgdir"/usr/lib/systemd/system/x6525-kmsg.service <<'EOF2'
+[Unit]
+Description=Write the kernel log to disk as it is produced
+After=local-fs.target
+
+[Service]
+ExecStart=/usr/libexec/x6525-kmsg
+Restart=always
+RestartSec=5
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target
+EOF2
+	ln -s /usr/lib/systemd/system/x6525-kmsg.service \
+		"$pkgdir"/etc/systemd/system/multi-user.target.wants/x6525-kmsg.service
+
 	install -Dm755 "$srcdir"/x6525-boot-check "$pkgdir"/etc/apk/commit_hooks.d/90-x6525-boot-check
 
 	# Enabling a unit with a symlink created here does not survive the image
@@ -718,6 +784,7 @@ enable bluetooth.service
 enable x6525-prodnv-mac.service
 enable x6525-modem-nv.service
 enable x6525-pmsys.service
+enable x6525-kmsg.service
 enable x6525-gpsd.service
 EOF
 
