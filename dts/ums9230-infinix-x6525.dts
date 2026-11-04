@@ -210,19 +210,15 @@
 	 * device's own (sdio@201a0000); the vendor's sd-detect-pol-syscon and
 	 * sd-hotplug-* properties are its own and are not in the binding.
 	 */
-	/*
-	 * Card detect is polled (broken-cd) rather than read from eic_sync 35.
-	 * The slot is also a boot path, U-Boot ignores card-detect altogether,
-	 * and that line's polarity (low = card in) was only read off an empty
-	 * slot. Restore cd-gpios = <&eic_sync 35 GPIO_ACTIVE_LOW> once a card has
-	 * been seen to flip it. From the microSD fix in Bocchi-The-Dev's fork.
-	 */
-	broken-cd;
+	cd-gpios = <&eic_sync 35 GPIO_ACTIVE_LOW>;	/* eic_sync confirmed: the running system */
+							/* has gpio-355 "cd" on the eic-sync chip; the */
+							/* reeder's eic_async is not this board. It read */
+							/* high with the slot empty, so low = card in. */
 	vmmc-supply = <&vddsdcore>;
 	vqmmc-supply = <&vddsdio>;
 	bus-width = <4>;
-	/* No UHS modes for now: 3.3 V high-speed only, so a failed 1.8 V switch
-	 * of vddsdio cannot be what hides the card. */
+	sd-uhs-sdr104;
+	sd-uhs-sdr50;
 	no-sdio;
 	no-mmc;
 

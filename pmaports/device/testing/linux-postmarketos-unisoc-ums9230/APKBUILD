@@ -9,7 +9,7 @@ maintainer="Affe Null <affenull2345@gmail.com>"
 _flavor="postmarketos-unisoc-ums9230"
 pkgname=linux-$_flavor
 pkgver=7.2.0_rc6_git20260807
-pkgrel=63
+pkgrel=64
 pkgdesc="Linux kernel with patches for Unisoc UMS9230 devices"
 arch="aarch64"
 _carch="arm64"
@@ -108,7 +108,6 @@ source="
 	0065-media-i2c-ov8856-retry-module-identification-and-in.patch
 	0066-arm64-dts-sprd-infinix-x6525-fix-camera-sensor-socke.patch
 	0067-media-sprd-vsp-add-an-experimental-stateless-H.264-d.patch
-	0068-arm64-dts-sprd-infinix-x6525-poll-the-microSD-slot-n.patch
 	0069-arm64-dts-sprd-infinix-x6525-enable-the-UFS-controll.patch
 	0070-media-sprd-vsp-add-a-debugfs-register-lab-for-the-JP.patch
 	0071-arm64-dts-sprd-infinix-x6525-leave-the-UFS-controlle.patch
@@ -211,7 +210,6 @@ cfcbb1436f6061d40767c9b55eea8021fce9995d465be247204fd4518bfab04bb6c38f60e5033f5f
 6315d7ef21dc623fd5a0303cdf638dbbbbe26889d472c193567c133bf4803cc2bbe1600dfae1d469f74f89b4b8f6879d991d8e606adf74f1b30aa7164256ceae  0065-media-i2c-ov8856-retry-module-identification-and-in.patch
 c5af09b86048a60c6012f1553cd4e3363857045789291d43613c62eda1ac630e261181cbbfdbfa0e13193b870de4b336b1fc54cae14737f8fc245ad06fa500fc  0066-arm64-dts-sprd-infinix-x6525-fix-camera-sensor-socke.patch
 de72ad36c5c1c1bff26b20148135ec5f7ee2258a6890377bd113bedfd286c1958c0f0f89c4571b62711dd428760158d41110c3da54c72e702218c03d55c8bb17  0067-media-sprd-vsp-add-an-experimental-stateless-H.264-d.patch
-26370708c9084af3456211955414d619a5a415024a4ce70f5e1a6098fd6a6ed69f95b37ff774ae3185cf825a1e82e9c3dacbb03ed41fc0df2ad0fab5bc28bdd6  0068-arm64-dts-sprd-infinix-x6525-poll-the-microSD-slot-n.patch
 625c8b739b97b3eee16c2f3e8790630110fb1bfeb99f93140be8e50bcc2849c6a91008e7296caecccabb241e2a0428068c505576825872636f76fd814f37e2d1  0069-arm64-dts-sprd-infinix-x6525-enable-the-UFS-controll.patch
 035bb0444931aa2a8dd25bf0882400c31c132ff264a5cdbcfb5c215e88ddc088d257c67118123f3037b2e24af9d595e4a52380f6c4ecd7914e7acff8fa7bfb63  0070-media-sprd-vsp-add-a-debugfs-register-lab-for-the-JP.patch
 c0aaacf7da40bc66890bcd12b5da78a10c012d73d3c27285fa4e40eddff0fc1cda1939c03a51f14773766e3aec5c37db08d2fa283ca597d79c34c9e8eb79fd07  0071-arm64-dts-sprd-infinix-x6525-leave-the-UFS-controlle.patch
