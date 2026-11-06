@@ -9,7 +9,7 @@ maintainer="Affe Null <affenull2345@gmail.com>"
 _flavor="postmarketos-unisoc-ums9230"
 pkgname=linux-$_flavor
 pkgver=7.2.0_rc6_git20260807
-pkgrel=64
+pkgrel=65
 pkgdesc="Linux kernel with patches for Unisoc UMS9230 devices"
 arch="aarch64"
 _carch="arm64"
@@ -114,6 +114,7 @@ source="
 	0071-arm64-dts-sprd-infinix-x6525-leave-the-UFS-controlle.patch
 	0072-leds-add-a-torch-driver-for-the-AW36515-and-OCP81375.patch
 	0073-arm64-dts-sprd-infinix-x6525-describe-the-flash-chip.patch
+	0074-drm-panfrost-dump-the-GPU-power-job-and-MMU-state-wh.patch
 "
 builddir="$srcdir/linux"
 
@@ -217,4 +218,5 @@ de72ad36c5c1c1bff26b20148135ec5f7ee2258a6890377bd113bedfd286c1958c0f0f89c4571b62
 c0aaacf7da40bc66890bcd12b5da78a10c012d73d3c27285fa4e40eddff0fc1cda1939c03a51f14773766e3aec5c37db08d2fa283ca597d79c34c9e8eb79fd07  0071-arm64-dts-sprd-infinix-x6525-leave-the-UFS-controlle.patch
 1b3f81e41768324ed4960689462f7b8ed38f634438dd1a3ba1ec0f3c2c7a85c7963021da0770fb28c2db296d4e4cbf40d93cb4d8cba793cb6ef289b706c93260  0072-leds-add-a-torch-driver-for-the-AW36515-and-OCP81375.patch
 a8c39aa7a3aba0694637f31a5ea86322c84985f8e66368d4dec5e8981bed78846aef46bd98755459278ff3730980813274a5d137f7106f91f2314e34a0a18924  0073-arm64-dts-sprd-infinix-x6525-describe-the-flash-chip.patch
+2506dd9b0ebaf5e08f6225719c3c78beb5bf20009e43f839554d6ac1878e91825baaf4ac5485041a060a5f8c25965d925fcc4ff286315d5cd741fc57cead120e  0074-drm-panfrost-dump-the-GPU-power-job-and-MMU-state-wh.patch
 "

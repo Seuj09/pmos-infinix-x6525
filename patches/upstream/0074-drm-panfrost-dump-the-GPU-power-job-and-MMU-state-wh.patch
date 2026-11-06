@@ -1,0 +1,55 @@
+From 96d4e8af90bedde80db6cec059556463e5795ba9 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 7 Nov 2026 04:48:35 +0800
+Subject: [PATCH 74/74] drm/panfrost: dump the GPU, power, job and MMU state when a
+ job times out
+
+Debug aid for the first-job hang on the Infinix X6525 (status ACTIVE, head==tail,
+no fault reported). Prints the raw registers once, before the reset.
+
+Not for upstream.
+---
+ drivers/gpu/drm/panfrost/panfrost_job.c | 27 +++++++++++++++++++++++++
+ 1 file changed, 27 insertions(+)
+
+diff --git a/drivers/gpu/drm/panfrost/panfrost_job.c b/drivers/gpu/drm/panfrost/panfrost_job.c
+index 2d12b83e9..8a42e7480 100644
+--- a/drivers/gpu/drm/panfrost/panfrost_job.c
++++ b/drivers/gpu/drm/panfrost/panfrost_job.c
+@@ -795,6 +795,33 @@ static enum drm_gpu_sched_stat panfrost_job_timedout(struct drm_sched_job
+ 		job_read(pfdev, JS_TAIL_LO(js)),
+ 		sched_job);
+ 
++	{
++		int as = job->mmu ? job->mmu->as : 0;
++
++		if (as < 0)
++			as = 0;
++		dev_err(pfdev->base.dev,
++			"hang state: gpu_status=0x%x gpu_irq raw=0x%x stat=0x%x mask=0x%x fault=0x%x@0x%x\n",
++			gpu_read(pfdev, GPU_STATUS), gpu_read(pfdev, GPU_INT_RAWSTAT),
++			gpu_read(pfdev, GPU_INT_STAT), gpu_read(pfdev, GPU_INT_MASK),
++			gpu_read(pfdev, GPU_FAULT_STATUS), gpu_read(pfdev, GPU_FAULT_ADDRESS_LO));
++		dev_err(pfdev->base.dev,
++			"hang state: shader ready=0x%x trans=0x%x tiler ready=0x%x trans=0x%x l2 ready=0x%x trans=0x%x\n",
++			gpu_read(pfdev, SHADER_READY_LO), gpu_read(pfdev, SHADER_PWRTRANS_LO),
++			gpu_read(pfdev, TILER_READY_LO), gpu_read(pfdev, TILER_PWRTRANS_LO),
++			gpu_read(pfdev, L2_READY_LO), gpu_read(pfdev, L2_PWRTRANS_LO));
++		dev_err(pfdev->base.dev,
++			"hang state: job irq raw=0x%x stat=0x%x mask=0x%x affinity=0x%x as=%d\n",
++			job_read(pfdev, JOB_INT_RAWSTAT), job_read(pfdev, JOB_INT_STAT),
++			job_read(pfdev, JOB_INT_MASK), job_read(pfdev, JS_AFFINITY_LO(js)), as);
++		dev_err(pfdev->base.dev,
++			"hang state: mmu irq raw=0x%x stat=0x%x mask=0x%x as_status=0x%x faultstatus=0x%x faultaddr=0x%x transtab=0x%x\n",
++			readl(pfdev->iomem + MMU_INT_RAWSTAT), readl(pfdev->iomem + MMU_INT_STAT),
++			readl(pfdev->iomem + MMU_INT_MASK), readl(pfdev->iomem + AS_STATUS(as)),
++			readl(pfdev->iomem + AS_FAULTSTATUS(as)), readl(pfdev->iomem + AS_FAULTADDRESS_LO(as)),
++			readl(pfdev->iomem + AS_TRANSTAB_LO(as)));
++	}
++
+ 	panfrost_core_dump(job);
+ 
+ 	atomic_set(&pfdev->reset.pending, 1);
+-- 
+2.43.0
+
