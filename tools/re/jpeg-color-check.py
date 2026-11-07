@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
-"""Compare the planes dumped by jpeg-color-probe.sh with the expected ones.
-Usage: jpeg-color-check.py OUTDIR < out.txt"""
+"""Compare the planes dumped by jpeg-color-probe.py's probe.sh with the expected ones.
+Usage: jpeg-color-check.py OUTDIR W H < out.txt
+The chroma comes as one interleaved Cb,Cr plane (NV12 layout) at the second address, stride = W bytes."""
 import re, struct, sys
 import numpy as np
+W, H = int(sys.argv[2]), int(sys.argv[3])
 words = []
 for line in sys.stdin:
     m = re.match(r"^([0-9a-f]{6}): ((?:[0-9a-f]{8} ?){4})\s*$", line.strip())
     if m:
         words.append([int(x, 16) for x in m.group(2).split()])
-raw = b"".join(struct.pack("<I", w) for line in words[-96:] for w in line)
+n = (W * H + W * H // 2) // 16
+raw = b"".join(struct.pack("<I", w) for line in words[-n:] for w in line)
 exp = np.load(sys.argv[1] + "/expected.npz")
-planes = {"Y": (raw[:1024], (32, 32)), "Cb": (raw[1024:1280], (16, 16)), "Cr": (raw[1280:1536], (16, 16))}
-for name, (b, shape) in planes.items():
-    got = np.frombuffer(b, np.uint8).reshape(shape).astype(int)
-    d = got - exp[name].astype(int)
-    print(name, "max abs error", abs(d).max(), "mean %.3f" % abs(d).mean(), "pixels off by more than 1:", int((abs(d) > 1).sum()))
-    for by in range(shape[0] // 8):
-        print("  8x8 block row", by, "errors:", [int(abs(d[by * 8:by * 8 + 8, bx * 8:bx * 8 + 8]).max()) for bx in range(shape[1] // 8)])
+Y = np.frombuffer(raw[:W * H], np.uint8).reshape(H, W).astype(int)
+uv = np.frombuffer(raw[W * H:], np.uint8).reshape(H // 2, W).astype(int)
+for name, got, e in (("Y", Y, exp["Y"]), ("Cb", uv[:, 0::2], exp["Cb"]), ("Cr", uv[:, 1::2], exp["Cr"])):
+    d = got - e.astype(int)
+    print(name, "max abs error", abs(d).max(), "mean %.3f" % abs(d).mean(), "pixels off by more than 1:", int((abs(d) > 1).sum()), "of", d.size)
+    bad = [(by, bx) for by in range(d.shape[0] // 8) for bx in range(d.shape[1] // 8) if abs(d[by * 8:by * 8 + 8, bx * 8:bx * 8 + 8]).max() > 1]
+    print("  8x8 blocks off by more than 1 (row, col):", bad[:20], "..." if len(bad) > 20 else "")

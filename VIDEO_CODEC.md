@@ -597,3 +597,12 @@ the last block was garbage: the engine reads ahead of the last symbol. Recipe (g
 Open: colour formats (0 = 4:2:0, 2 = 4:4:4, 3 = 4:2:2) with their chroma planes, images larger than one
 buffer, 16-bit Huffman codes (blocks after the first 0xF2 symbol did not decode), restart markers, the
 interrupt path, and the meaning of 0x38..0x44.
+
+### Colour (4:2:0, format code 0) works too
+
+32x32 4:2:0 JPEG, the same recipe with: reg 0x10 = 0<<29 | MCU rows<<13 | MCU columns (counted in MCUs, here
+2 and 2), reg 0x14 = ((W/2)+15)&~15 = 16, quantiser table 1 (chroma) at 0x1080, library default Huffman tables
+unchanged (the chroma tables work as loaded), one start per MCU row. Measured: Y is exact (max error 1, all 32
+rows, i.e. both MCU rows) and the chroma arrives as ONE interleaved Cb,Cr plane (NV12 layout, Cb first) at the
+address in reg 0x20, row stride = W bytes; reg 0x24 is not written in this format. Chroma rows 0-7 were
+checked against the expected planes (max error 1); rows 8-15 were not dumped. Y at 0x1c has stride W.

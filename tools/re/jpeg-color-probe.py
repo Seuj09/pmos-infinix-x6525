@@ -12,9 +12,16 @@ from PIL import Image
 
 so, out = sys.argv[1], sys.argv[2]
 os.makedirs(out, exist_ok=True)
-W = H = 32
-im = Image.new("RGB", (W, H))
-im.putdata([(x * 8, y * 8, 128 + x * 3 - y * 2) for y in range(H) for x in range(W)])
+W = int(sys.argv[3]) if len(sys.argv) > 3 else 32
+H = int(sys.argv[4]) if len(sys.argv) > 4 else 32
+NOISE = float(sys.argv[5]) if len(sys.argv) > 5 else 0.0   # noise makes long Huffman codes (16-bit) appear
+rng = np.random.default_rng(1)
+g = np.zeros((H, W, 3))
+for y in range(H):
+    for x in range(W):
+        g[y, x] = (x * 255 / W, y * 255 / H, 128 + 100 * np.sin(x / 7.0) * np.cos(y / 5.0))
+g += rng.normal(0, NOISE, g.shape)
+im = Image.fromarray(np.clip(g, 0, 255).astype(np.uint8), "RGB")
 b = io.BytesIO(); im.save(b, "JPEG", quality=90, subsampling=2); j = b.getvalue()
 
 qt, ht, scan = {}, {}, b""
@@ -71,6 +78,7 @@ def block(dc, ac, pred, q):
     for k in range(64): m[ZZ[k] // 8][ZZ[k] % 8] = z[k] * q[k]
     return np.clip(np.round(C.T @ m @ C) + 128, 0, 255).astype(np.uint8), pred
 Y = np.zeros((H, W), np.uint8); Cb = np.zeros((H // 2, W // 2), np.uint8); Cr = Cb.copy()
+assert W % 16 == 0 and H % 16 == 0
 pr = [0, 0, 0]
 for my in range(H // 16):
     for mx in range(W // 16):
@@ -98,18 +106,19 @@ for tab in (0, 1):                          # table 0 (luma) at 0x1000, table 1 
         slots[rev3(ZZ[k] % 8) * 8 + rev3(ZZ[k] // 8)] = qt[tab][k]
     t += ["w 0x%x 0x%x" % (0x1000 + 0x80 * tab + 4 * w, slots[2 * w] | slots[2 * w + 1] << 16) for w in range(32)]
 tab_lab = "\n".join(t) + "\n"
-L = ["clear", "buf 1 4096", "buf 2 4096", "buf 3 4096",
+L = ["clear", "buf 1 %d" % (W * H), "buf 2 %d" % (W * H // 2), "buf 3 4096",
      "w 0x154 0x0",
      "w 0x0c 0x%x" % ((((W + 15) >> 4) << 20) + W),
-     "w 0x10 0x%x" % ((0 << 29) | (2 << 13) | 2),               # format 0 (4:2:0), 2x2 MCUs of 16x16
+     "w 0x10 0x%x" % ((0 << 29) | ((H // 16) << 13) | (W // 16)),   # format 0 (4:2:0); counts in MCUs (checked at 32x32)
      "w 0x14 0x%x" % ((((W >> 1) + 15) & ~15) & 0xfff8),         # chroma stride
      "w 0x04 0x10140080", "w 0x18 0x%x" % len(stream),
      "wb 0x1c 1", "wb 0x20 2", "wb 0x24 3", "w 0x28 0x0", "wb 0x28 0",
      "w 0x30 0x960711", "w 0x34 0x1",
      "r 0x04 1", "r 0x38 4",
-     "w 0x04 0x10140281", "irq 200", "poll 0x15c 0x5 0x1 50", "r 0x15c 1", "r 0x38 4",
-     "w 0x04 0x10140281", "irq 200", "poll 0x15c 0x5 0x1 50", "r 0x15c 1", "r 0x38 4",
-     "bufdump 1 0 1024", "bufdump 2 0 256", "bufdump 3 0 256"]
+     ]
+for _ in range(H // 16):
+    L += ["w 0x04 0x10140281", "irq 50", "poll 0x15c 0x5 0x1 50", "r 0x15c 1", "r 0x38 4"]
+L += [     "bufdump 1 0 %d" % (W * H), "bufdump 2 0 %d" % (W * H // 2)]
 lab = "\n".join(L) + "\n"
 e = lambda x: base64.b64encode(x).decode()
 open(out + "/probe.sh", "w").write("""#!/bin/sh
@@ -117,11 +126,11 @@ open(out + "/probe.sh", "w").write("""#!/bin/sh
 D=/sys/kernel/debug/sprd-jpg
 feed() { while IFS= read -r l; do [ -n "$l" ] && printf '%%s\\n' "$l" > $D/lab_cmd; done; }
 echo off > $D/lab_cmd; sleep 1; echo on > $D/lab_cmd
-echo "buf 0 4096" > $D/lab_cmd
+echo "buf 0 %d" > $D/lab_cmd
 echo %s | base64 -d | dd of=$D/lab_buf0 conv=notrunc 2>/dev/null
 echo %s | base64 -d | feed
 echo clear > $D/lab_cmd
 echo %s | base64 -d | feed
 cat $D/lab_out
-""" % (e(stream), e(tab_lab.encode()), e(lab.encode())))
+""" % (len(stream) + 4096, e(stream), e(tab_lab.encode()), e(lab.encode())))
 print("stream bytes", len(stream), "MCUs", (W // 16) * (H // 16))
