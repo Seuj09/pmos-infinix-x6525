@@ -614,3 +614,13 @@ except the very last 8x8 block (the last symbols of the stream): its dequantised
 (zigzag 9 lost, +1/+3/-1.. at 19-25), i.e. the decoder mis-read the final ~20 bits even with EOI and 30 zero bytes
 counted in 0x18. So 16-bit codes work, and the last block is the stream-end problem again; the next probe pads
 254 bytes to see whether the needed padding scales.
+
+### Result: 64x64 noisy 4:2:0 is bit-exact (all planes within 1 LSB) with 254 bytes of padding
+
+Same image, stream followed by EOI and 254 zero bytes (all counted in 0x18): Y, Cb and Cr all within one LSB of
+the software decode (0 pixels off by more than 1 of 4096 / 1024 / 1024), including the last Cr block that was
+wrong with 30 bytes of padding. So the padding after the stream has to be larger than 32 bytes (the engine
+prefetches well beyond the last symbol); a driver can simply append 256 bytes. With the long padding the last
+two starts read 0x15c = 5 (bit 2 set next to the done bit) while the output is correct, so bit 2 is not an
+error flag here: it looks like "stream end reached". Poll for bit 0 only.
+Recipe additions: (a) pad >= 254 bytes after the last byte, (b) poll 0x15c & 1.
