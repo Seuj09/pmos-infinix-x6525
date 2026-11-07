@@ -318,10 +318,13 @@ jobs:
       - name: Build the Trusty modem probe module
         run: |
           # The probe has to match the kernel that is actually flashed, so
-          # build it after the ROM config replaced the tree's defconfig. It is
-          # a loadable module on purpose: no kernel image is needed to answer
-          # whether the secure monitor's Trusty SMC service still exists.
+          # build it against the config embedded in that kernel, not the
+          # pmaports snapshot (which lags by a few symbols), and from a tree
+          # without .git so setlocalversion does not add a "+" to the release.
           cd kernel
+          cp "$GITHUB_WORKSPACE"/probe/config-running.aarch64 .config
+          rm -rf .git
+          make ARCH=arm64 LLVM=1 olddefconfig
           make ARCH=arm64 LLVM=1 -j"$(nproc)" modules_prepare
           make ARCH=arm64 LLVM=1 -j"$(nproc)" KBUILD_MODPOST_WARN=1 \
             M="$GITHUB_WORKSPACE/probe" modules
