@@ -21,8 +21,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  KERNEL_REPO: https://codeberg.org/ums9230-mainline/linux
-  KERNEL_TAG: v7.2-rc6-ums9230-0
+  KERNEL_REPO: https://github.com/Seuj09/ums9230-mainline-linux
+  KERNEL_TAG: x6525
 
 jobs:
   build:
@@ -50,6 +50,8 @@ jobs:
           cp "$GITHUB_WORKSPACE"/probe/config-running.aarch64 .config
           make ARCH=arm64 LLVM=1 olddefconfig
           make ARCH=arm64 LLVM=1 -j"$(nproc)" modules_prepare
+          echo "autoconf:"
+          grep -E '^CONFIG_(KPROBES|DYNAMIC_DEBUG_CORE)=' include/generated/autoconf.h || true
           echo "resolved config:"
           grep -E '^CONFIG_(KPROBES|DYNAMIC_DEBUG_CORE|DYNAMIC_DEBUG|KALLSYMS|KALLSYMS_ALL|MODULE_UNLOAD|MODULE_SIG)=' \
             .config include/config/auto.conf || true
@@ -57,6 +59,13 @@ jobs:
             M="$GITHUB_WORKSPACE/probe" modules
           cp .config "$GITHUB_WORKSPACE"/probe/final.config
           ls -l "$GITHUB_WORKSPACE"/probe/trusty_probe.ko
+
+      - name: Build the Trusty modules
+        run: |
+          cd kernel
+          make ARCH=arm64 LLVM=1 -j"$(nproc)" KBUILD_MODPOST_WARN=1 \
+            M="$GITHUB_WORKSPACE/trusty" modules
+          ls -l "$GITHUB_WORKSPACE"/trusty/*.ko
 
       - name: Upload
         if: always()
@@ -66,4 +75,5 @@ jobs:
           path: |
             probe/trusty_probe.ko
             probe/final.config
+            trusty/*.ko
           if-no-files-found: warn
