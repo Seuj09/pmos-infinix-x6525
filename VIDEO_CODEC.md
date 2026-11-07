@@ -581,3 +581,19 @@ identical to the software decode (the only differences are single-LSB rounding i
 (the last symbols of the stream) was wrong. 0x15c = 1 after the second start. Hypothesis: the engine reads
 ahead of the final symbol, so the stream needs padding after its last byte; the next probe appends EOI and
 zero padding and counts them in 0x18.
+
+### Result: the stock-sequence decode is bit-exact on mainline
+
+Probe v7 (stream followed by EOI and 30 zero bytes, 0x18 = padded length) decoded the 16x16 grey JPEG with
+all 256 pixels within one LSB of the software decode (7 pixels differ by 1, IDCT rounding). `0x15c` bit 0
+(done) is now seen by `poll` right after the first start, and 0x38 counts 4 afterwards. Without the padding
+the last block was garbage: the engine reads ahead of the last symbol. Recipe (grey, format code 4):
+
+1. power on, load max-code (0x48..), symbol table (0x2000..), quantiser slots (0x1000.., bit-reversed order);
+2. 0x0c = ((W+15)>>4)<<20 + W, 0x10 = fmt<<29 | MCU rows<<13 | MCU columns, 0x14 = 0, 0x04 = 0x10140080,
+   0x18 = stream length including padding, 0x1c/0x20/0x24 = plane addresses, 0x28 = stream address, 0x30 = 0x960711,
+   0x34 = 1, then 0x04 = 0x10140281 (bit 0 starts);
+3. completion: 0x15c bit 0. No interrupt was seen in this mode (0x2c stays 0), so a driver should poll.
+Open: colour formats (0 = 4:2:0, 2 = 4:4:4, 3 = 4:2:2) with their chroma planes, images larger than one
+buffer, 16-bit Huffman codes (blocks after the first 0xF2 symbol did not decode), restart markers, the
+interrupt path, and the meaning of 0x38..0x44.
