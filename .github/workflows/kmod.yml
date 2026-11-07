@@ -37,7 +37,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            bc bison build-essential clang flex libelf-dev libssl-dev llvm lld
+            bc bison build-essential clang dwarves flex libelf-dev libssl-dev llvm lld
 
       - name: Checkout the kernel at ${{ env.KERNEL_TAG }}
         run: git clone --depth 1 --branch "$KERNEL_TAG" "$KERNEL_REPO" kernel
