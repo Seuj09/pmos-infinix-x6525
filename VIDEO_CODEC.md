@@ -606,3 +606,11 @@ unchanged (the chroma tables work as loaded), one start per MCU row. Measured: Y
 rows, i.e. both MCU rows) and the chroma arrives as ONE interleaved Cb,Cr plane (NV12 layout, Cb first) at the
 address in reg 0x20, row stride = W bytes; reg 0x24 is not written in this format. Chroma rows 0-7 were
 checked against the expected planes (max error 1); rows 8-15 were not dumped. Y at 0x1c has stride W.
+
+### 64x64 noisy 4:2:0, four starts
+
+16 MCUs, 1151 stream bytes with 6 sixteen-bit Huffman codes: Y exact (4096 px, max error 1), Cb exact, Cr exact
+except the very last 8x8 block (the last symbols of the stream): its dequantised coefficients show 7 stray steps
+(zigzag 9 lost, +1/+3/-1.. at 19-25), i.e. the decoder mis-read the final ~20 bits even with EOI and 30 zero bytes
+counted in 0x18. So 16-bit codes work, and the last block is the stream-end problem again; the next probe pads
+254 bytes to see whether the needed padding scales.

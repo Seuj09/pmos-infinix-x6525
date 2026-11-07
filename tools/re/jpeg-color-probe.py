@@ -92,7 +92,8 @@ np.savez(out + "/expected.npz", Y=Y, Cb=Cb, Cr=Cr)
 open(out + "/image.jpg", "wb").write(j)
 
 stream = scan.replace(b"", b"")            # entropy data exactly as in the file (already byte-stuffed)
-stream += b"\xff\xd9" + bytes(30)           # the engine reads ahead of the last symbol
+PAD = int(sys.argv[6]) if len(sys.argv) > 6 else 30
+stream += b"\xff\xd9" + bytes(PAD)           # the engine reads ahead of the last symbol
 
 d = open(so, "rb").read()
 maxc = struct.unpack("<66I", d[0x8208:0x8208 + 264]); sym = struct.unpack("<162I", d[0x8310:0x8310 + 648])
