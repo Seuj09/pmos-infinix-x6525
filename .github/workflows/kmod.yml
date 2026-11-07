@@ -16,13 +16,17 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: kmod-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   KERNEL_REPO: https://codeberg.org/ums9230-mainline/linux
   KERNEL_TAG: v7.2-rc6-ums9230-0
 
 jobs:
   build:
-    runs-on: namespace-profile-1
+    runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
