@@ -20,6 +20,19 @@
 #define SMC_FC_GET_VERSION_STR	SMC_FASTCALL_NR(SMC_ENTITY_SECURE_MONITOR, 10)
 #define SMC_FC_API_VERSION	SMC_FASTCALL_NR(SMC_ENTITY_SECURE_MONITOR, 11)
 
+#ifdef CONFIG_KPROBES
+#define PROBE_KPROBES "1"
+#else
+#define PROBE_KPROBES "0"
+#endif
+#ifdef CONFIG_DYNAMIC_DEBUG_CORE
+#define PROBE_DYNDBG "1"
+#else
+#define PROBE_DYNDBG "0"
+#endif
+
+MODULE_INFO(probe_flags, "kprobes=" PROBE_KPROBES " dyndbg=" PROBE_DYNDBG);
+
 static int __init trusty_probe_init(void)
 {
 	struct arm_smccc_res res;

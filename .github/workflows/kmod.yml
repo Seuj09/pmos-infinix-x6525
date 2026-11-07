@@ -51,7 +51,7 @@ jobs:
           make ARCH=arm64 LLVM=1 olddefconfig
           make ARCH=arm64 LLVM=1 -j"$(nproc)" modules_prepare
           echo "autoconf:"
-          grep -E '^CONFIG_(KPROBES|DYNAMIC_DEBUG_CORE)=' include/generated/autoconf.h || true
+          grep -E '^#define CONFIG_(KPROBES|DYNAMIC_DEBUG_CORE) ' include/generated/autoconf.h || true
           echo "resolved config:"
           grep -E '^CONFIG_(KPROBES|DYNAMIC_DEBUG_CORE|DYNAMIC_DEBUG|KALLSYMS|KALLSYMS_ALL|MODULE_UNLOAD|MODULE_SIG)=' \
             .config include/config/auto.conf || true
