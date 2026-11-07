@@ -14,6 +14,7 @@
 #include <linux/platform_device.h>
 #include <linux/mod_devicetable.h>
 #include <linux/notifier.h>
+#include <linux/panic_notifier.h>
 #include <linux/slab.h>
 #include <linux/mm.h>
 #include <linux/module.h>
@@ -310,7 +311,7 @@ static struct page **trusty_log_alloc_pages(size_t size, void **va)
 		pages[i] = page;
 	}
 
-	addr = vm_map_ram(pages, n, -1, PAGE_KERNEL);
+	addr = vm_map_ram(pages, n, -1);
 	if (!addr) {
 		result = -ENOMEM;
 		goto err;
@@ -561,7 +562,7 @@ error_alloc_state:
 	return result;
 }
 
-static int trusty_log_remove(struct platform_device *pdev)
+static void trusty_log_remove(struct platform_device *pdev)
 {
 	struct trusty_log_state *s = platform_get_drvdata(pdev);
 
@@ -578,8 +579,6 @@ static int trusty_log_remove(struct platform_device *pdev)
 	kfree(s);
 
 	sysfs_remove_group(&pdev->dev.kobj, &trusty_log_attr_group);
-
-	return 0;
 }
 
 static const struct of_device_id trusty_test_of_match[] = {

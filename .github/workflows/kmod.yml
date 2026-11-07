@@ -45,18 +45,25 @@ jobs:
       - name: Build the probe against the running config
         run: |
           cd kernel
+          KHEAD=$(git rev-parse HEAD)
           rm -rf .git
           make ARCH=arm64 LLVM=1 mrproper
           cp "$GITHUB_WORKSPACE"/probe/config-running.aarch64 .config
           make ARCH=arm64 LLVM=1 olddefconfig
           make ARCH=arm64 LLVM=1 -j"$(nproc)" modules_prepare
+          echo "kernel tree $KHEAD"
+          sha256sum include/linux/module.h
+          grep -n 'kprobes_text_start' include/linux/module.h || true
           echo "autoconf:"
           grep -E '^#define CONFIG_(KPROBES|DYNAMIC_DEBUG_CORE) ' include/generated/autoconf.h || true
           echo "resolved config:"
           grep -E '^CONFIG_(KPROBES|DYNAMIC_DEBUG_CORE|DYNAMIC_DEBUG|KALLSYMS|KALLSYMS_ALL|MODULE_UNLOAD|MODULE_SIG)=' \
             .config include/config/auto.conf || true
-          make ARCH=arm64 LLVM=1 -j"$(nproc)" KBUILD_MODPOST_WARN=1 \
-            M="$GITHUB_WORKSPACE/probe" modules
+          make ARCH=arm64 LLVM=1 -j"$(nproc)" KBUILD_MODPOST_WARN=1 KCFLAGS=-H \
+            M="$GITHUB_WORKSPACE/probe" modules > /tmp/probe-build.log 2>&1 || {
+              tail -100 /tmp/probe-build.log; exit 1; }
+          echo "headers used:"
+          grep -E '(linux/module\.h|generated/autoconf\.h)' /tmp/probe-build.log | head -10 || true
           cp .config "$GITHUB_WORKSPACE"/probe/final.config
           ls -l "$GITHUB_WORKSPACE"/probe/trusty_probe.ko
 

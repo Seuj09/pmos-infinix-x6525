@@ -29,7 +29,12 @@
 #include <linux/virtio.h>
 #include <linux/virtio_ids.h>
 #include <linux/virtio_config.h>
+#include <linux/string.h>
 #include <linux/trusty/trusty_ipc.h>
+
+#ifndef VIRTIO_ID_TRUSTY_IPC
+#define VIRTIO_ID_TRUSTY_IPC		13
+#endif
 
 #ifdef pr_fmt
 #undef pr_fmt
@@ -1776,8 +1781,10 @@ static int tipc_virtio_probe(struct virtio_device *vdev)
 	struct tipc_msg_buf *mb;
 	struct scatterlist *sg;
 	int rxvq_num;
-	vq_callback_t *vq_cbs[] = {_rxvq_cb, _txvq_cb};
-	static const char * const vq_names[] = { "rx", "tx" };
+	struct virtqueue_info vqs_info[] = {
+		{ .name = "rx", .callback = _rxvq_cb, .ctx = false },
+		{ .name = "tx", .callback = _txvq_cb, .ctx = false },
+	};
 
 	dev_dbg(&vdev->dev, "%s:\n", __func__);
 
@@ -1806,8 +1813,7 @@ static int tipc_virtio_probe(struct virtio_device *vdev)
 	vds->cdev_name[sizeof(vds->cdev_name)-1] = '\0';
 
 	/* find tx virtqueues (rx and tx and in this order) */
-	err = vdev->config->find_vqs(vdev,
-				     2, vqs, vq_cbs, vq_names, NULL, NULL);
+	err = vdev->config->find_vqs(vdev, 2, vqs, vqs_info, NULL);
 
 	if (err)
 		goto err_find_vqs;
@@ -1967,6 +1973,6 @@ static void __exit tipc_exit(void)
 subsys_initcall(tipc_init);
 module_exit(tipc_exit);
 
-MODULE_DEVICE_TABLE(tipc, tipc_virtio_id_table);
+MODULE_DEVICE_TABLE(virtio, tipc_virtio_id_table);
 MODULE_DESCRIPTION("Trusty IPC driver");
 MODULE_LICENSE("GPL v2");
