@@ -572,3 +572,12 @@ slot = 8 * rev3(u) + rev3(v) + 1. The model reproduces both earlier phone output
 probe: block 32 is the first with a 16-bit Huffman code (symbol 0xF2); real images rarely use those.
 Pixels are plain 8-bit (level shift 128 included), written with stride = image width, one start per
 MCU row in the probes so far (the probe never needed more than one start for 32 blocks of one row).
+
+## First correct decode
+
+Probe v6 (16x16 grey baseline JPEG from Pillow, tables from the stock library, quantiser window in the
+measured bit-reversed slot order, two starts, one per MCU row): three of the four 8x8 blocks came out
+identical to the software decode (the only differences are single-LSB rounding in the IDCT), the last block
+(the last symbols of the stream) was wrong. 0x15c = 1 after the second start. Hypothesis: the engine reads
+ahead of the final symbol, so the stream needs padding after its last byte; the next probe appends EOI and
+zero padding and counts them in 0x18.

@@ -9,7 +9,7 @@ for line in sys.stdin:
     if m:
         words.append([int(x, 16) for x in m.group(2).split()])
 # the probe prints three dumps (buf 1 after the second start, 16/4/4 lines): take the first of the last group
-ws = words[-24:-8]
+ws = [w for line in words[-24:-8] for w in line]
 got = np.array(list(b"".join(struct.pack("<I", w) for w in ws))).reshape(16, 16)
 exp = np.array(list(open(sys.argv[1] + "/expected.bin", "rb").read())).reshape(16, 16)
 print("max abs error", np.abs(got - exp).max(), " mean", np.abs(got - exp).mean())

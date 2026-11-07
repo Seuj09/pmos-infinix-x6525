@@ -23,6 +23,7 @@ j = b.getvalue()
 sos = j.rfind(b"\xff\xda")
 hl = struct.unpack(">H", j[sos + 2:sos + 4])[0]
 scan = j[sos + 2 + hl:-2]
+scan += b"\xff\xd9" + bytes(30)      # EOI and zero padding: the engine reads ahead of the last symbol
 open(out + "/scan.bin", "wb").write(scan)
 dec = Image.open(io.BytesIO(j)).convert("L")
 open(out + "/expected.bin", "wb").write(bytes(dec.tobytes()))
