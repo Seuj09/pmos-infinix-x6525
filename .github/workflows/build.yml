@@ -11,6 +11,7 @@ on:
       - "uboot/**"
       - "tools/**"
       - "pmaports/**"
+      - "probe/**"
       - ".github/workflows/build.yml"
 
 permissions:
@@ -314,6 +315,17 @@ jobs:
           done
           echo "the ROM's kernel config takes all six"
 
+      - name: Build the Trusty modem probe module
+        run: |
+          # The probe has to match the kernel that is actually flashed, so
+          # build it after the ROM config replaced the tree's defconfig. It is
+          # a loadable module on purpose: no kernel image is needed to answer
+          # whether the secure monitor's Trusty SMC service still exists.
+          cd kernel
+          make ARCH=arm64 LLVM=1 -j"$(nproc)" modules_prepare
+          make ARCH=arm64 LLVM=1 -j"$(nproc)" M="$GITHUB_WORKSPACE/probe" modules
+          ls -l "$GITHUB_WORKSPACE"/probe/trusty_probe.ko
+
       - name: Upload what was built
         if: always()
         uses: actions/upload-artifact@v4
@@ -325,6 +337,7 @@ jobs:
             kernel/drivers/input/touchscreen/ovt-tcm-spi.o
             kernel/drivers/power/supply/extcon-charger-detect.o
             kernel/.config
+            probe/trusty_probe.ko
           if-no-files-found: warn
 
   uboot:
