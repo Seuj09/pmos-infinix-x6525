@@ -66,6 +66,14 @@ jobs:
           grep -E '(linux/module\.h|generated/autoconf\.h)' /tmp/probe-build.log | head -10 || true
           cp .config "$GITHUB_WORKSPACE"/probe/final.config
           ls -l "$GITHUB_WORKSPACE"/probe/trusty_probe.ko
+          echo "module objects:"
+          for f in "$GITHUB_WORKSPACE"/probe/trusty_probe.o \
+                   "$GITHUB_WORKSPACE"/probe/trusty_probe.mod.o; do
+            echo "-- $(basename "$f")"
+            readelf -SW "$f" 2>/dev/null | grep this_module || true
+          done
+          echo "mod.c head:"
+          sed -n '1,40p' "$GITHUB_WORKSPACE"/probe/trusty_probe.mod.c || true
 
       - name: Build the Trusty modules
         run: |
