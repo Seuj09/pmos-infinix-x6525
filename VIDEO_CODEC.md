@@ -559,3 +559,16 @@ saturated garbage, and neither matches a software decode of the same stream, so 
 quantiser slots (32 words x 2 halves) onto coefficient positions is not what the stock code's read suggested.
 `tools/re/jpeg-window-probe.py` / `jpeg-window-fit.py` measure it directly: a hand-made stream of 64 blocks
 (one MCU row, 512x8) with one coefficient each and the window filled with slot numbers 1..64.
+
+## Quantiser window mapping, measured (the key to correct pixels)
+
+The window at 0x1000 (one table per 0x80 bytes) is 64 16-bit slots, word w = slot 2w (low) | slot 2w+1 (high).
+The coefficient at raster row v, column u is dequantised with slot `rev3(u) * 8 + rev3(v)`, where rev3 is a
+3-bit bit reversal (the IDCT runs in bit-reversed order). Found with `tools/re/jpeg-window-probe.py`: 64
+blocks with one coefficient each, window filled with the slot numbers; blocks 1-31 gave slot numbers 33,
+17, 49, 9, 41, 25, 57 for u = 1..7 along row 0 and 4, 2, 6, 1 for v = 1..4 along column 0, i.e.
+slot = 8 * rev3(u) + rev3(v) + 1. The model reproduces both earlier phone outputs exactly (mean error 0.008 and
+0.0 over 2 x 128 pixels), including the saturated one. Blocks from number 32 on were not decoded in that
+probe: block 32 is the first with a 16-bit Huffman code (symbol 0xF2); real images rarely use those.
+Pixels are plain 8-bit (level shift 128 included), written with stride = image width, one start per
+MCU row in the probes so far (the probe never needed more than one start for 32 blocks of one row).

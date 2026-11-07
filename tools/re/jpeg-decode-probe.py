@@ -38,12 +38,20 @@ t = tables.append
 t("w 0x48 0x%x" % maxc[0]); t("w 0x4c 0x%x" % maxc[1])
 for i in range(64): t("w 0x%x 0x%x" % (0x50 + 4 * i, maxc[2 + i]))
 for i, v in enumerate(sym): t("w 0x%x 0x%x" % (0x2000 + 4 * i, v))
-# quantisation window (JPEGFW_AdjustQuantTbl_Dec, hardware path): word j = Q[2j] | Q[2j+1] << 16 with
-# Q in zigzag order (the order the entropy decoder delivers coefficients); table n at 0x1000 + 0x80 * n
+# quantisation window, measured on the phone (tools/re/jpeg-window-probe.py): 64 16-bit slots, word w holds
+# slot 2w (low) and 2w+1 (high); the coefficient at raster row v, column u uses slot rev3(u)*8 + rev3(v)
+# (the IDCT works in bit-reversed order). One table per 0x80 bytes.
+ZZ = [0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5, 12, 19, 26, 33, 40, 48, 41, 34, 27, 20, 13, 6, 7, 14, 21, 28,
+      35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51, 58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63]
+rev3 = lambda x: ((x & 1) << 2) | (x & 2) | ((x >> 2) & 1)
 dqt = j.find(b"\xff\xdb")
-q = list(j[dqt + 5:dqt + 5 + 64])
-for k in range(32): t("w 0x%x 0x%x" % (0x1000 + 4 * k, q[2 * k] | q[2 * k + 1] << 16))
-qt = q
+qzz = list(j[dqt + 5:dqt + 5 + 64])              # DQT is in zigzag order
+slots = [0] * 64
+for k in range(64):
+    v, u = ZZ[k] // 8, ZZ[k] % 8
+    slots[rev3(u) * 8 + rev3(v)] = qzz[k]
+for w in range(32): t("w 0x%x 0x%x" % (0x1000 + 4 * w, slots[2 * w] | slots[2 * w + 1] << 16))
+qt = qzz
 L = []
 a = L.append
 a("clear")
