@@ -323,7 +323,8 @@ jobs:
           # whether the secure monitor's Trusty SMC service still exists.
           cd kernel
           make ARCH=arm64 LLVM=1 -j"$(nproc)" modules_prepare
-          make ARCH=arm64 LLVM=1 -j"$(nproc)" M="$GITHUB_WORKSPACE/probe" modules
+          make ARCH=arm64 LLVM=1 -j"$(nproc)" KBUILD_MODPOST_WARN=1 \
+            M="$GITHUB_WORKSPACE/probe" modules
           ls -l "$GITHUB_WORKSPACE"/probe/trusty_probe.ko
 
       - name: Upload what was built
