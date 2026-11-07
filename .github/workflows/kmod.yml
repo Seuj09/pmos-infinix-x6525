@@ -1,0 +1,60 @@
+name: kmod
+
+# Build the out-of-tree Trusty modules (and the small SMC probe) against the
+# kernel tag with the config embedded in the installed kernel. Kept separate
+# from build.yml: that job spends most of its time on the device tree and the
+# submission checks, which are irrelevant to a compile-only iteration.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  KERNEL_REPO: https://codeberg.org/ums9230-mainline/linux
+  KERNEL_TAG: v7.2-rc6-ums9230-0
+
+jobs:
+  build:
+    runs-on: namespace-profile-1
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout the port
+        uses: actions/checkout@v4
+
+      - name: Host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential clang flex libelf-dev libssl-dev llvm lld
+
+      - name: Checkout the kernel at ${{ env.KERNEL_TAG }}
+        run: git clone --depth 1 --branch "$KERNEL_TAG" "$KERNEL_REPO" kernel
+
+      - name: Build the probe against the running config
+        run: |
+          cd kernel
+          rm -rf .git
+          make ARCH=arm64 LLVM=1 mrproper
+          cp "$GITHUB_WORKSPACE"/probe/config-running.aarch64 .config
+          make ARCH=arm64 LLVM=1 olddefconfig
+          make ARCH=arm64 LLVM=1 -j"$(nproc)" modules_prepare
+          echo "resolved config:"
+          grep -E '^CONFIG_(KPROBES|DYNAMIC_DEBUG_CORE|DYNAMIC_DEBUG|KALLSYMS|KALLSYMS_ALL|MODULE_UNLOAD|MODULE_SIG)=' \
+            .config include/config/auto.conf || true
+          make ARCH=arm64 LLVM=1 -j"$(nproc)" KBUILD_MODPOST_WARN=1 \
+            M="$GITHUB_WORKSPACE/probe" modules
+          cp .config "$GITHUB_WORKSPACE"/probe/final.config
+          ls -l "$GITHUB_WORKSPACE"/probe/trusty_probe.ko
+
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trusty-probe
+          path: |
+            probe/trusty_probe.ko
+            probe/final.config
+          if-no-files-found: warn
