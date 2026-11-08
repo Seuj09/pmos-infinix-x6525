@@ -13,6 +13,7 @@ on:
       - "trusty/**"
       - "pmu/**"
       - "modem/**"
+      - "mempeek/**"
       - ".github/workflows/kmod.yml"
 
 permissions:
@@ -98,6 +99,13 @@ jobs:
             M="$GITHUB_WORKSPACE/modem" modules
           ls -l "$GITHUB_WORKSPACE"/modem/*.ko
 
+      - name: Build the memory peek helper
+        run: |
+          cd kernel
+          make ARCH=arm64 LLVM=1 -j"$(nproc)" KBUILD_MODPOST_WARN=1 \
+            M="$GITHUB_WORKSPACE/mempeek" modules
+          ls -l "$GITHUB_WORKSPACE"/mempeek/*.ko
+
       - name: Upload
         if: always()
         uses: actions/upload-artifact@v4
@@ -109,4 +117,5 @@ jobs:
             trusty/*.ko
             pmu/*.ko
             modem/*.ko
+            mempeek/*.ko
           if-no-files-found: warn
