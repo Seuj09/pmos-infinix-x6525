@@ -12,8 +12,9 @@ from PIL import Image
 
 so, out, which = sys.argv[1], sys.argv[2], sys.argv[3]
 os.makedirs(out, exist_ok=True)
-CASES = {"A": [("444", 32, 32), ("422", 32, 32)], "C": [("422", 32, 32)], "B": [("gray", 48, 24), ("420odd", 50, 38)]}[which]
-FMT = {"444": (2, 8, 8, 0), "422": (3, 16, 8, 1), "420odd": (0, 16, 16, 2), "gray": (4, 8, 8, None)}  # code, mcu w, h, PIL subsampling
+CASES = {"A": [("444", 32, 32), ("422", 32, 32)], "C": [("422", 32, 32)], "D": [("422", 32, 32), ("422b", 32, 32), ("444", 32, 32), ("444b", 32, 32)], "B": [("gray", 48, 24), ("420odd", 50, 38)]}[which]
+RESET = {"422b": "none", "444": "none", "444b": "tabs"}  # set D: what to do before the case
+FMT = {"422b": (3, 16, 8, 1), "444b": (2, 8, 8, 0), "444": (2, 8, 8, 0), "422": (3, 16, 8, 1), "420odd": (0, 16, 16, 2), "gray": (4, 8, 8, None)}  # code, mcu w, h, PIL subsampling
 ZZ = [0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5, 12, 19, 26, 33, 40, 48, 41, 34, 27, 20, 13, 6, 7, 14, 21, 28,
       35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51, 58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63]
 C = np.array([[(np.sqrt(.125) if u == 0 else .5) * np.cos((2 * x + 1) * u * np.pi / 16) for x in range(8)] for u in range(8)])
@@ -124,8 +125,10 @@ for name, W, H in CASES:
     L += ["bufdump 1 0 %d" % ysz, "bufdump 2 0 %d" % (2 * ysz if code in (2,) else ysz), "bufdump 3 0 %d" % (ysz if code in (2, 3) else 64)]
     L = [l for l in L if not l.startswith("echo ====")]
     sh += ["echo '==== case %s %dx%d fmt %d'" % (name, W, H, code)]
-    if sh.count("##tabs") or True:
-        sh += ["echo off > $D/lab_cmd; sleep 1; echo on > $D/lab_cmd", "echo %s | base64 -d | feed" % e(("\n".join(tab) + "\n").encode())] if len(meta) else []
+    mode = RESET.get(name, "full") if which == "D" else "full"
+    tabcmd = "echo %s | base64 -d | feed" % e(("\n".join(tab) + "\n").encode())
+    if mode == "full" and len(meta): sh += ["echo off > $D/lab_cmd; sleep 1; echo on > $D/lab_cmd", tabcmd]
+    if mode == "tabs": sh += [tabcmd]
     sh += ["echo clear > $D/lab_cmd",
            "echo \"buf 0 %d\" > $D/lab_cmd" % (len(stream) + 4096),
            "echo %s | base64 -d | dd of=$D/lab_buf0 conv=notrunc 2>/dev/null" % e(stream),
