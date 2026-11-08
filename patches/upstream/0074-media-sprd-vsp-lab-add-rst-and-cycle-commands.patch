@@ -1,0 +1,64 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ci <a@b>
+Date: Sun, 8 Nov 2026 16:40:00 +0800
+Subject: [PATCH 74/74] media: sprd-vsp: lab: add rst and cycle commands
+
+The JPEG block has to be reset between images. Add a reset-line-only command
+and a full power-cycle command, both timed, to find the cheaper way.
+---
+ drivers/media/platform/sprd/vsp/vsp-lab.c | 30 +++++++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+
+diff --git a/drivers/media/platform/sprd/vsp/vsp-lab.c b/drivers/media/platform/sprd/vsp/vsp-lab.c
+--- a/drivers/media/platform/sprd/vsp/vsp-lab.c
++++ b/drivers/media/platform/sprd/vsp/vsp-lab.c
+@@ -20,6 +20,8 @@
+  *   wb OFF N [SHIFT [ADD]]       write (bus address of buffer N + ADD) >> SHIFT to a register
+  *   bufdump N [OFF [LEN]]        hex dump of a buffer into the output
+  *   irq [MS]                     wait for the next interrupt, report its status (reg 0x2c)
++ *   rst [US]                     assert, wait US us (default 10), deassert the reset line only; reports the time
++ *   cycle                        drop and retake the power reference (clocks + reset); reports the time
+  *   clear                        empty the output
+  * Buffers are also readable and writable as files lab_buf0..3 (cat / dd).
+  */
+@@ -30,6 +32,9 @@
+ #include <linux/io.h>
+ #include <linux/iopoll.h>
+ #include <linux/pm_runtime.h>
++#include <linux/reset.h>
++#include <linux/delay.h>
++#include <linux/ktime.h>
+ #include <linux/seq_file.h>
+ #include <linux/slab.h>
+ #include <linux/vmalloc.h>
+@@ -154,6 +159,28 @@
+ 		return lab_power(lab, true);
+ 	if (!strcmp(cmd, "off"))
+ 		return lab_power(lab, false);
++	if (!strcmp(cmd, "rst") || !strcmp(cmd, "cycle")) {
++		ktime_t t0;
++		int ret = 0;
++
++		if (!lab->powered) {
++			lab_log(lab, "%s: not powered, run 'on' first\n", cmd);
++			return -EIO;
++		}
++		t0 = ktime_get();
++		if (cmd[0] == 'r') {
++			ret = reset_control_assert(lab->vsp->rsts);
++			udelay(nargs ? a[0] : 10);
++			if (!ret)
++				ret = reset_control_deassert(lab->vsp->rsts);
++		} else {
++			pm_runtime_put_sync(lab->vsp->dev);
++			ret = pm_runtime_resume_and_get(lab->vsp->dev);
++		}
++		lab_log(lab, "%s: %d, %lld us\n", cmd, ret,
++			ktime_to_us(ktime_sub(ktime_get(), t0)));
++		return ret;
++	}
+ 	if (!strcmp(cmd, "clear")) {
+ 		lab->out_len = 0;
+ 		return 0;
+-- 
+2.43.0
