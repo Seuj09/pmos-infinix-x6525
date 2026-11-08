@@ -11,6 +11,8 @@
 #include <linux/regmap.h>
 #include <linux/remoteproc.h>
 #include <linux/reset.h>
+#include <linux/string.h>
+#include <linux/moduleparam.h>
 
 #include "sprd_common.h"
 
@@ -67,6 +69,10 @@ const struct sprd_modem_region_def sprd_modem_region_defs[] = {
 	{ .name = "ldsp", .filename = "sprd/l_ldsp.bin" },
 	{ /* sentinel */ }
 };
+
+static char *cp_cmdline_param;
+module_param_named(cp_cmdline, cp_cmdline_param, charp, 0644);
+MODULE_PARM_DESC(cp_cmdline, "Override the modem cp command line");
 
 static int sprd_modem_load_region(struct sprd_modem *m,
 				  const struct firmware *fw,
@@ -266,7 +272,10 @@ static int sprd_modem_probe(struct platform_device *pdev)
 	m = rproc->priv;
 	m->dev = dev;
 
-	of_property_read_string(dev->of_node, "sprd,cp-cmdline", &m->cp_cmdline);
+	m->cp_cmdline = cp_cmdline_param;
+	if (!m->cp_cmdline)
+		of_property_read_string(dev->of_node, "sprd,cp-cmdline",
+					&m->cp_cmdline);
 
 	m->info = of_device_get_match_data(dev);
 	if (!m->info)
