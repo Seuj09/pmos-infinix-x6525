@@ -16,6 +16,7 @@
 #include <linux/moduleparam.h>
 #include <linux/of.h>
 #include <linux/regmap.h>
+#include <linux/string.h>
 
 #define PMU_PATH "/soc/syscon@64020000"
 #define AON_PATH "/soc/syscon@64000000"
@@ -44,6 +45,8 @@ static bool direct_test;
 static bool unlock_aon;
 static bool direct_start;
 static unsigned int aon_key = 0x9620;
+static char *pmu_wr;
+static char *aon_wr;
 
 module_param(start, bool, 0444);
 MODULE_PARM_DESC(start, "Run the PUBCP power-on and reset-release sequence");
@@ -61,6 +64,10 @@ module_param(direct_start, bool, 0444);
 MODULE_PARM_DESC(direct_start, "Use direct status writes instead of aliases for start");
 module_param(aon_key, uint, 0444);
 MODULE_PARM_DESC(aon_key, "Value written to AON_REG_PROT (default 0x9620)");
+module_param(pmu_wr, charp, 0444);
+MODULE_PARM_DESC(pmu_wr, "Prior direct writes: reg:val;reg:val (hex)");
+module_param(aon_wr, charp, 0444);
+MODULE_PARM_DESC(aon_wr, "Prior direct writes: reg:val;reg:val (hex)");
 
 static struct regmap *pmu;
 static struct regmap *aon;
@@ -100,6 +107,38 @@ static void direct(struct regmap *map, const char *tag, unsigned int reg,
 		set ? "set" : "clear", tag, reg, ret, v);
 }
 
+static void do_writes(struct regmap *map, const char *tag, const char *list)
+{
+	char *buf, *cur, *tok;
+
+	if (!list || !*list)
+		return;
+	buf = kstrdup(list, GFP_KERNEL);
+	if (!buf)
+		return;
+	cur = buf;
+	while ((tok = strsep(&cur, ";")) != NULL) {
+		unsigned int reg, val, v = 0;
+		char *sep;
+
+		if (!*tok)
+			continue;
+		sep = strchr(tok, ':');
+		if (!sep)
+			continue;
+		*sep++ = '\0';
+		if (kstrtouint(tok, 0, &reg) || kstrtouint(sep, 0, &val)) {
+			pr_warn("pmu_poke: bad write '%s:%s'\n", tok, sep);
+			continue;
+		}
+		regmap_write(map, reg, val);
+		regmap_read(map, reg, &v);
+		pr_info("pmu_poke: prio %s write 0x%03x = 0x%x -> 0x%08x\n",
+			tag, reg, val, v);
+	}
+	kfree(buf);
+}
+
 static int __init pmu_poke_init(void)
 {
 	struct device_node *np;
@@ -130,6 +169,13 @@ static int __init pmu_poke_init(void)
 	show(aon, "aon", AON_REG_PROT);
 	show(aon, "aon", AON_PCP_SOFT_RST);
 	show(aon, "aon", AON_PCP_AON_EB);
+
+	do_writes(pmu, "pmu", pmu_wr);
+	do_writes(aon, "aon", aon_wr);
+
+	show(pmu, "pmu", PMU_PD_PUBCP_CFG0);
+	show(pmu, "pmu", PMU_SYS_SOFT_RST0);
+	show(aon, "aon", AON_PCP_SOFT_RST);
 
 	if (unlock_aon) {
 		unsigned int v = 0;
