@@ -12,6 +12,7 @@ on:
       - "probe/**"
       - "trusty/**"
       - "pmu/**"
+      - "modem/**"
       - ".github/workflows/kmod.yml"
 
 permissions:
@@ -90,6 +91,13 @@ jobs:
             M="$GITHUB_WORKSPACE/pmu" modules
           ls -l "$GITHUB_WORKSPACE"/pmu/*.ko
 
+      - name: Build the patched modem driver
+        run: |
+          cd kernel
+          make ARCH=arm64 LLVM=1 -j"$(nproc)" KBUILD_MODPOST_WARN=1 \
+            M="$GITHUB_WORKSPACE/modem" modules
+          ls -l "$GITHUB_WORKSPACE"/modem/*.ko
+
       - name: Upload
         if: always()
         uses: actions/upload-artifact@v4
@@ -100,4 +108,5 @@ jobs:
             probe/final.config
             trusty/*.ko
             pmu/*.ko
+            modem/*.ko
           if-no-files-found: warn
