@@ -654,3 +654,22 @@ Four decodes in a row on the phone, `probe.sh` set D:
 So after one decode the block stays in a "stream end" state (0x15c bit 2 already set when the next start is given, so the wait for bit 0 returns at once and no data is written); rewriting the registers or the tables does not clear it. Only the power cycle done by the lab's `off`/`on` (runtime PM put, then resume with the reset lines toggled) does. The stock library resets the block through a driver ioctl (`JPG_Reset` / `JPG_reset_cb`, and "after reset" in `JpegEnc_HwTopRegCfg`) at the start of each job, which matches this.
 
 Driver consequence: each job must power-cycle/reset the block and then reload the Huffman and quantiser windows (the reset clears them). The `rsts` reset line is currently requested as shared (patch 0047), where `reset_control_reset()` is not allowed, so the per-job reset should go through a runtime-PM suspend/resume (autosuspend delay 0) or an exclusive reset control. Still to be measured: the cost of that cycle per image and whether a plain reset-line toggle (without the power domain) is enough.
+
+## V4L2 JPEG decoder (patch 0075)
+
+`sprd-vsp` now registers a memory-to-memory decoder for the JPEG codec node (`vsp-jpeg.c`, name "sprd-jpg-dec", next to the debugfs lab).
+It follows the recipe above and has **not run on the phone yet**; the parser was checked against the probe streams on a PC
+(`tools/re/jpeg-test`), the register sequence is the one measured with the lab.
+
+- Output queue `JPEG`, capture queue `NV12` (4:2:0), `NV16` (4:2:2 and 4:4:4, which comes out as 4:2:2) or `GREY`.
+- Accepts 8-bit baseline, one scan, no restart markers, up to 4096x4096, standard Huffman tables only (the hardware has no way to
+  take the stream's tables; anything else fails the buffer). Optimised-Huffman, progressive, restart-marker and 4:1:1/4:4:0 files are refused.
+- The capture format must have bytesperline = align16(JPEG width) and a height of at least align16(JPEG height) (the chroma plane
+  starts at bytesperline * height); the caller learns the size from the file and crops. A mismatch fails the buffer (see `dmesg` with dyndbg).
+- Per image: parse the header, copy the scan into a private buffer followed by EOI + 254 zero bytes, power cycle the block
+  (`pm_runtime_put_sync` after every job), load Huffman and quantiser windows, set the header registers, one start per MCU row.
+- Open questions the first run on hardware answers: whether the per-job power cycle really resets (the reset line is "shared"
+  with the VSP node), and whether the completion bit can be read straight after a start (the driver waits 20 us + 2 us per MCU column first
+  because the bit may still be set from the previous row). The lab commands `rst`/`cycle` (patch 0074) time the cheaper resets.
+- Test on the phone: `sudo sh tools/re/jpeg-v4l2-test.sh` (needs `v4l-utils`, python3 with numpy); it decodes the four test files, then
+  decodes 4:2:2 again to prove the reset.

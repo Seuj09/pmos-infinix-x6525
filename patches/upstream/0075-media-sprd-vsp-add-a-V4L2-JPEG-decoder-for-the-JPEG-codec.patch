@@ -1,0 +1,1064 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ci <a@b>
+Date: Sun, 8 Nov 2026 17:30:00 +0800
+Subject: [PATCH 75/75] media: sprd-vsp: add a V4L2 JPEG decoder for the JPEG codec
+
+Baseline JPEG (4:2:0, 4:2:2, 4:4:4, greyscale) through the sequence measured
+with the register lab. The block is power cycled for every image, the tables are
+reloaded, the stream is copied into a buffer of its own with EOI and 254 zero
+bytes behind it, and one start is given per MCU row. Only the standard Huffman
+tables are decoded, other streams are refused.
+---
+diff --git a/drivers/media/platform/sprd/vsp/vsp.h b/drivers/media/platform/sprd/vsp/vsp.h
+--- a/drivers/media/platform/sprd/vsp/vsp.h
++++ b/drivers/media/platform/sprd/vsp/vsp.h
+@@ -53,11 +53,15 @@
+ 	struct delayed_work watchdog;
+ 	int irq;
+ 	bool v4l2_registered;
++	bool jpeg_registered;
+ };
+ 
+ int sprd_vsp_dec_register(struct sprd_vsp *vsp);
+ void sprd_vsp_dec_unregister(struct sprd_vsp *vsp);
+ 
++int sprd_vsp_jpeg_register(struct sprd_vsp *vsp);
++void sprd_vsp_jpeg_unregister(struct sprd_vsp *vsp);
++
+ void sprd_vsp_lab_register(struct sprd_vsp *vsp);
+ void sprd_vsp_lab_unregister(struct sprd_vsp *vsp);
+ 
+diff --git a/drivers/media/platform/sprd/vsp/vsp.c b/drivers/media/platform/sprd/vsp/vsp.c
+--- a/drivers/media/platform/sprd/vsp/vsp.c
++++ b/drivers/media/platform/sprd/vsp/vsp.c
+@@ -187,6 +187,9 @@
+ 			dev_warn(dev, "decoder not registered: %d\n", ret);
+ 	} else {
+ 		sprd_vsp_lab_register(vsp);
++		ret = sprd_vsp_jpeg_register(vsp);
++		if (ret)
++			dev_warn(dev, "JPEG decoder not registered: %d\n", ret);
+ 	}
+ 
+ 	dev_info(dev, "ready; cat /sys/kernel/debug/%s/regs powers it and dumps its registers\n",
+@@ -200,6 +203,7 @@
+ 	struct sprd_vsp *vsp = platform_get_drvdata(pdev);
+ 
+ 	sprd_vsp_dec_unregister(vsp);
++	sprd_vsp_jpeg_unregister(vsp);
+ 	sprd_vsp_lab_unregister(vsp);
+ 	debugfs_remove_recursive(vsp->dir);
+ }
+diff --git a/drivers/media/platform/sprd/vsp/Makefile b/drivers/media/platform/sprd/vsp/Makefile
+--- a/drivers/media/platform/sprd/vsp/Makefile
++++ b/drivers/media/platform/sprd/vsp/Makefile
+@@ -1,5 +1,5 @@
+ # SPDX-License-Identifier: GPL-2.0
+ 
+-sprd-vsp-objs := vsp.o vsp-dec.o vsp-lab.o
++sprd-vsp-objs := vsp.o vsp-dec.o vsp-lab.o vsp-jpeg.o
+ 
+ obj-$(CONFIG_VIDEO_SPRD_VSP) += sprd-vsp.o
+diff --git a/drivers/media/platform/sprd/vsp/Kconfig b/drivers/media/platform/sprd/vsp/Kconfig
+--- a/drivers/media/platform/sprd/vsp/Kconfig
++++ b/drivers/media/platform/sprd/vsp/Kconfig
+@@ -16,5 +16,8 @@
+ 	  EXPERIMENTAL stateless H.264 decoder (intra slices only for now) written
+ 	  from a reverse-engineered register map; it has not been verified on hardware.
+ 
++	  The JPEG codec gets a V4L2 memory-to-memory decoder for baseline JPEG
++	  (4:2:0, 4:2:2, 4:4:4 and greyscale, standard Huffman tables only).
++
+ 	  To compile this driver as a module, choose M here: the module
+ 	  will be called sprd-vsp.
+diff --git a/drivers/media/platform/sprd/vsp/vsp-jpeg.c b/drivers/media/platform/sprd/vsp/vsp-jpeg.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/media/platform/sprd/vsp/vsp-jpeg.c
+@@ -0,0 +1,852 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Unisoc UMS9230 JPEG codec: V4L2 memory-to-memory decoder for baseline JPEG.
++ *
++ * The programming sequence is the one of the vendor library (libjpeg_hw_sprd.so)
++ * as measured on the phone through the register lab (VIDEO_CODEC.md):
++ *
++ *  - the block is reset (power cycled) for every image: after one decode it
++ *    stays in a "stream end" state that only a reset clears;
++ *  - the Huffman and quantiser windows are loaded, the header registers are
++ *    set and one start is given per MCU row. The hardware cannot take the
++ *    tables of the stream: it always decodes with the standard (Annex K)
++ *    Huffman tables, so streams with other tables are refused;
++ *  - the entropy-coded data has to sit in a buffer of its own, followed by an
++ *    EOI marker and 254 zero bytes, so it is copied there.
++ *
++ * Supported: 8-bit baseline, one scan, no restart markers, 4:2:0, 4:2:2, 4:4:4
++ * (written as 4:2:2, the hardware drops every other chroma column) and
++ * greyscale, up to 4096x4096. Capture formats: NV12 (4:2:0), NV16 (4:2:2, 4:4:4)
++ * and GREY. The luma stride is the JPEG width rounded up to 16, so the capture
++ * format's bytesperline has to be that, and its height at least the JPEG height
++ * rounded up to 16; the chroma plane follows the luma plane at bytesperline *
++ * height. The caller crops to the real size.
++ */
++
++#include <linux/delay.h>
++#include <linux/dma-mapping.h>
++#include <linux/io.h>
++#include <linux/iopoll.h>
++#include <linux/pm_runtime.h>
++#include <linux/slab.h>
++#include <media/v4l2-ioctl.h>
++#include <media/v4l2-mem2mem.h>
++#include <media/videobuf2-dma-contig.h>
++
++#include "vsp.h"
++#include "vsp-jpeg-tab.h"
++
++#define JPG_MIN_DIM		16
++#define JPG_MAX_DIM		4096
++#define JPG_SRC_DEFAULT		(1024 * 1024)
++#define JPG_SRC_MAX		(32 * 1024 * 1024)
++#define JPG_TAIL		256	/* EOI + 254 zero bytes */
++#define JPG_TIMEOUT_US		200000
++
++/* registers of the JPEG window */
++#define JPG_START		0x04
++#define JPG_HDR_SIZE		0x0c
++#define JPG_HDR_MODE		0x10
++#define JPG_HDR_CSTRIDE		0x14
++#define JPG_STREAM_LEN		0x18
++#define JPG_ADDR_Y		0x1c
++#define JPG_ADDR_C		0x20
++#define JPG_ADDR_C2		0x24
++#define JPG_ADDR_BS		0x28
++#define JPG_CFG0		0x30
++#define JPG_CFG1		0x34
++#define JPG_MAXCODE0		0x48
++#define JPG_MAXCODE1		0x4c
++#define JPG_MAXCODE_TAB		0x50
++#define JPG_QUANT		0x1000
++#define JPG_QUANT_STEP		0x80
++#define JPG_SYMBOLS		0x2000
++#define JPG_CTL154		0x154
++#define JPG_STATUS		0x15c
++
++#define JPG_START_PREP		0x10140080
++#define JPG_START_GO		0x10140281
++#define JPG_STATUS_DONE		BIT(0)
++
++/* hardware format codes (ctx[0x2e] of the vendor library) */
++#define JPG_FMT_420		0
++#define JPG_FMT_444		2
++#define JPG_FMT_422		3
++#define JPG_FMT_GREY		4
++
++struct sprd_jpg_hdr {
++	u16 width, height;
++	u8 fmt;
++	u8 mcu_w, mcu_h;		/* pixels */
++	u8 qt[2][64];			/* in zigzag order, one per hardware table */
++	size_t scan_off, scan_len;
++};
++
++struct sprd_jpg_ctx {
++	struct v4l2_fh fh;
++	struct sprd_vsp *vsp;
++	struct v4l2_pix_format src_fmt;
++	struct v4l2_pix_format dst_fmt;
++	struct vb2_v4l2_buffer *src, *dst;
++	struct work_struct work;
++	void *bs;			/* entropy data + EOI + zeros, device visible */
++	dma_addr_t bs_dma;
++	size_t bs_size;
++};
++
++static inline struct sprd_jpg_ctx *file_to_ctx(struct file *file)
++{
++	return container_of(file->private_data, struct sprd_jpg_ctx, fh);
++}
++
++static const u32 sprd_jpg_cap_fmts[] = {
++	V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_GREY,
++};
++
++/* ---- the JPEG header ------------------------------------------------------ */
++
++static const u8 zigzag[64] = {
++	0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5,
++	12, 19, 26, 33, 40, 48, 41, 34, 27, 20, 13, 6, 7, 14, 21, 28,
++	35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51,
++	58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63,
++};
++
++static int sprd_jpg_check_dht(const u8 *seg, size_t len)
++{
++	size_t k = 0;
++
++	while (k < len) {
++		const u8 *bits, *vals;
++		size_t nvals = 0, nstd;
++		const u8 *sbits, *svals;
++		int i;
++
++		if (k + 17 > len)
++			return -EINVAL;
++		bits = seg + k + 1;
++		for (i = 0; i < 16; i++)
++			nvals += bits[i];
++		if (k + 17 + nvals > len)
++			return -EINVAL;
++		vals = seg + k + 17;
++
++		switch (seg[k]) {
++		case 0x00:
++			sbits = sprd_jpg_std_dc0_bits; svals = sprd_jpg_std_dc0_vals;
++			nstd = sizeof(sprd_jpg_std_dc0_vals);
++			break;
++		case 0x01:
++			sbits = sprd_jpg_std_dc1_bits; svals = sprd_jpg_std_dc1_vals;
++			nstd = sizeof(sprd_jpg_std_dc1_vals);
++			break;
++		case 0x10:
++			sbits = sprd_jpg_std_ac0_bits; svals = sprd_jpg_std_ac0_vals;
++			nstd = sizeof(sprd_jpg_std_ac0_vals);
++			break;
++		case 0x11:
++			sbits = sprd_jpg_std_ac1_bits; svals = sprd_jpg_std_ac1_vals;
++			nstd = sizeof(sprd_jpg_std_ac1_vals);
++			break;
++		default:
++			return -EOPNOTSUPP;
++		}
++		if (nvals != nstd || memcmp(bits, sbits, 16) || memcmp(vals, svals, nstd))
++			return -EOPNOTSUPP;
++		k += 17 + nvals;
++	}
++	return 0;
++}
++
++/* Returns 0, or -EINVAL for a broken stream, -EOPNOTSUPP for one the block cannot decode. */
++static int sprd_jpg_parse(const u8 *p, size_t n, struct sprd_jpg_hdr *h)
++{
++	u8 qt[4][64];
++	bool have_qt[4] = {};
++	u8 cid[3] = {}, ch[3] = {}, cv[3] = {}, ctq[3] = {};
++	unsigned int nf = 0;
++	bool sof = false;
++	size_t i = 2;
++	int ret;
++
++	memset(h, 0, sizeof(*h));
++	if (n < 4 || p[0] != 0xff || p[1] != 0xd8)
++		return -EINVAL;
++
++	while (i + 4 <= n) {
++		const u8 *seg;
++		size_t len, sl, k;
++		u8 m;
++
++		if (p[i] != 0xff)
++			return -EINVAL;
++		m = p[i + 1];
++		if (m == 0xff) {
++			i++;
++			continue;
++		}
++		if (m == 0xd9)
++			return -EINVAL;	/* EOI before the scan */
++		len = (p[i + 2] << 8) | p[i + 3];
++		if (len < 2 || i + 2 + len > n)
++			return -EINVAL;
++		seg = p + i + 4;
++		sl = len - 2;
++
++		switch (m) {
++		case 0xdb:
++			for (k = 0; k < sl;) {
++				u8 pq = seg[k] >> 4, tq = seg[k] & 15;
++				unsigned int j;
++
++				if (pq)
++					return -EOPNOTSUPP;
++				if (tq > 3 || k + 65 > sl)
++					return -EINVAL;
++				for (j = 0; j < 64; j++)
++					qt[tq][j] = seg[k + 1 + j];
++				have_qt[tq] = true;
++				k += 65;
++			}
++			break;
++		case 0xc4:
++			ret = sprd_jpg_check_dht(seg, sl);
++			if (ret)
++				return ret;
++			break;
++		case 0xdd:
++			if (sl < 2)
++				return -EINVAL;
++			if (seg[0] || seg[1])
++				return -EOPNOTSUPP;
++			break;
++		case 0xc0:
++			if (sof || sl < 6)
++				return -EINVAL;
++			if (seg[0] != 8)
++				return -EOPNOTSUPP;
++			nf = seg[5];
++			if ((nf != 1 && nf != 3) || sl < 6 + 3 * nf)
++				return nf == 1 || nf == 3 ? -EINVAL : -EOPNOTSUPP;
++			h->height = (seg[1] << 8) | seg[2];
++			h->width = (seg[3] << 8) | seg[4];
++			for (k = 0; k < nf; k++) {
++				cid[k] = seg[6 + 3 * k];
++				ch[k] = seg[7 + 3 * k] >> 4;
++				cv[k] = seg[7 + 3 * k] & 15;
++				ctq[k] = seg[8 + 3 * k];
++				if (ctq[k] > 3)
++					return -EINVAL;
++			}
++			sof = true;
++			break;
++		case 0xc1 ... 0xc3:
++		case 0xc5 ... 0xc7:
++		case 0xc9 ... 0xcb:
++		case 0xcd ... 0xcf:
++			return -EOPNOTSUPP;	/* extended, progressive, lossless, arithmetic */
++		case 0xda:
++			if (!sof || sl < 1 || seg[0] != nf || sl < 4 + 2 * nf)
++				return -EINVAL;
++			for (k = 0; k < nf; k++) {
++				if (seg[1 + 2 * k] != cid[k])
++					return -EOPNOTSUPP;
++				if (seg[2 + 2 * k] != (k ? 0x11 : 0x00))
++					return -EOPNOTSUPP;
++			}
++			if (seg[1 + 2 * nf] != 0 || seg[2 + 2 * nf] != 63 || seg[3 + 2 * nf])
++				return -EOPNOTSUPP;
++			h->scan_off = i + 2 + len;
++			goto scan;
++		default:
++			break;
++		}
++		i += 2 + len;
++	}
++	return -EINVAL;
++
++scan:
++	if (!h->width || !h->height || h->width > JPG_MAX_DIM || h->height > JPG_MAX_DIM)
++		return -EOPNOTSUPP;
++
++	if (nf == 1) {
++		h->fmt = JPG_FMT_GREY;
++		h->mcu_w = h->mcu_h = 8;
++	} else {
++		if (ch[1] != 1 || cv[1] != 1 || ch[2] != 1 || cv[2] != 1 || ctq[1] != ctq[2])
++			return -EOPNOTSUPP;
++		if (ch[0] == 2 && cv[0] == 2) {
++			h->fmt = JPG_FMT_420;
++			h->mcu_w = h->mcu_h = 16;
++		} else if (ch[0] == 2 && cv[0] == 1) {
++			h->fmt = JPG_FMT_422;
++			h->mcu_w = 16;
++			h->mcu_h = 8;
++		} else if (ch[0] == 1 && cv[0] == 1) {
++			h->fmt = JPG_FMT_444;
++			h->mcu_w = h->mcu_h = 8;
++		} else {
++			return -EOPNOTSUPP;
++		}
++	}
++
++	if (!have_qt[ctq[0]] || (nf == 3 && !have_qt[ctq[1]]))
++		return -EINVAL;
++	memcpy(h->qt[0], qt[ctq[0]], 64);
++	memcpy(h->qt[1], qt[nf == 3 ? ctq[1] : ctq[0]], 64);
++
++	/* the entropy-coded segment ends at the first marker */
++	for (i = h->scan_off; i + 1 < n; i++)
++		if (p[i] == 0xff && p[i + 1] != 0)
++			break;
++	if (i + 1 >= n)
++		i = n;
++	h->scan_len = i - h->scan_off;
++	if (!h->scan_len)
++		return -EINVAL;
++	return 0;
++}
++
++/* ---- format handling ------------------------------------------------------- */
++
++static void sprd_jpg_fill_src(struct v4l2_pix_format *p)
++{
++	p->width = clamp_t(u32, p->width, 1, JPG_MAX_DIM);
++	p->height = clamp_t(u32, p->height, 1, JPG_MAX_DIM);
++	p->pixelformat = V4L2_PIX_FMT_JPEG;
++	p->field = V4L2_FIELD_NONE;
++	p->bytesperline = 0;
++	p->colorspace = V4L2_COLORSPACE_JPEG;
++	if (!p->sizeimage)
++		p->sizeimage = JPG_SRC_DEFAULT;
++	p->sizeimage = clamp_t(u32, p->sizeimage, SZ_4K, JPG_SRC_MAX);
++}
++
++static void sprd_jpg_fill_dst(struct v4l2_pix_format *p)
++{
++	unsigned int i;
++
++	for (i = 0; i < ARRAY_SIZE(sprd_jpg_cap_fmts); i++)
++		if (p->pixelformat == sprd_jpg_cap_fmts[i])
++			break;
++	if (i == ARRAY_SIZE(sprd_jpg_cap_fmts))
++		p->pixelformat = V4L2_PIX_FMT_NV12;
++
++	p->width = clamp_t(u32, p->width, 1, JPG_MAX_DIM);
++	p->height = clamp_t(u32, ALIGN(p->height, 16), JPG_MIN_DIM, JPG_MAX_DIM);
++	p->field = V4L2_FIELD_NONE;
++	p->bytesperline = ALIGN(p->width, 16);
++	switch (p->pixelformat) {
++	case V4L2_PIX_FMT_NV16:
++		p->sizeimage = p->bytesperline * p->height * 2;
++		break;
++	case V4L2_PIX_FMT_GREY:
++		p->sizeimage = p->bytesperline * p->height;
++		break;
++	default:
++		p->sizeimage = p->bytesperline * p->height * 3 / 2;
++		break;
++	}
++	p->colorspace = V4L2_COLORSPACE_JPEG;
++	p->ycbcr_enc = V4L2_YCBCR_ENC_601;
++	p->quantization = V4L2_QUANTIZATION_FULL_RANGE;
++	p->xfer_func = V4L2_XFER_FUNC_SRGB;
++}
++
++static int vidioc_querycap(struct file *file, void *priv, struct v4l2_capability *cap)
++{
++	strscpy(cap->driver, "sprd-jpg", sizeof(cap->driver));
++	strscpy(cap->card, "Unisoc UMS9230 JPEG decoder", sizeof(cap->card));
++	strscpy(cap->bus_info, "platform:sprd-jpg", sizeof(cap->bus_info));
++	return 0;
++}
++
++static int vidioc_enum_fmt_out(struct file *file, void *priv, struct v4l2_fmtdesc *f)
++{
++	if (f->index)
++		return -EINVAL;
++	f->pixelformat = V4L2_PIX_FMT_JPEG;
++	f->flags = V4L2_FMT_FLAG_COMPRESSED;
++	return 0;
++}
++
++static int vidioc_enum_fmt_cap(struct file *file, void *priv, struct v4l2_fmtdesc *f)
++{
++	if (f->index >= ARRAY_SIZE(sprd_jpg_cap_fmts))
++		return -EINVAL;
++	f->pixelformat = sprd_jpg_cap_fmts[f->index];
++	return 0;
++}
++
++static int vidioc_enum_framesizes(struct file *file, void *priv, struct v4l2_frmsizeenum *fsize)
++{
++	if (fsize->index)
++		return -EINVAL;
++	fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
++	fsize->stepwise.min_width = 1;
++	fsize->stepwise.max_width = JPG_MAX_DIM;
++	fsize->stepwise.step_width = 1;
++	fsize->stepwise.min_height = 1;
++	fsize->stepwise.max_height = JPG_MAX_DIM;
++	fsize->stepwise.step_height = 1;
++	return 0;
++}
++
++static int vidioc_g_fmt_out(struct file *file, void *priv, struct v4l2_format *f)
++{
++	f->fmt.pix = file_to_ctx(file)->src_fmt;
++	return 0;
++}
++
++static int vidioc_g_fmt_cap(struct file *file, void *priv, struct v4l2_format *f)
++{
++	f->fmt.pix = file_to_ctx(file)->dst_fmt;
++	return 0;
++}
++
++static int vidioc_try_fmt_out(struct file *file, void *priv, struct v4l2_format *f)
++{
++	sprd_jpg_fill_src(&f->fmt.pix);
++	return 0;
++}
++
++static int vidioc_try_fmt_cap(struct file *file, void *priv, struct v4l2_format *f)
++{
++	sprd_jpg_fill_dst(&f->fmt.pix);
++	return 0;
++}
++
++static int vidioc_s_fmt_out(struct file *file, void *priv, struct v4l2_format *f)
++{
++	struct sprd_jpg_ctx *ctx = file_to_ctx(file);
++
++	if (vb2_is_busy(v4l2_m2m_get_vq(ctx->fh.m2m_ctx, f->type)))
++		return -EBUSY;
++	sprd_jpg_fill_src(&f->fmt.pix);
++	ctx->src_fmt = f->fmt.pix;
++	return 0;
++}
++
++static int vidioc_s_fmt_cap(struct file *file, void *priv, struct v4l2_format *f)
++{
++	struct sprd_jpg_ctx *ctx = file_to_ctx(file);
++
++	if (vb2_is_busy(v4l2_m2m_get_vq(ctx->fh.m2m_ctx, f->type)))
++		return -EBUSY;
++	sprd_jpg_fill_dst(&f->fmt.pix);
++	ctx->dst_fmt = f->fmt.pix;
++	return 0;
++}
++
++static const struct v4l2_ioctl_ops sprd_jpg_ioctl_ops = {
++	.vidioc_querycap = vidioc_querycap,
++	.vidioc_enum_fmt_vid_out = vidioc_enum_fmt_out,
++	.vidioc_enum_fmt_vid_cap = vidioc_enum_fmt_cap,
++	.vidioc_enum_framesizes = vidioc_enum_framesizes,
++	.vidioc_g_fmt_vid_out = vidioc_g_fmt_out,
++	.vidioc_g_fmt_vid_cap = vidioc_g_fmt_cap,
++	.vidioc_try_fmt_vid_out = vidioc_try_fmt_out,
++	.vidioc_try_fmt_vid_cap = vidioc_try_fmt_cap,
++	.vidioc_s_fmt_vid_out = vidioc_s_fmt_out,
++	.vidioc_s_fmt_vid_cap = vidioc_s_fmt_cap,
++	.vidioc_reqbufs = v4l2_m2m_ioctl_reqbufs,
++	.vidioc_querybuf = v4l2_m2m_ioctl_querybuf,
++	.vidioc_qbuf = v4l2_m2m_ioctl_qbuf,
++	.vidioc_dqbuf = v4l2_m2m_ioctl_dqbuf,
++	.vidioc_prepare_buf = v4l2_m2m_ioctl_prepare_buf,
++	.vidioc_create_bufs = v4l2_m2m_ioctl_create_bufs,
++	.vidioc_expbuf = v4l2_m2m_ioctl_expbuf,
++	.vidioc_streamon = v4l2_m2m_ioctl_streamon,
++	.vidioc_streamoff = v4l2_m2m_ioctl_streamoff,
++};
++
++/* ---- queues ---------------------------------------------------------------- */
++
++static int sprd_jpg_queue_setup(struct vb2_queue *vq, unsigned int *nbufs,
++				unsigned int *nplanes, unsigned int sizes[],
++				struct device *alloc_devs[])
++{
++	struct sprd_jpg_ctx *ctx = vb2_get_drv_priv(vq);
++	const struct v4l2_pix_format *f = V4L2_TYPE_IS_OUTPUT(vq->type) ?
++					  &ctx->src_fmt : &ctx->dst_fmt;
++
++	if (*nplanes)
++		return *nplanes == 1 && sizes[0] >= f->sizeimage ? 0 : -EINVAL;
++	*nplanes = 1;
++	sizes[0] = f->sizeimage;
++	return 0;
++}
++
++static int sprd_jpg_buf_prepare(struct vb2_buffer *vb)
++{
++	struct sprd_jpg_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
++	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
++
++	vbuf->field = V4L2_FIELD_NONE;
++	if (!V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type) &&
++	    vb2_plane_size(vb, 0) < ctx->dst_fmt.sizeimage)
++		return -EINVAL;
++	return 0;
++}
++
++static void sprd_jpg_buf_queue(struct vb2_buffer *vb)
++{
++	struct sprd_jpg_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
++
++	v4l2_m2m_buf_queue(ctx->fh.m2m_ctx, to_vb2_v4l2_buffer(vb));
++}
++
++static void sprd_jpg_stop_streaming(struct vb2_queue *vq)
++{
++	struct sprd_jpg_ctx *ctx = vb2_get_drv_priv(vq);
++	struct vb2_v4l2_buffer *vbuf;
++
++	for (;;) {
++		if (V4L2_TYPE_IS_OUTPUT(vq->type))
++			vbuf = v4l2_m2m_src_buf_remove(ctx->fh.m2m_ctx);
++		else
++			vbuf = v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx);
++		if (!vbuf)
++			break;
++		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
++	}
++}
++
++static const struct vb2_ops sprd_jpg_qops = {
++	.queue_setup = sprd_jpg_queue_setup,
++	.buf_prepare = sprd_jpg_buf_prepare,
++	.buf_queue = sprd_jpg_buf_queue,
++	.stop_streaming = sprd_jpg_stop_streaming,
++};
++
++static int sprd_jpg_queue_init(void *priv, struct vb2_queue *src_vq, struct vb2_queue *dst_vq)
++{
++	struct sprd_jpg_ctx *ctx = priv;
++	int ret;
++
++	src_vq->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
++	src_vq->io_modes = VB2_MMAP | VB2_DMABUF;
++	src_vq->drv_priv = ctx;
++	src_vq->ops = &sprd_jpg_qops;
++	src_vq->mem_ops = &vb2_dma_contig_memops;
++	src_vq->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
++	src_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
++	src_vq->lock = &ctx->vsp->lock;
++	src_vq->dev = ctx->vsp->dev;
++	ret = vb2_queue_init(src_vq);
++	if (ret)
++		return ret;
++
++	dst_vq->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
++	dst_vq->io_modes = VB2_MMAP | VB2_DMABUF;
++	dst_vq->drv_priv = ctx;
++	dst_vq->ops = &sprd_jpg_qops;
++	dst_vq->mem_ops = &vb2_dma_contig_memops;
++	dst_vq->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
++	dst_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
++	dst_vq->lock = &ctx->vsp->lock;
++	dst_vq->dev = ctx->vsp->dev;
++	return vb2_queue_init(dst_vq);
++}
++
++/* ---- the job --------------------------------------------------------------- */
++
++static inline void jw(struct sprd_vsp *vsp, u32 reg, u32 val)
++{
++	writel(val, vsp->base + reg);
++}
++
++static u32 sprd_jpg_rev3(u32 x)
++{
++	return ((x & 1) << 2) | (x & 2) | ((x >> 2) & 1);
++}
++
++/* The quantiser window holds, per table, 32 words of two 16-bit slots; the slot of the
++ * coefficient at row v, column u is rev3(u) * 8 + rev3(v) (VIDEO_CODEC.md). */
++static void sprd_jpg_load_quant(struct sprd_vsp *vsp, unsigned int t, const u8 *zz)
++{
++	u16 slot[64];
++	unsigned int k, w;
++
++	for (k = 0; k < 64; k++) {
++		unsigned int r = zigzag[k];
++
++		slot[sprd_jpg_rev3(r & 7) * 8 + sprd_jpg_rev3(r >> 3)] = zz[k];
++	}
++	for (w = 0; w < 32; w++)
++		jw(vsp, JPG_QUANT + JPG_QUANT_STEP * t + 4 * w, slot[2 * w] | (u32)slot[2 * w + 1] << 16);
++}
++
++static void sprd_jpg_load_tables(struct sprd_vsp *vsp, const struct sprd_jpg_hdr *h)
++{
++	unsigned int i;
++
++	jw(vsp, JPG_MAXCODE0, sprd_jpg_max_code[0]);
++	jw(vsp, JPG_MAXCODE1, sprd_jpg_max_code[1]);
++	for (i = 0; i < 64; i++)
++		jw(vsp, JPG_MAXCODE_TAB + 4 * i, sprd_jpg_max_code[2 + i]);
++	for (i = 0; i < ARRAY_SIZE(sprd_jpg_symbols); i++)
++		jw(vsp, JPG_SYMBOLS + 4 * i, sprd_jpg_symbols[i]);
++	sprd_jpg_load_quant(vsp, 0, h->qt[0]);
++	sprd_jpg_load_quant(vsp, 1, h->qt[1]);
++}
++
++static int sprd_jpg_run(struct sprd_jpg_ctx *ctx, const struct sprd_jpg_hdr *h,
++			dma_addr_t dst, u32 chroma_off, u32 stream_len)
++{
++	struct sprd_vsp *vsp = ctx->vsp;
++	unsigned int cols = DIV_ROUND_UP(h->width, h->mcu_w);
++	unsigned int rows = DIV_ROUND_UP(h->height, h->mcu_h);
++	u32 cstride = 0, v;
++	unsigned int row;
++	int ret;
++
++	if (h->fmt == JPG_FMT_420)
++		cstride = (((h->width >> 1) + 15) & ~15) & 0xfff8;
++	else if (h->fmt == JPG_FMT_422)
++		cstride = (h->width + 7) & 0xfff8;
++
++	sprd_jpg_load_tables(vsp, h);
++
++	jw(vsp, JPG_CTL154, 0);
++	jw(vsp, JPG_HDR_SIZE, (((h->width + 15) >> 4) << 20) + h->width);
++	jw(vsp, JPG_HDR_MODE, (h->fmt << 29) | (rows << 13) | cols);
++	jw(vsp, JPG_HDR_CSTRIDE, cstride);
++	jw(vsp, JPG_START, JPG_START_PREP);
++	jw(vsp, JPG_STREAM_LEN, stream_len);	/* only takes after the mode write above */
++	jw(vsp, JPG_ADDR_Y, lower_32_bits(dst));
++	jw(vsp, JPG_ADDR_C, lower_32_bits(dst) + chroma_off);
++	jw(vsp, JPG_ADDR_C2, lower_32_bits(dst) + chroma_off);
++	jw(vsp, JPG_ADDR_BS, 0);
++	jw(vsp, JPG_ADDR_BS, lower_32_bits(ctx->bs_dma));
++	jw(vsp, JPG_CFG0, 0x960711);
++	jw(vsp, JPG_CFG1, 1);
++
++	for (row = 0; row < rows; row++) {
++		jw(vsp, JPG_START, JPG_START_GO);
++		/* the status bit may still be set from the previous row: give the engine a head start */
++		usleep_range(20 + 2 * cols, 40 + 4 * cols);
++		ret = readl_poll_timeout(vsp->base + JPG_STATUS, v, v & JPG_STATUS_DONE,
++					 20, JPG_TIMEOUT_US);
++		if (ret) {
++			dev_err(vsp->dev, "JPEG decode timeout in MCU row %u/%u (status %#x)\n",
++				row, rows, readl(vsp->base + JPG_STATUS));
++			return ret;
++		}
++	}
++	return 0;
++}
++
++static int sprd_jpg_alloc_bs(struct sprd_jpg_ctx *ctx, size_t size)
++{
++	if (ctx->bs_size >= size)
++		return 0;
++	if (ctx->bs)
++		dma_free_coherent(ctx->vsp->dev, ctx->bs_size, ctx->bs, ctx->bs_dma);
++	ctx->bs = dma_alloc_coherent(ctx->vsp->dev, size, &ctx->bs_dma, GFP_KERNEL);
++	ctx->bs_size = ctx->bs ? size : 0;
++	return ctx->bs ? 0 : -ENOMEM;
++}
++
++static int sprd_jpg_decode(struct sprd_jpg_ctx *ctx)
++{
++	struct sprd_vsp *vsp = ctx->vsp;
++	struct vb2_buffer *sb = &ctx->src->vb2_buf, *db = &ctx->dst->vb2_buf;
++	const struct v4l2_pix_format *df = &ctx->dst_fmt;
++	struct sprd_jpg_hdr h;
++	const u8 *src;
++	u32 want, ah;
++	int ret;
++
++	src = vb2_plane_vaddr(sb, 0);
++	if (!src)
++		return -EIO;
++	ret = sprd_jpg_parse(src, vb2_get_plane_payload(sb, 0), &h);
++	if (ret) {
++		dev_dbg(vsp->dev, "unusable JPEG stream: %d\n", ret);
++		return ret;
++	}
++
++	switch (h.fmt) {
++	case JPG_FMT_420:
++		want = V4L2_PIX_FMT_NV12;
++		break;
++	case JPG_FMT_GREY:
++		want = V4L2_PIX_FMT_GREY;
++		break;
++	default:
++		want = V4L2_PIX_FMT_NV16;
++		break;
++	}
++	ah = ALIGN(h.height, 16);
++	if (df->pixelformat != want || df->bytesperline != ALIGN(h.width, 16) || df->height < ah) {
++		dev_dbg(vsp->dev, "capture format %.4s %ux%u (stride %u) does not fit a %ux%u JPEG\n",
++			(char *)&df->pixelformat, df->width, df->height, df->bytesperline,
++			h.width, h.height);
++		return -EINVAL;
++	}
++
++	ret = sprd_jpg_alloc_bs(ctx, h.scan_len + JPG_TAIL + 64);
++	if (ret)
++		return ret;
++	memcpy(ctx->bs, src + h.scan_off, h.scan_len);
++	((u8 *)ctx->bs)[h.scan_len] = 0xff;
++	((u8 *)ctx->bs)[h.scan_len + 1] = 0xd9;
++	memset(ctx->bs + h.scan_len + 2, 0, JPG_TAIL - 2);
++
++	ret = pm_runtime_resume_and_get(vsp->dev);
++	if (ret < 0)
++		return ret;
++	ret = sprd_jpg_run(ctx, &h, vb2_dma_contig_plane_dma_addr(db, 0),
++			   df->bytesperline * df->height, h.scan_len + JPG_TAIL);
++	/*
++	 * Dropping the last power reference suspends the block at once (no
++	 * autosuspend), which resets it: it has to be reset before every image.
++	 */
++	pm_runtime_put_sync(vsp->dev);
++	return ret;
++}
++
++static void sprd_jpg_work(struct work_struct *work)
++{
++	struct sprd_jpg_ctx *ctx = container_of(work, struct sprd_jpg_ctx, work);
++	struct sprd_vsp *vsp = ctx->vsp;
++	enum vb2_buffer_state state = VB2_BUF_STATE_DONE;
++
++	v4l2_m2m_buf_copy_metadata(ctx->src, ctx->dst);
++	if (sprd_jpg_decode(ctx))
++		state = VB2_BUF_STATE_ERROR;
++	else
++		vb2_set_plane_payload(&ctx->dst->vb2_buf, 0, ctx->dst_fmt.sizeimage);
++
++	v4l2_m2m_src_buf_remove(ctx->fh.m2m_ctx);
++	v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx);
++	v4l2_m2m_buf_done(ctx->src, state);
++	v4l2_m2m_buf_done(ctx->dst, state);
++	v4l2_m2m_job_finish(vsp->m2m_dev, ctx->fh.m2m_ctx);
++}
++
++static void sprd_jpg_device_run(void *priv)
++{
++	struct sprd_jpg_ctx *ctx = priv;
++
++	ctx->src = v4l2_m2m_next_src_buf(ctx->fh.m2m_ctx);
++	ctx->dst = v4l2_m2m_next_dst_buf(ctx->fh.m2m_ctx);
++	schedule_work(&ctx->work);
++}
++
++static const struct v4l2_m2m_ops sprd_jpg_m2m_ops = {
++	.device_run = sprd_jpg_device_run,
++};
++
++/* ---- file operations --------------------------------------------------------- */
++
++static int sprd_jpg_open(struct file *file)
++{
++	struct sprd_vsp *vsp = video_drvdata(file);
++	struct sprd_jpg_ctx *ctx;
++	int ret;
++
++	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
++	if (!ctx)
++		return -ENOMEM;
++
++	ctx->vsp = vsp;
++	INIT_WORK(&ctx->work, sprd_jpg_work);
++	v4l2_fh_init(&ctx->fh, video_devdata(file));
++
++	ctx->src_fmt.width = 640;
++	ctx->src_fmt.height = 480;
++	sprd_jpg_fill_src(&ctx->src_fmt);
++	ctx->dst_fmt.width = 640;
++	ctx->dst_fmt.height = 480;
++	ctx->dst_fmt.pixelformat = V4L2_PIX_FMT_NV12;
++	sprd_jpg_fill_dst(&ctx->dst_fmt);
++
++	ctx->fh.m2m_ctx = v4l2_m2m_ctx_init(vsp->m2m_dev, ctx, sprd_jpg_queue_init);
++	if (IS_ERR(ctx->fh.m2m_ctx)) {
++		ret = PTR_ERR(ctx->fh.m2m_ctx);
++		v4l2_fh_exit(&ctx->fh);
++		kfree(ctx);
++		return ret;
++	}
++
++	file->private_data = &ctx->fh;
++	v4l2_fh_add(&ctx->fh, file);
++	return 0;
++}
++
++static int sprd_jpg_release(struct file *file)
++{
++	struct sprd_jpg_ctx *ctx = file_to_ctx(file);
++
++	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
++	v4l2_fh_del(&ctx->fh, file);
++	v4l2_fh_exit(&ctx->fh);
++	if (ctx->bs)
++		dma_free_coherent(ctx->vsp->dev, ctx->bs_size, ctx->bs, ctx->bs_dma);
++	kfree(ctx);
++	return 0;
++}
++
++static const struct v4l2_file_operations sprd_jpg_fops = {
++	.owner = THIS_MODULE,
++	.open = sprd_jpg_open,
++	.release = sprd_jpg_release,
++	.poll = v4l2_m2m_fop_poll,
++	.unlocked_ioctl = video_ioctl2,
++	.mmap = v4l2_m2m_fop_mmap,
++};
++
++int sprd_vsp_jpeg_register(struct sprd_vsp *vsp)
++{
++	struct video_device *vdev = &vsp->vdev;
++	int ret;
++
++	mutex_init(&vsp->lock);
++
++	ret = v4l2_device_register(vsp->dev, &vsp->v4l2_dev);
++	if (ret)
++		return ret;
++
++	vsp->m2m_dev = v4l2_m2m_init(&sprd_jpg_m2m_ops);
++	if (IS_ERR(vsp->m2m_dev)) {
++		ret = PTR_ERR(vsp->m2m_dev);
++		goto err_v4l2;
++	}
++
++	vdev->fops = &sprd_jpg_fops;
++	vdev->ioctl_ops = &sprd_jpg_ioctl_ops;
++	vdev->release = video_device_release_empty;
++	vdev->lock = &vsp->lock;
++	vdev->v4l2_dev = &vsp->v4l2_dev;
++	vdev->vfl_dir = VFL_DIR_M2M;
++	vdev->device_caps = V4L2_CAP_STREAMING | V4L2_CAP_VIDEO_M2M;
++	strscpy(vdev->name, "sprd-jpg-dec", sizeof(vdev->name));
++	video_set_drvdata(vdev, vsp);
++
++	ret = video_register_device(vdev, VFL_TYPE_VIDEO, -1);
++	if (ret)
++		goto err_m2m;
++
++	vsp->jpeg_registered = true;
++	dev_info(vsp->dev, "JPEG decoder registered as /dev/video%d\n", vdev->num);
++	return 0;
++
++err_m2m:
++	v4l2_m2m_release(vsp->m2m_dev);
++err_v4l2:
++	v4l2_device_unregister(&vsp->v4l2_dev);
++	return ret;
++}
++
++void sprd_vsp_jpeg_unregister(struct sprd_vsp *vsp)
++{
++	if (!vsp->jpeg_registered)
++		return;
++
++	video_unregister_device(&vsp->vdev);
++	v4l2_m2m_release(vsp->m2m_dev);
++	v4l2_device_unregister(&vsp->v4l2_dev);
++	vsp->jpeg_registered = false;
++}
+diff --git a/drivers/media/platform/sprd/vsp/vsp-jpeg-tab.h b/drivers/media/platform/sprd/vsp/vsp-jpeg-tab.h
+new file mode 100644
+--- /dev/null
++++ b/drivers/media/platform/sprd/vsp/vsp-jpeg-tab.h
+@@ -0,0 +1,127 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Tables of the JPEG decoder. The first two are the values the vendor library
++ * loads into the hardware (jpeg_fw_vld_default_max_code, jpeg_fw_vld_default_huffTab),
++ * which are the ITU-T T.81 Annex K Huffman tables; the rest are those standard
++ * tables in DHT form, used to refuse streams with other tables.
++ */
++#ifndef _SPRD_VSP_JPEG_TAB_H
++#define _SPRD_VSP_JPEG_TAB_H
++
++static const u32 sprd_jpg_max_code[] = {
++	0x7f807fe0, 0x7ff37ff7, 0x00000000, 0x00000000,
++	0x00000006, 0x0000000e, 0x0000001e, 0x0000003e,
++	0x0000007e, 0x000000fe, 0x000001fe, 0x000003fe,
++	0x000007fc, 0x00000ff8, 0x00001ff0, 0x00003fe0,
++	0x00007fc0, 0x0000ff80, 0x00000000, 0x00000002,
++	0x00000006, 0x0000000e, 0x0000001e, 0x0000003e,
++	0x0000007e, 0x000000fe, 0x000001fe, 0x000003fe,
++	0x000007fe, 0x00000ffe, 0x00001ffc, 0x00003ff8,
++	0x00007ff0, 0x0000ffe0, 0x00000000, 0x00000100,
++	0x00000402, 0x00000c03, 0x00001c06, 0x00003b09,
++	0x00007b0b, 0x0000fa0f, 0x0001fa12, 0x0003fa17,
++	0x0007f91c, 0x000ff720, 0x001ff000, 0x003fe000,
++	0x007fc024, 0x00fffe25, 0x00000000, 0x00000100,
++	0x00000402, 0x00000b03, 0x00001b05, 0x00003b09,
++	0x00007a0d, 0x0000f910, 0x0001fa14, 0x0003fa1b,
++	0x0007f920, 0x000ff724, 0x001ff000, 0x003fe028,
++	0x007fc329, 0x00fffe2b,
++};
++
++static const u32 sprd_jpg_symbols[] = {
++	0x00000001, 0x00000102, 0x00000203, 0x01000300,
++	0x02001104, 0x00000411, 0x03010505, 0x00022112,
++	0x00033121, 0x00040631, 0x00051241, 0x00004106,
++	0x00005113, 0x00000751, 0x04066161, 0x00007107,
++	0x00001322, 0x00002271, 0x00003214, 0x00008132,
++	0x00000881, 0x00001491, 0x000042a1, 0x00009108,
++	0x0000a123, 0x0000b142, 0x0507c1b1, 0x000009c1,
++	0x00002315, 0x00003352, 0x000052d1, 0x0000f0f0,
++	0x00001524, 0x00006233, 0x00007262, 0x0000d172,
++	0x00000a82, 0x00001609, 0x0608240a, 0x00003416,
++	0x0000e117, 0x00002518, 0x0000f119, 0x0000171a,
++	0x00001825, 0x00001926, 0x00001a27, 0x00002628,
++	0x00002729, 0x0000282a, 0x07092934, 0x00002a35,
++	0x00003536, 0x00003637, 0x00003738, 0x00003839,
++	0x0000393a, 0x00003a43, 0x00004344, 0x00004445,
++	0x00004546, 0x00004647, 0x080a4748, 0x00004849,
++	0x0000494a, 0x00004a53, 0x00005354, 0x00005455,
++	0x00005556, 0x00005657, 0x00005758, 0x00005859,
++	0x0000595a, 0x00005a63, 0x090b6364, 0x00006465,
++	0x00006566, 0x00006667, 0x00006768, 0x00006869,
++	0x0000696a, 0x00006a73, 0x00007374, 0x00007475,
++	0x00007576, 0x00007677, 0x0a007778, 0x00007879,
++	0x0000797a, 0x00007a83, 0x00008284, 0x00008385,
++	0x00008486, 0x00008587, 0x00008688, 0x00008789,
++	0x0000888a, 0x00008992, 0x0b008a93, 0x00009294,
++	0x00009395, 0x00009496, 0x00009597, 0x00009698,
++	0x00009799, 0x0000989a, 0x000099a2, 0x00009aa3,
++	0x0000a2a4, 0x0000a3a5, 0x0000a4a6, 0x0000a5a7,
++	0x0000a6a8, 0x0000a7a9, 0x0000a8aa, 0x0000a9b2,
++	0x0000aab3, 0x0000b2b4, 0x0000b3b5, 0x0000b4b6,
++	0x0000b5b7, 0x0000b6b8, 0x0000b7b9, 0x0000b8ba,
++	0x0000b9c2, 0x0000bac3, 0x0000c2c4, 0x0000c3c5,
++	0x0000c4c6, 0x0000c5c7, 0x0000c6c8, 0x0000c7c9,
++	0x0000c8ca, 0x0000c9d2, 0x0000cad3, 0x0000d2d4,
++	0x0000d3d5, 0x0000d4d6, 0x0000d5d7, 0x0000d6d8,
++	0x0000d7d9, 0x0000d8da, 0x0000d9e1, 0x0000dae2,
++	0x0000e2e3, 0x0000e3e4, 0x0000e4e5, 0x0000e5e6,
++	0x0000e6e7, 0x0000e7e8, 0x0000e8e9, 0x0000e9ea,
++	0x0000eaf1, 0x0000f2f2, 0x0000f3f3, 0x0000f4f4,
++	0x0000f5f5, 0x0000f6f6, 0x0000f7f7, 0x0000f8f8,
++	0x0000f9f9, 0x0000fafa,
++};
++
++static const u8 sprd_jpg_std_dc0_bits[] = {
++	0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0,
++};
++
++static const u8 sprd_jpg_std_dc0_vals[] = {
++	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
++};
++
++static const u8 sprd_jpg_std_dc1_bits[] = {
++	0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,
++};
++
++static const u8 sprd_jpg_std_dc1_vals[] = {
++	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
++};
++
++static const u8 sprd_jpg_std_ac0_bits[] = {
++	0, 2, 1, 3, 3, 2, 4, 3, 5, 5, 4, 4, 0, 0, 1, 125,
++};
++
++static const u8 sprd_jpg_std_ac0_vals[] = {
++	1, 2, 3, 0, 4, 17, 5, 18, 33, 49, 65, 6, 19, 81, 97, 7,
++	34, 113, 20, 50, 129, 145, 161, 8, 35, 66, 177, 193, 21, 82, 209, 240,
++	36, 51, 98, 114, 130, 9, 10, 22, 23, 24, 25, 26, 37, 38, 39, 40,
++	41, 42, 52, 53, 54, 55, 56, 57, 58, 67, 68, 69, 70, 71, 72, 73,
++	74, 83, 84, 85, 86, 87, 88, 89, 90, 99, 100, 101, 102, 103, 104, 105,
++	106, 115, 116, 117, 118, 119, 120, 121, 122, 131, 132, 133, 134, 135, 136, 137,
++	138, 146, 147, 148, 149, 150, 151, 152, 153, 154, 162, 163, 164, 165, 166, 167,
++	168, 169, 170, 178, 179, 180, 181, 182, 183, 184, 185, 186, 194, 195, 196, 197,
++	198, 199, 200, 201, 202, 210, 211, 212, 213, 214, 215, 216, 217, 218, 225, 226,
++	227, 228, 229, 230, 231, 232, 233, 234, 241, 242, 243, 244, 245, 246, 247, 248,
++	249, 250,
++};
++
++static const u8 sprd_jpg_std_ac1_bits[] = {
++	0, 2, 1, 2, 4, 4, 3, 4, 7, 5, 4, 4, 0, 1, 2, 119,
++};
++
++static const u8 sprd_jpg_std_ac1_vals[] = {
++	0, 1, 2, 3, 17, 4, 5, 33, 49, 6, 18, 65, 81, 7, 97, 113,
++	19, 34, 50, 129, 8, 20, 66, 145, 161, 177, 193, 9, 35, 51, 82, 240,
++	21, 98, 114, 209, 10, 22, 36, 52, 225, 37, 241, 23, 24, 25, 26, 38,
++	39, 40, 41, 42, 53, 54, 55, 56, 57, 58, 67, 68, 69, 70, 71, 72,
++	73, 74, 83, 84, 85, 86, 87, 88, 89, 90, 99, 100, 101, 102, 103, 104,
++	105, 106, 115, 116, 117, 118, 119, 120, 121, 122, 130, 131, 132, 133, 134, 135,
++	136, 137, 138, 146, 147, 148, 149, 150, 151, 152, 153, 154, 162, 163, 164, 165,
++	166, 167, 168, 169, 170, 178, 179, 180, 181, 182, 183, 184, 185, 186, 194, 195,
++	196, 197, 198, 199, 200, 201, 202, 210, 211, 212, 213, 214, 215, 216, 217, 218,
++	226, 227, 228, 229, 230, 231, 232, 233, 234, 242, 243, 244, 245, 246, 247, 248,
++	249, 250,
++};
++
++#endif
+-- 
+2.43.0
