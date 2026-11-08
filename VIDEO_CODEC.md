@@ -639,3 +639,18 @@ Measured on the phone with `tools/re/jpeg-fmt-probe.py` / `jpeg-fmt-check.py` (3
 - 4:2:0 at 50x38 (4 MCU columns x 3 MCU rows, three starts): Y and the interleaved CbCr plane are both exact over the decoded area (max error 1).
 - Output stride for odd widths is the width rounded up to 16 (reg 0x0c high field x 16): 64 for W=50, for both Y and the CbCr plane. Columns are written up to the 8-aligned width (56); the remaining columns of the stride are not written. Rows are written for every MCU row (48 rows of Y, 24 of CbCr), so the buffer must be sized stride x MCU-aligned height (plus chroma).
 - The decoder therefore never needs a cropped write: the driver allocates MCU-aligned buffers and the consumer crops.
+
+### The block must be reset between images (set D)
+
+Four decodes in a row on the phone, `probe.sh` set D:
+
+| case | before it | result |
+|------|-----------|--------|
+| 4:2:2 | full lab `off`/`on` + tables | exact |
+| 4:2:2 again | nothing | nothing written, 0x15c = 5 at the first start |
+| 4:4:4 | nothing | nothing written |
+| 4:4:4 | tables re-loaded only | nothing written |
+
+So after one decode the block stays in a "stream end" state (0x15c bit 2 already set when the next start is given, so the wait for bit 0 returns at once and no data is written); rewriting the registers or the tables does not clear it. Only the power cycle done by the lab's `off`/`on` (runtime PM put, then resume with the reset lines toggled) does. The stock library resets the block through a driver ioctl (`JPG_Reset` / `JPG_reset_cb`, and "after reset" in `JpegEnc_HwTopRegCfg`) at the start of each job, which matches this.
+
+Driver consequence: each job must power-cycle/reset the block and then reload the Huffman and quantiser windows (the reset clears them). The `rsts` reset line is currently requested as shared (patch 0047), where `reset_control_reset()` is not allowed, so the per-job reset should go through a runtime-PM suspend/resume (autosuspend delay 0) or an exclusive reset control. Still to be measured: the cost of that cycle per image and whether a plain reset-line toggle (without the power domain) is enough.
