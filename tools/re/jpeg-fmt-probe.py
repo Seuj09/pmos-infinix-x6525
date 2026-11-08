@@ -123,7 +123,10 @@ for name, W, H in CASES:
     ysz = AW * AH
     L += ["bufdump 1 0 %d" % ysz, "bufdump 2 0 %d" % (2 * ysz if code in (2,) else ysz), "bufdump 3 0 %d" % (ysz if code in (2, 3) else 64)]
     L = [l for l in L if not l.startswith("echo ====")]
-    sh += ["echo '==== case %s %dx%d fmt %d'" % (name, W, H, code), "echo clear > $D/lab_cmd",
+    sh += ["echo '==== case %s %dx%d fmt %d'" % (name, W, H, code)]
+    if sh.count("##tabs") or True:
+        sh += ["echo off > $D/lab_cmd; sleep 1; echo on > $D/lab_cmd", "echo %s | base64 -d | feed" % e(("\n".join(tab) + "\n").encode())] if len(meta) else []
+    sh += ["echo clear > $D/lab_cmd",
            "echo \"buf 0 %d\" > $D/lab_cmd" % (len(stream) + 4096),
            "echo %s | base64 -d | dd of=$D/lab_buf0 conv=notrunc 2>/dev/null" % e(stream),
            "echo %s | base64 -d | feed" % e(("\n".join(ql) + "\n").encode()),

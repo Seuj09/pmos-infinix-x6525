@@ -624,3 +624,11 @@ prefetches well beyond the last symbol); a driver can simply append 256 bytes. W
 two starts read 0x15c = 5 (bit 2 set next to the done bit) while the output is correct, so bit 2 is not an
 error flag here: it looks like "stream end reached". Poll for bit 0 only.
 Recipe additions: (a) pad >= 254 bytes after the last byte, (b) poll 0x15c & 1.
+
+## JPEG decode: other sampling formats (4:4:4, 4:2:2)
+
+Measured on the phone with `tools/re/jpeg-fmt-probe.py` / `jpeg-fmt-check.py` (32x32 noisy gradient):
+
+- 4:4:4 (fmt 2) and 4:2:2 (fmt 3) decode with the same recipe; Y is exact (max error 1) at stride = width.
+- Chroma is always one interleaved Cb,Cr plane (NV16 style) at 0x20, stride = width bytes. For 4:4:4 the hardware keeps every other chroma column (no averaging), so the output is NV16, not full-resolution chroma. The third plane address stays untouched.
+- A second decode straight after a 4:4:4 decode produced nothing (0x15c showed stream-end at the first start). The same 4:2:2 case decoded fine on a freshly reset lab, so a full off/on reset (plus reloading the tables) is needed between images until the cause is found. Set B re-tests this with a reset per case.
