@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=72
+pkgrel=73
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -132,18 +132,48 @@ package() {
 	printf '%s\n' sprd_wcn sc23xx_wlan sc23xx_wlan_sipc btsprdsipc \
 		> "$pkgdir"/usr/lib/modules-load.d/x6525-wifi.conf
 
-	# Wi-Fi that works and then goes silent until a reconnect is the classic
-	# power-save pattern on this kind of vendor cfg80211 driver (set_power_mgmt
-	# is forwarded to the firmware, which can stop receiving between beacons).
-	# Turn NetworkManager's power save off (2 = disable) and keep scans on the
-	# real MAC so the AP does not see a new client on every scan. Delete the
-	# file to go back to the defaults.
+	# Built-in Wi-Fi and Bluetooth on Unisoc SC23xx (sc23xx_wlan driver):
+	# 1. Power save MUST be disabled (2 = disable). Entering 802.11 power save
+	#    or host-idle causes wakeup command 14 to fail with WIFIMODE_ERROR,
+	#    which desyncs the SIPC command queue and drops all RX/TX frames.
+	# 2. Cloned MAC address must be permanent. Randomized/stable cloned MACs
+	#    trigger firmware command 64 timeouts.
+	# 3. DNSSEC must be disabled (0 = no) so slow/flaky cellular/hotspot DNS
+	#    does not stall lookups for 5-11 seconds waiting for DNSSEC downgrades.
+	# 4. Prioritize IPv4 DNS (-10) so dual-stack cellular Wi-Fi (like DITO)
+	#    does not hang on unreachable/slow IPv6 DNS servers.
 	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/NetworkManager/conf.d/90-x6525-wifi.conf <<'EOF'
-[connection]
+[connection-wifi]
+match-device=type:wifi
 wifi.powersave=2
+wifi.cloned-mac-address=permanent
+connection.dnssec=0
+ipv4.dns-priority=-10
 
-[device]
+[device-wifi]
+match-device=type:wifi
 wifi.scan-rand-mac-address=no
+EOF
+
+	# On Unisoc SC23xx, active background scanning while connected (bgscan)
+	# is rejected by the firmware (command 11 ARG_ERROR) and causes frame loss
+	# and command timeouts. Clear bgscan in wpa_supplicant via dispatcher on connection up.
+	install -Dm755 /dev/stdin "$pkgdir"/etc/NetworkManager/dispatcher.d/90-x6525-disable-bgscan.sh <<'EOF'
+#!/bin/sh
+if [ "$1" = "wlan0" ] && [ "$2" = "up" ]; then
+	for net in $(busctl tree fi.w1.wpa_supplicant1 2>/dev/null | grep -Eo '/fi/w1/wpa_supplicant1/Interfaces/.+/Networks/[0-9]+'); do
+		busctl call --system fi.w1.wpa_supplicant1 "$net" \
+			org.freedesktop.DBus.Properties Set ssv \
+			fi.w1.wpa_supplicant1.Network Properties 'a{sv}' 1 bgscan s "" 2>/dev/null || true
+	done
+fi
+EOF
+
+	# Disable DNSSEC in systemd-resolved to prevent 5-11 second lookup stalls
+	# on mobile networks / captive portals that don't support DNSSEC.
+	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/systemd/resolved.conf.d/10-disable-dnssec.conf <<'EOF'
+[Resolve]
+DNSSEC=no
 EOF
 
 	# Start BlueZ on boot. The image's 90-base.preset enables bluetooth.service
