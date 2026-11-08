@@ -267,6 +267,13 @@ static int sprd_modem_probe(struct platform_device *pdev)
 	if (!rproc)
 		return -ENOMEM;
 
+	/*
+	 * The CP must be started only after Trusty has stopped it and unlocked
+	 * its DDR (the stock modem_control order).  Leave the start to the
+	 * userspace boot step instead of booting at probe time.
+	 */
+	rproc->auto_boot = false;
+
 	platform_set_drvdata(pdev, rproc);
 
 	m = rproc->priv;
