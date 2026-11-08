@@ -632,3 +632,10 @@ Measured on the phone with `tools/re/jpeg-fmt-probe.py` / `jpeg-fmt-check.py` (3
 - 4:4:4 (fmt 2) and 4:2:2 (fmt 3) decode with the same recipe; Y is exact (max error 1) at stride = width.
 - Chroma is always one interleaved Cb,Cr plane (NV16 style) at 0x20, stride = width bytes. For 4:4:4 the hardware keeps every other chroma column (no averaging), so the output is NV16, not full-resolution chroma. The third plane address stays untouched.
 - A second decode straight after a 4:4:4 decode produced nothing (0x15c showed stream-end at the first start). The same 4:2:2 case decoded fine on a freshly reset lab, so a full off/on reset (plus reloading the tables) is needed between images until the cause is found. Set B re-tests this with a reset per case.
+
+### Grey and non-MCU-aligned sizes (set B, fresh reset before each case)
+
+- Grey (fmt 4) 48x24: Y exact (max error 1), stride 48; the chroma buffers stay untouched.
+- 4:2:0 at 50x38 (4 MCU columns x 3 MCU rows, three starts): Y and the interleaved CbCr plane are both exact over the decoded area (max error 1).
+- Output stride for odd widths is the width rounded up to 16 (reg 0x0c high field x 16): 64 for W=50, for both Y and the CbCr plane. Columns are written up to the 8-aligned width (56); the remaining columns of the stride are not written. Rows are written for every MCU row (48 rows of Y, 24 of CbCr), so the buffer must be sized stride x MCU-aligned height (plus chroma).
+- The decoder therefore never needs a cropped write: the driver allocates MCU-aligned buffers and the consumer crops.
