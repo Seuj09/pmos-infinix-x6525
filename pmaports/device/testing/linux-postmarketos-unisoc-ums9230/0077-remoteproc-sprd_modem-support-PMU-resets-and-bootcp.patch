@@ -1,0 +1,142 @@
+From 7777777777777777777777777777777777777777 Mon Sep 17 00:00:00 2001
+From: ci <a@b>
+Date: Sun, 8 Nov 2026 13:00:00 +0800
+Subject: [PATCH] remoteproc: sprd_modem: support PMU resets and bootcp verification
+
+On the Unisoc UMS9230 (Infinix X6525), the modem CP requires PMU reset
+control, deep sleep/shutdown clearance, DSP reset deassertion, and Trusty
+firmware verification before the processor is released from reset.
+
+Additionally, set auto_boot = false so remoteproc leaves the modem
+start to the userspace boot sequence after DDR has been unlocked via Trusty.
+---
+ arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts |  1 +
+ drivers/remoteproc/sprd_modem.c                    | 52 ++++++++++++++++++++++
+ 2 files changed, 53 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+index 6c6ea4c3c..d212b186f 100644
+--- a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
++++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+@@ -896,6 +896,7 @@ &modem {
+ 	 * kernel copies to the modem's cpcmdline region.
+ 	 */
+ 	sprd,cp-cmdline = "androidboot.mode=normal ltemode=lcsfb rfboard.id=2 rfhw.id=41008 crystal=6 32k.less=1 marlin.clktype=1 power.from.extern=0 androidboot.pmic.chipid=2730 cpcmdline=end";
++	sprd,syscon-pmu-apb = <&pmu_apb>;
+ 	status = "okay";
+ };
+ 
+diff --git a/drivers/remoteproc/sprd_modem.c b/drivers/remoteproc/sprd_modem.c
+index 96594cd0d..58129031c 100644
+--- a/drivers/remoteproc/sprd_modem.c
++++ b/drivers/remoteproc/sprd_modem.c
+@@ -3,6 +3,8 @@
+  * Copyright (c) 2024 Otto Pflüger
+  */
+ 
++#include <linux/delay.h>
+ #include <linux/mfd/syscon.h>
+ #include <linux/module.h>
+ #include <linux/of_reserved_mem.h>
+@@ -11,6 +13,7 @@
+ #include <linux/remoteproc.h>
+ #include <linux/reset.h>
+ #include <linux/string.h>
++#include <linux/umh.h>
+ 
+ #include "sprd_common.h"
+ 
+@@ -46,6 +49,7 @@ struct sprd_modem {
+ 	struct sprd_sipc_subdev sipc;
+ 	struct reset_control *reset;
+ 	struct regmap *aon_apb_regs;
++	struct regmap *pmu_apb_regs;
+ 	const struct sprd_modem_info *info;
+ 	phys_addr_t mem_base;
+ 	size_t mem_size;
+@@ -194,6 +198,15 @@ static int sprd_modem_load(struct rproc *rproc, const struct firmware *fw)
+ static int sprd_modem_start(struct rproc *rproc)
+ {
++	char *argv[] = { "/usr/bin/x6525-trusty-bootcp", "verify", NULL };
++	static char *envp[] = { "HOME=/", "PATH=/sbin:/bin:/usr/sbin:/usr/bin", NULL };
+ 	struct sprd_modem *m = rproc->priv;
+ 	int ret;
+ 
++	ret = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
++	if (ret) {
++		dev_err(m->dev, "Trusty verification failed: %d\n", ret);
++		return ret;
++	}
++
+ 	pm_runtime_enable(m->dev);
+ 	ret = pm_runtime_resume_and_get(m->dev);
+ 	if (ret < 0)
+@@ -203,6 +216,26 @@ static int sprd_modem_start(struct rproc *rproc)
+ 	if (ret < 0)
+ 		goto err_pm_put;
+ 
++	if (m->pmu_apb_regs) {
++		/* Assert PMU sysreset and aon corereset */
++		regmap_update_bits(m->pmu_apb_regs, 0xb98, BIT(11), BIT(11));
++		regmap_update_bits(m->aon_apb_regs, m->info->corereset_reg,
++				   m->info->corereset_mask, m->info->corereset_mask);
++
++		/* Clear shutdown (0x330 bits 25 & 24) and deep sleep (0x818 bit 1) */
++		regmap_update_bits(m->pmu_apb_regs, 0x330, BIT(25) | BIT(24), 0);
++		regmap_update_bits(m->pmu_apb_regs, 0x818, BIT(1), 0);
++
++		/* Clear DSP reset (0xb88 mask 0x18) */
++		regmap_update_bits(m->pmu_apb_regs, 0xb88, 0x18, 0);
++
++		/* Enable clock / AON EB (0x170 mask 0xffc) */
++		regmap_update_bits(m->aon_apb_regs, 0x170, 0xffc, 0xffc);
++
++		msleep(50);
++
++		/* Release PMU sysreset */
++		regmap_update_bits(m->pmu_apb_regs, 0xb98, BIT(11), 0);
++	}
++
+ 	/* start processor */
+ 	regmap_clear_bits(m->aon_apb_regs, m->info->corereset_reg,
+ 			  m->info->corereset_mask);
+@@ -220,6 +253,12 @@ static int sprd_modem_stop(struct rproc *rproc)
+ 	regmap_set_bits(m->aon_apb_regs, m->info->corereset_reg,
+ 			m->info->corereset_mask);
+ 
++	if (m->pmu_apb_regs) {
++		regmap_update_bits(m->pmu_apb_regs, 0xb98, BIT(11), BIT(11));
++		regmap_update_bits(m->pmu_apb_regs, 0x330, BIT(25) | BIT(24), BIT(25) | BIT(24));
++		regmap_update_bits(m->pmu_apb_regs, 0x818, BIT(1), BIT(1));
++	}
++
+ 	reset_control_assert(m->reset);
+ 
+ 	pm_runtime_put_sync_suspend(m->dev);
+@@ -265,6 +304,13 @@ static int sprd_modem_probe(struct platform_device *pdev)
+ 	if (!rproc)
+ 		return -ENOMEM;
+ 
++	/*
++	 * The CP must be started only after Trusty has stopped it and unlocked
++	 * its DDR (the stock modem_control order).  Leave the start to the
++	 * userspace boot step instead of booting at probe time.
++	 */
++	rproc->auto_boot = false;
++
+ 	platform_set_drvdata(pdev, rproc);
+ 
+ 	m = rproc->priv;
+@@ -282,6 +328,10 @@ static int sprd_modem_probe(struct platform_device *pdev)
+ 		dev_err(m->dev, "failed to get aon-apb syscon handle\n");
+ 		return PTR_ERR(m->aon_apb_regs);
+ 	}
++
++	m->pmu_apb_regs = syscon_regmap_lookup_by_phandle(dev->of_node, "sprd,syscon-pmu-apb");
++	if (IS_ERR(m->pmu_apb_regs))
++		m->pmu_apb_regs = NULL;
+ 
+ 	m->reset = devm_reset_control_get(dev, NULL);
+ 	if (IS_ERR(m->reset)) {
+-- 
+2.43.0

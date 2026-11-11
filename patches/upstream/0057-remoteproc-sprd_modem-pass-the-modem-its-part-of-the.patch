@@ -25,7 +25,7 @@ index ced0dc261..6c6ea4c3c 100644
 +	 * The modem part of the stock kernel command line, which the stock
 +	 * kernel copies to the modem's cpcmdline region.
 +	 */
-+	sprd,cp-cmdline = "modem=shutdown androidboot.mode=normal ltemode=lcsfb rfboard.id=2 rfhw.id=41008 crystal=6 32k.less=1 marlin.clktype=1 power.from.extern=0 androidboot.pmic.chipid=2730 cpcmdline=end";
++	sprd,cp-cmdline = "androidboot.mode=normal ltemode=lcsfb rfboard.id=2 rfhw.id=41008 crystal=6 32k.less=1 marlin.clktype=1 power.from.extern=0 androidboot.pmic.chipid=2730 cpcmdline=end";
  	status = "okay";
  };
  

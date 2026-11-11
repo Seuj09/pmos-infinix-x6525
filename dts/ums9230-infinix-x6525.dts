@@ -196,6 +196,26 @@
 		 * schema rejects them; the same limits live in usb_detect's
 		 * default/dedicated-charger/cdp-microamp, which does act on them. */
 	};
+
+	trusty {
+		compatible = "sprd,trusty-smc-v1";
+
+		irq {
+			compatible = "sprd,trusty-irq-v1";
+			interrupt-templates = <&gic 1 GIC_PPI IRQ_TYPE_LEVEL_HIGH>,
+					      <&gic 1 GIC_PPI IRQ_TYPE_LEVEL_HIGH>,
+					      <&gic 1 GIC_SPI IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-ranges = <16 31 1>, <32 223 2>; /* slot 0 = SGI, not DT-mappable on mainline */
+		};
+
+		virtio {
+			compatible = "sprd,trusty-virtio-v1";
+		};
+
+		log {
+			compatible = "sprd,trusty-log-v1";
+		};
+	};
 };
 
 /* ---- storage ------------------------------------------------------------
@@ -978,7 +998,8 @@
 	 * The modem part of the stock kernel command line, which the stock
 	 * kernel copies to the modem's cpcmdline region.
 	 */
-	sprd,cp-cmdline = "modem=shutdown androidboot.mode=normal ltemode=lcsfb rfboard.id=2 rfhw.id=41008 crystal=6 32k.less=1 marlin.clktype=1 power.from.extern=0 androidboot.pmic.chipid=2730 cpcmdline=end";
+	sprd,cp-cmdline = "androidboot.mode=normal ltemode=lcsfb rfboard.id=2 rfhw.id=41008 crystal=6 32k.less=1 marlin.clktype=1 power.from.extern=0 androidboot.pmic.chipid=2730 cpcmdline=end";
+	sprd,syscon-pmu-apb = <&pmu_apb>;
 	status = "okay";
 };
 

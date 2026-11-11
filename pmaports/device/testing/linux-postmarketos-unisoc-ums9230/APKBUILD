@@ -9,7 +9,7 @@ maintainer="Affe Null <affenull2345@gmail.com>"
 _flavor="postmarketos-unisoc-ums9230"
 pkgname=linux-$_flavor
 pkgver=7.2.0_rc6_git20260807
-pkgrel=66
+pkgrel=67
 pkgdesc="Linux kernel with patches for Unisoc UMS9230 devices"
 arch="aarch64"
 _carch="arm64"
@@ -116,6 +116,8 @@ source="
 	0073-arm64-dts-sprd-infinix-x6525-describe-the-flash-chip.patch
 	0074-media-sprd-vsp-lab-add-rst-and-cycle-commands.patch
 	0075-media-sprd-vsp-add-a-V4L2-JPEG-decoder-for-the-JPEG-codec.patch
+	0076-trusty-sprd-add-Unisoc-Trusty-TEE-and-IPC-drivers.patch
+	0077-remoteproc-sprd_modem-support-PMU-resets-and-bootcp.patch
 "
 builddir="$srcdir/linux"
 
@@ -146,7 +148,7 @@ package() {
 
 sha512sums="
 3fa24b0720994802fee53b0b343de722a3a4a9db547dff597411e7eb5cb15d63ec62120705b279edc559a78f6c67e1d1ec52adad4d72ffb4a611767e8ccb86f2  linux-v7.2-rc6-ums9230-0.tar.gz
-60472ad865236a10e76231930275cae96f23bb4a08b21d3e23c5298de8d2e56589893d5f771f953d1a29a609383fdc8c58ecff400d950ec8233291a1622d0dea  config-postmarketos-unisoc-ums9230.aarch64
+4ae75e3fd8fdcadf8aae8e1719ae3f2902ffaca8022d7b02be80afa9561fefc14b1f9a2f85b4c0aad1f985d59fc91cd33ced12f1a2915913d4a3bfa7fbe6afb7  config-postmarketos-unisoc-ums9230.aarch64
 7eaff147db4d2dbaadb287ce72f11d4bbfb0abb70af36aff3001331777627a40e573d680d31079946be0234d3af0be9e7db8fabf4d87e5ce4a03ae4d106b23f3  0001-dt-bindings-vendor-prefixes-add-Infinix-Mobility.patch
 3f035560c3dcf79104266c382fe55bdf0a6ae434eb27f5e44b19430573fc6bff1f99248c6d48d04d6c0834722ddf690efed6f8c6791fd8e704f72708dd86f574  0002-dt-bindings-arm-sprd-add-Infinix-X6525-board.patch
 6cffa0dd1408d8652136fa6d77c63304b54c90e96a10cbf314a40e01bdc41e063fd16852d054f9bda1346a6402c6093f3232a751e40827a2e947f8007e2127e0  0003-arm64-dts-sprd-add-device-tree-for-Infinix-X6525.patch
@@ -202,7 +204,7 @@ a5b0bf34a48393d37b8be8058f6f7eee637a95991ec3a1de7d8f24d5b5fb138841bc19701bdf5448
 a89c00cd82d41bd5d7c85425578c6f6c1b800325eae91ad41beca6eb2e79becd72869c1bd370d65ced360caba8253bb2ba6f3a1fbf694e1360088a8bc8d7e4da  0054-media-i2c-s5k3l6-log-repeated-chip-id-reads.patch
 2afc0355d43c8f4b5ffddaab6da838d6ed9862a57327e4a476bd0fd64630da527f20021ebc68da1606ad9fb9955132a36ce0e38e551c3124246a638c972f5f98  0055-usb-typec-sc27xx_pd-only-record-VBUS-state-after-the.patch
 caf3d6ea2cf5d54ddb7c721952589e2e08e0e09c0b294ded3b314fd1065999303c18405d4f7e52cf873125d5d9ed767c77e12e919f4903621a1fad09c273ec37  0056-power-bq2415x-give-the-OTG-regulator-the-REGULATOR_C.patch
-c15160544f678d5e97170910f60624fa6823d0a976e25aee06951d092febf23ee879142e59d1d39070d39597c8d5a2f973af4b21d21f0581c6ead68f4e7dc775  0057-remoteproc-sprd_modem-pass-the-modem-its-part-of-the.patch
+c575fc6dc0f36a7f3e3fe8d46f84a9d98a67914a669eb7459c7b8d608e3f87cfa17d69e2dca258a45c5ff20cdb8776bf408ae07c6cde1c342e01174df9d7ba88  0057-remoteproc-sprd_modem-pass-the-modem-its-part-of-the.patch
 5d83edbfefde8147edc744c26478b1eef6d4e1c15d2c2d6eaf92a3613d370dfc2d0a860ab74384e1e418957617708912e762aeb0a768980b6bc2363a088c83f8  0058-power-bq2415x-set-OTG-regulator-enable_time-and-igno.patch
 3080c7dc32d8e14a48eeb470cbca6a3117c9601ff2214e9b193e736b8822ca3bf61b3bc2864f00a1f0b7e4a80feaf907f48803ca6adbf232eddc4413fdc31a1f  0059-usb-typec-sc27xx_pd-poll-for-VBUS-off-when-unpowered.patch
 3b446eda88691b4fb170c641cdb69abcdc4347dfa30752c5d00293cedb407b42236cc2a20c57c3fbe9abc325607d9e311fe74445c7cab8d1df7d1a021664f777  0060-usb-musb-sprd-disconnect-root-hub-when-leaving-host-.patch
@@ -221,4 +223,6 @@ c0aaacf7da40bc66890bcd12b5da78a10c012d73d3c27285fa4e40eddff0fc1cda1939c03a51f147
 a8c39aa7a3aba0694637f31a5ea86322c84985f8e66368d4dec5e8981bed78846aef46bd98755459278ff3730980813274a5d137f7106f91f2314e34a0a18924  0073-arm64-dts-sprd-infinix-x6525-describe-the-flash-chip.patch
 dcf44f8f758511921b7e8c4224dd5e823f028da752b2d7422f03c0e883047dae88dbf4899b6547011f5ab5cbaae04d9016e58e63ebc4fd22548ad55a73a084c2  0074-media-sprd-vsp-lab-add-rst-and-cycle-commands.patch
 93afe937b50eb17f47cdce68786f442ee2c8235b77abd7af71d93c3adbc7e0a48b2fcea79c0179365f205b113d31419a9b8105d1874721a845e87a66cc1c9d56  0075-media-sprd-vsp-add-a-V4L2-JPEG-decoder-for-the-JPEG-codec.patch
+df0957a5198e8b72b56dc10142678af3cd4472b5de24b5ac2431550aa3644adfb20ae3361ab00c6657257bc2590230570e8bca1ccbb32b7db7dbc53068b3001e  0076-trusty-sprd-add-Unisoc-Trusty-TEE-and-IPC-drivers.patch
+6d51029f4f3d93b2a87a9d738e88b42a166efcaf4efd13c9498213c03e6766699119c1f0d9a6727e71c2eb60ad13bbc319ed4bc4c4a2638d75009e2ce8185bc0  0077-remoteproc-sprd_modem-support-PMU-resets-and-bootcp.patch
 "

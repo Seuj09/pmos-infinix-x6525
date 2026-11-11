@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=73
+pkgrel=74
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -189,14 +189,139 @@ EOF
 	# oneshot unit copies each image out of its partition first (trimmed to the
 	# region size the main image's MECP header declares) and only then loads
 	# the driver. sprd_modem is blacklisted from coldplug for that reason.
+	# Trusty TIPC bootcp client for unlocking modem DDR memory firewall and
+	# verifying firmware signatures during kernel remoteproc startup.
+	install -Dm755 /dev/stdin "$pkgdir"/usr/bin/x6525-trusty-bootcp <<'EOF'
+#!/usr/bin/env python3
+import sys
+import os
+import struct
+import fcntl
+import time
+
+IOC_CONNECT = 0x40087280
+TIPC_DEV = "/dev/trusty-ipc-dev0"
+SERVICE = b"com.android.trusty.kernelbootcp\0"
+
+IMAGES = [
+	("l_modem", 0x89600000, 20447232, "/lib/firmware/sprd/l_modem.bin", "/lib/firmware/sprd/l_modem.footer"),
+	("l_ldsp",  0x8b680000, 11534336, "/lib/firmware/sprd/l_ldsp.bin",  "/lib/firmware/sprd/l_ldsp.footer"),
+	("l_gdsp",  0x8ae85000, 4456448,  "/lib/firmware/sprd/l_gdsp.bin",  "/lib/firmware/sprd/l_gdsp.footer"),
+	("pm_sys",  0x88040000, 2883584,  "/lib/firmware/sprd/pm_sys.bin",  "/lib/firmware/sprd/pm_sys.footer"),
+]
+
+def build_entry(name, addr, default_len, fw_file, footer_file):
+	length = default_len
+	if os.path.exists(fw_file):
+		try:
+			length = os.path.getsize(fw_file)
+		except OSError:
+			pass
+	maplen = length
+
+	footer = b"\x00" * 64
+	if os.path.exists(footer_file):
+		try:
+			with open(footer_file, "rb") as f:
+				data = f.read(64)
+				footer = data.ljust(64, b"\x00")[:64]
+		except OSError:
+			pass
+
+	name_bytes = name.encode("ascii").ljust(32, b"\x00")[:32]
+	return struct.pack("<QII64s32s", addr, length, maplen, footer, name_bytes)
+
+def build_table():
+	table = bytearray()
+	for img in IMAGES:
+		table.extend(build_entry(*img))
+	trailer = struct.pack("<IIII", 0x1f, 0, 0, 0)
+	table.extend(trailer)
+	return bytes(table)
+
+def send_kbc_cmd(cmd):
+	for _ in range(50):
+		if os.path.exists(TIPC_DEV):
+			break
+		time.sleep(0.1)
+
+	if not os.path.exists(TIPC_DEV):
+		print(f"x6525-trusty-bootcp: {TIPC_DEV} not found", file=sys.stderr)
+		return 1
+
+	try:
+		fd = os.open(TIPC_DEV, os.O_RDWR)
+	except OSError as e:
+		print(f"x6525-trusty-bootcp: open {TIPC_DEV} failed: {e}", file=sys.stderr)
+		return 1
+
+	try:
+		try:
+			fcntl.ioctl(fd, IOC_CONNECT, SERVICE)
+		except OSError:
+			fcntl.ioctl(fd, 0x40047280, SERVICE)
+
+		table = build_table()
+		payload = struct.pack("<I", cmd) + table
+
+		written = os.write(fd, payload)
+		if written != len(payload):
+			print(f"x6525-trusty-bootcp: partial write {written}/{len(payload)}", file=sys.stderr)
+			return 1
+
+		resp = os.read(fd, 4)
+		if len(resp) < 4:
+			print("x6525-trusty-bootcp: short response", file=sys.stderr)
+			return 1
+
+		val = struct.unpack("<i", resp[:4])[0]
+		if val != 0:
+			print(f"x6525-trusty-bootcp: command {cmd} returned error {val}", file=sys.stderr)
+			return 1
+		return 0
+	except Exception as e:
+		print(f"x6525-trusty-bootcp: error sending command {cmd}: {e}", file=sys.stderr)
+		return 1
+	finally:
+		os.close(fd)
+
+def main():
+	action = sys.argv[1] if len(sys.argv) > 1 else "verify"
+	if action == "unlock":
+		rc = send_kbc_cmd(2)
+	elif action == "verify":
+		rc = send_kbc_cmd(0)
+	elif action == "status":
+		rc = 0 if os.path.exists(TIPC_DEV) else 1
+	else:
+		print(f"usage: {sys.argv[0]} [unlock|verify|status]", file=sys.stderr)
+		rc = 2
+	sys.exit(rc)
+
+if __name__ == "__main__":
+	main()
+EOF
+
+	# The cellular modem's images are on this phone, not in the package: the
+	# NV in particular is per unit and carries the IMEI, so shipping it in a
+	# public port would publish it. The kernel asks for sprd/l_*.bin, so a
+	# oneshot unit copies each image out of its partition first (trimmed to the
+	# region size the main image's MECP header declares) and only then loads
+	# the driver. sprd_modem is blacklisted from coldplug for that reason.
 	install -Dm755 /dev/stdin "$pkgdir"/usr/bin/x6525-modem-nv <<'EOF'
 #!/bin/sh
 # Copy this phone's own modem images from its partitions into /lib/firmware/sprd.
 #
 # The port does not ship them: the NV carries the unit's IMEI, and the rest are
-# vendor images that live on the device anyway. Each file is the first <size>
-# bytes of its partition - the region size the main image's MECP header
-# declares (BRING_UP_CHECKLIST.md 5.2).
+# vendor images that live on the device anyway.
+# Extract the six l_* images (l_modem_a l_modem.bin, etc.) at boot:
+# - l_modem: main modem image
+# - l_deltanv: delta NV
+# - l_fixnv: fixnv (stripping 512-byte partition header on 0x4e56 magic)
+# - l_runtimenv: runtime NV (stored in /var/lib/sprd, fallback to zero-fill)
+# - l_gdsp: GSM/WCDMA DSP
+# - l_ldsp: LTE DSP
+# Also extracts 64-byte AVB 2.0 footers for trusty verification.
 set -u
 
 dst=/lib/firmware/sprd
@@ -263,21 +388,112 @@ copy() {
 	mv "$dst/.$file.tmp" "$dst/$file"
 }
 
+copy_nv() {
+	file=$1
+	size=$2
+	shift 2
+
+	if [ -s "$dst/$file" ]; then
+		curr_size=$(stat -c %s "$dst/$file" 2>/dev/null || wc -c < "$dst/$file")
+		if [ "$curr_size" = "$size" ]; then
+			return 0
+		fi
+	fi
+
+	part=$(find_part "$@")
+	if [ -z "$part" ]; then
+		echo "x6525-modem-nv: no partition found for $file (tried: $*)" >&2
+		return 1
+	fi
+
+	# Check for 512-byte header magic 0x4e56 ("NV")
+	magic=$(dd if="$part" bs=2 count=1 status=none 2>/dev/null | od -An -tx1 | tr -d ' \n')
+	if [ "$magic" = "4e56" ] || [ "$magic" = "564e" ]; then
+		if ! dd if="$part" of="$dst/.$file.tmp" bs=512 skip=1 \
+				count=$((size / 512)) status=none; then
+			rm -f "$dst/.$file.tmp"
+			return 1
+		fi
+	else
+		if ! dd if="$part" of="$dst/.$file.tmp" bs=4096 \
+				count=$((size / 4096)) status=none; then
+			rm -f "$dst/.$file.tmp"
+			return 1
+		fi
+	fi
+	mv "$dst/.$file.tmp" "$dst/$file"
+}
+
+copy_runnv() {
+	mkdir -p /var/lib/sprd
+	runtarget=/var/lib/sprd/l_runtimenv.bin
+	if [ ! -s "$runtarget" ] || [ "$(stat -c %s "$runtarget" 2>/dev/null)" != "1179648" ]; then
+		part=$(find_part "$@")
+		extracted=0
+		if [ -n "$part" ]; then
+			magic=$(dd if="$part" bs=2 count=1 status=none 2>/dev/null | od -An -tx1 | tr -d ' \n')
+			if [ "$magic" = "4e56" ] || [ "$magic" = "564e" ]; then
+				if dd if="$part" of="$runtarget.tmp" bs=512 skip=1 count=2304 status=none 2>/dev/null; then
+					mv "$runtarget.tmp" "$runtarget"
+					extracted=1
+				fi
+			fi
+		fi
+		if [ "$extracted" = "0" ]; then
+			dd if=/dev/zero of="$runtarget.tmp" bs=4096 count=288 status=none
+			mv "$runtarget.tmp" "$runtarget"
+		fi
+	fi
+	ln -sf "$runtarget" "$dst/l_runtimenv.bin"
+}
+
+extract_footer() {
+	img=$1
+	shift
+	footfile="$dst/$img.footer"
+	if [ -s "$footfile" ]; then
+		return 0
+	fi
+	part=$(find_part "$@")
+	if [ -n "$part" ]; then
+		part_size=$(blockdev --getsize64 "$part" 2>/dev/null || stat -c %s "$part" 2>/dev/null || echo 0)
+		if [ "$part_size" -ge 512 ]; then
+			skip_512=$(( (part_size - 512) / 512 ))
+			if dd if="$part" bs=512 skip="$skip_512" count=1 status=none 2>/dev/null | tail -c 64 > "$footfile.tmp"; then
+				if [ "$(stat -c %s "$footfile.tmp" 2>/dev/null)" = "64" ]; then
+					mv "$footfile.tmp" "$footfile"
+					return 0
+				fi
+				rm -f "$footfile.tmp"
+			fi
+		fi
+	fi
+	dd if=/dev/zero of="$footfile" bs=64 count=1 status=none
+}
+
 rc=0
 if [ "$slot" = "_b" ]; then
 	copy l_modem.bin 20447232 l_modem_b l_modem_a l_modem || rc=1
 	copy l_deltanv.bin 131072 l_deltanv_b l_deltanv_a l_deltanv || rc=1
-	copy l_fixnv.bin 1048576 l_fixnv1_b l_fixnv1_a l_fixnv2_b l_fixnv2_a l_fixnv || rc=1
-	copy l_runtimenv.bin 1179648 l_runtimenv2 l_runtimenv1 l_runtimenv || rc=1
+	copy_nv l_fixnv.bin 1048576 l_fixnv1_b l_fixnv1_a l_fixnv2_b l_fixnv2_a l_fixnv || rc=1
+	copy_runnv l_runtimenv2 l_runtimenv1 l_runtimenv || rc=1
 	copy l_gdsp.bin 4456448 l_gdsp_b l_gdsp_a l_gdsp || rc=1
 	copy l_ldsp.bin 11534336 l_ldsp_b l_ldsp_a l_ldsp || rc=1
+	extract_footer l_modem l_modem_b l_modem_a l_modem || true
+	extract_footer l_ldsp l_ldsp_b l_ldsp_a l_ldsp || true
+	extract_footer l_gdsp l_gdsp_b l_gdsp_a l_gdsp || true
+	extract_footer pm_sys pm_sys_b pm_sys_a pm_sys || true
 else
 	copy l_modem.bin 20447232 l_modem_a l_modem_b l_modem || rc=1
 	copy l_deltanv.bin 131072 l_deltanv_a l_deltanv_b l_deltanv || rc=1
-	copy l_fixnv.bin 1048576 l_fixnv1_a l_fixnv1_b l_fixnv2_a l_fixnv2_b l_fixnv || rc=1
-	copy l_runtimenv.bin 1179648 l_runtimenv1 l_runtimenv2 l_runtimenv || rc=1
+	copy_nv l_fixnv.bin 1048576 l_fixnv1_a l_fixnv1_b l_fixnv2_a l_fixnv2_b l_fixnv || rc=1
+	copy_runnv l_runtimenv1 l_runtimenv2 l_runtimenv || rc=1
 	copy l_gdsp.bin 4456448 l_gdsp_a l_gdsp_b l_gdsp || rc=1
 	copy l_ldsp.bin 11534336 l_ldsp_a l_ldsp_b l_ldsp || rc=1
+	extract_footer l_modem l_modem_a l_modem_b l_modem || true
+	extract_footer l_ldsp l_ldsp_a l_ldsp_b l_ldsp || true
+	extract_footer l_gdsp l_gdsp_a l_gdsp_b l_gdsp || true
+	extract_footer pm_sys pm_sys_a pm_sys_b pm_sys || true
 fi
 exit $rc
 EOF
@@ -285,21 +501,25 @@ EOF
 	install -Dm644 /dev/stdin \
 		"$pkgdir"/usr/lib/systemd/system/x6525-modem-nv.service <<'EOF'
 [Unit]
-Description=Extract this phone's modem images from its own partitions
+Description=Extract this phone's modem images and boot modem CP
 After=local-fs.target
-Before=network-pre.target modemmanager.service
+Before=network-pre.target ModemManager.service modemmanager.service
 
 [Service]
 Type=oneshot
-# Run the extraction tool; exit code 0 means all required firmware files exist
 ExecStart=/usr/bin/x6525-modem-nv
-# sprd_modem is blacklisted from coldplug, so load it only after the images exist.
-# Load associated WWAN and SIPC modules so all modem devices are registered.
+ExecStart=-/sbin/modprobe trusty
+ExecStart=-/sbin/modprobe trusty-irq
+ExecStart=-/sbin/modprobe trusty-virtio
+ExecStart=-/sbin/modprobe trusty-ipc
+ExecStart=-/usr/bin/x6525-trusty-bootcp unlock
+ExecStart=-/sbin/modprobe sprd_pmsys
 ExecStart=/sbin/modprobe sprd_modem
 ExecStart=-/sbin/modprobe rpmsg_sprd_sipc
 ExecStart=-/sbin/modprobe rpmsg_wwan_ctrl
 ExecStart=-/sbin/modprobe rpmsg_wwan_net
 ExecStart=-/sbin/modprobe wwan
+ExecStart=/bin/sh -c 'found=0; for d in /sys/class/remoteproc/remoteproc*; do [ -d "$$d" ] || continue; fw=$$(cat "$$d/firmware" 2>/dev/null); nm=$$(cat "$$d/name" 2>/dev/null); case "$$fw" in *l_modem*) ;; *) case "$$nm" in *wcn*|*WCN*|*pm*|*PM*) continue ;; *modem*|*MODEM*|*cp*) ;; *) continue ;; esac ;; esac; found=1; st=$$(cat "$$d/state" 2>/dev/null); echo "x6525-modem: $$d name=$$nm fw=$$fw state=$$st"; [ "$$st" = running ] || echo start > "$$d/state"; done; [ "$$found" = 1 ] || { echo "x6525-modem: no modem remoteproc found" >&2; exit 1; }'
 RemainAfterExit=yes
 
 [Install]
@@ -507,7 +727,11 @@ EOF
 	# ID_MM_CANDIDATE from the tags that exist by then, so tags added later
 	# (the previous 90- name) were ignored.
 	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/udev/rules.d/70-x6525-modem.rules <<'EOF'
-SUBSYSTEM=="net", KERNEL=="seth_lte*", ENV{ID_MM_DEVICE_PROCESS}="1", ENV{ID_MM_PHYSDEV_UID}="x6525-modem"
+SUBSYSTEM=="tty", KERNEL=="spipe_lte0", ENV{ID_MM_DEVICE_PROCESS}="1", ENV{ID_MM_PHYSDEV_UID}="x6525-modem"
+SUBSYSTEM=="net", KERNEL=="seth_lte0", ENV{ID_MM_DEVICE_PROCESS}="1", ENV{ID_MM_PHYSDEV_UID}="x6525-modem"
+SUBSYSTEM=="net", KERNEL=="seth_lte1", ENV{ID_MM_DEVICE_PROCESS}="1", ENV{ID_MM_PHYSDEV_UID}="x6525-modem"
+SUBSYSTEM=="net", KERNEL=="seth_lte2", ENV{ID_MM_DEVICE_PROCESS}="1", ENV{ID_MM_PHYSDEV_UID}="x6525-modem"
+SUBSYSTEM=="net", KERNEL=="seth_lte3", ENV{ID_MM_DEVICE_PROCESS}="1", ENV{ID_MM_PHYSDEV_UID}="x6525-modem"
 SUBSYSTEM=="wwan", ENV{ID_MM_DEVICE_PROCESS}="1", ENV{ID_MM_PHYSDEV_UID}="x6525-modem"
 SUBSYSTEM=="tty", KERNEL=="ttyRPMSG*|spipe_lte*", ENV{ID_MM_DEVICE_PROCESS}="1", ENV{ID_MM_PHYSDEV_UID}="x6525-modem"
 EOF
